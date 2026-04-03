@@ -958,6 +958,7 @@
 
       if (route === "projekte")       { views.projekte(); return; }
       if (route === "projekt-detail") { views.projektDetail(state.selection.projektId); return; }
+      if (route === "projekt-form")   { return; }
       if (route === "einsaetze")      { views.einsaetze(); return; }
       if (route === "konzeption")     { views.konzeption(); return; }
 
@@ -1263,8 +1264,234 @@
     },
 
     openProjektForm(id) {
-      // Placeholder — Phase 5
-      ui.setMessage("Projekt-Formular folgt in Phase 5.", "info");
+      const p = id ? state.enriched.projekte.find(p => p.id === Number(id)) : null;
+      const titel = p ? "Projekt bearbeiten" : "Neues Projekt erfassen";
+
+      const firmaOptionen = state.data.firms
+        .sort((a,b) => a.title.localeCompare(b.title, "de"))
+        .map(f => `<option value="${f.id}" ${p?.firmaLookupId === f.id ? "selected" : ""}>${helpers.esc(f.title)}</option>`)
+        .join("");
+
+      const contactOptionen = state.data.contacts
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname, "de"))
+        .map(c => {
+          const name = [c.nachname, c.vorname].filter(Boolean).join(", ");
+          return `<option value="${c.id}" ${p?.ansprechpartnerLookupId === c.id ? "selected" : ""}>${helpers.esc(name)}</option>`;
+        }).join("");
+
+      const val = (key, fallback = "") => p ? (p[key] ?? fallback) : fallback;
+      const chf = (key) => p?.[key] !== null && p?.[key] !== undefined ? p[key] : "";
+
+      state.filters.route = "projekt-form";
+      state.modal = { projektId: id ? Number(id) : null };
+
+      ui.render(`
+        <div style="max-width:700px;margin:0 auto">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <button class="tm-btn tm-btn-sm" data-action="back-to-projekte">← Projekte</button>
+            <div class="tm-page-title">${titel}</div>
+          </div>
+
+          <form id="projekt-form">
+            <input type="hidden" name="itemId" value="${id || ""}">
+            <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
+
+            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
+              <div class="tm-section-divider" style="margin-top:0">Stammdaten</div>
+              <div class="tm-form-grid" style="margin-top:14px">
+                <div class="tm-field tm-form-full">
+                  <label>Projektname <span class="req">*</span></label>
+                  <input type="text" name="title" value="${helpers.esc(val("title"))}" placeholder="z.B. PC-Zertifizierung Leadership" required>
+                </div>
+                <div class="tm-field">
+                  <label>Projekt-Nr.</label>
+                  <input type="text" name="projektNr" value="${helpers.esc(val("projektNr"))}">
+                </div>
+                <div class="tm-field">
+                  <label>Konto-Nr. Honorar</label>
+                  <input type="text" name="kontoNr" value="${helpers.esc(val("kontoNr"))}" placeholder="z.B. 4210">
+                </div>
+                <div class="tm-field">
+                  <label>Firma <span class="req">*</span></label>
+                  <select name="firmaLookupId" required>
+                    <option value="">— wählen —</option>
+                    ${firmaOptionen}
+                  </select>
+                </div>
+                <div class="tm-field">
+                  <label>Ansprechpartner <span class="req">*</span></label>
+                  <select name="ansprechpartnerLookupId" required>
+                    <option value="">— wählen —</option>
+                    ${contactOptionen}
+                  </select>
+                </div>
+                <div class="tm-field">
+                  <label>Status <span class="req">*</span></label>
+                  <select name="status" required>
+                    ${["geplant","aktiv","abgeschlossen"].map(s => `<option value="${s}" ${val("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
+                  </select>
+                </div>
+                <div class="tm-field">
+                  <label>Km zum Kunden</label>
+                  <input type="number" name="kmZumKunden" value="${chf("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1">
+                  <span class="tm-hint">bbz SG → Kundendomizil (App rechnet ×2 für Hin+Rückfahrt)</span>
+                </div>
+                <div class="tm-field" style="justify-content:flex-end">
+                  <label>&nbsp;</label>
+                  <label class="tm-checkbox-row">
+                    <input type="checkbox" name="archiviert" ${val("archiviert") ? "checked" : ""}>
+                    Archiviert (aus aktiven Ansichten ausblenden)
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
+              <div class="tm-section-divider" style="margin-top:0">
+                Ansätze CHF
+                <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px;background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:4px">leer lassen = Kategorie nicht verfügbar</span>
+              </div>
+
+              <table style="width:100%;border-collapse:collapse;margin-top:14px">
+                <thead>
+                  <tr>
+                    <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted,#6B7280);text-align:left;padding:0 16px 8px 0;border-bottom:1px solid var(--tm-border,#D1D5DB);width:160px">Kategorie</th>
+                    <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted,#6B7280);text-align:left;padding:0 12px 8px;border-bottom:1px solid var(--tm-border,#D1D5DB)">Haupttrainer</th>
+                    <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted,#6B7280);text-align:left;padding:0 0 8px 12px;border-bottom:1px solid var(--tm-border,#D1D5DB)">Co-Trainer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${[
+                    ["Einsatz (Tag)",    "ansatzEinsatz",   "ansatzCoEinsatz"],
+                    ["Einsatz (Halbtag)","ansatzHalbtag",   "ansatzCoHalbtag"]
+                  ].map(([label, mainKey, coKey]) => `
+                    <tr>
+                      <td style="font-size:13px;padding:8px 16px 8px 0;border-bottom:1px solid var(--tm-blue-pale,#EBF3FB)">${label}</td>
+                      <td style="padding:6px 12px;border-bottom:1px solid var(--tm-blue-pale,#EBF3FB)">
+                        <div style="display:flex;align-items:center;border:1px solid var(--tm-border,#D1D5DB);border-radius:6px;overflow:hidden;max-width:140px">
+                          <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border,#D1D5DB)">CHF</span>
+                          <input type="number" name="${mainKey}" value="${chf(mainKey)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit;color:var(--tm-text,#1F2937)">
+                        </div>
+                      </td>
+                      <td style="padding:6px 0 6px 12px;border-bottom:1px solid var(--tm-blue-pale,#EBF3FB)">
+                        <div style="display:flex;align-items:center;border:1px solid var(--tm-border,#D1D5DB);border-radius:6px;overflow:hidden;max-width:140px">
+                          <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border,#D1D5DB)">CHF</span>
+                          <input type="number" name="${coKey}" value="${chf(coKey)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit;color:var(--tm-text,#1F2937)">
+                        </div>
+                      </td>
+                    </tr>`).join("")}
+                </tbody>
+              </table>
+
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px">
+                ${[
+                  ["Stunde",          "ansatzStunde",      "CHF / h"],
+                  ["Stück",           "ansatzStueck",      "CHF / Stück"],
+                  ["Pauschale",       "ansatzPauschale",   "CHF fix"],
+                  ["Konzeption / Tag","ansatzKonzeption",  "CHF / Tag"],
+                  ["Admin / Tag",     "ansatzAdmin",       "CHF / Tag"],
+                  ["Km-Spesen",       "ansatzKmSpesen",    "CHF / km"]
+                ].map(([label, key, hint]) => `
+                  <div class="tm-field">
+                    <label>${label}</label>
+                    <div style="display:flex;align-items:center;border:1px solid var(--tm-border,#D1D5DB);border-radius:6px;overflow:hidden">
+                      <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border,#D1D5DB);white-space:nowrap">CHF</span>
+                      <input type="number" name="${key}" value="${chf(key)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit;color:var(--tm-text,#1F2937)">
+                    </div>
+                    <span class="tm-hint">${hint}</span>
+                  </div>`).join("")}
+                <div class="tm-field">
+                  <label>Spesen Konto-Nr.</label>
+                  <input type="text" name="spesenKontoNr" value="${helpers.esc(val("spesenKontoNr"))}" placeholder="z.B. 6500">
+                </div>
+              </div>
+            </div>
+
+            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
+              <div class="tm-section-divider" style="margin-top:0">Konzeptionsrahmen</div>
+              <div class="tm-form-grid" style="margin-top:14px">
+                <div class="tm-field">
+                  <label>Vereinbarte Tage</label>
+                  <input type="number" name="konzeptionsrahmenTage" value="${chf("konzeptionsrahmenTage")}" placeholder="z.B. 2" min="0" step="0.5"
+                    oninput="document.getElementById('konz-h').textContent=(parseFloat(this.value)||0)*8">
+                  <span class="tm-hint">App rechnet × 8 = Stunden-Budget</span>
+                </div>
+                <div class="tm-field" style="justify-content:flex-end">
+                  <label>&nbsp;</label>
+                  <div style="padding:10px 14px;background:var(--tm-blue-pale,#EBF3FB);border-radius:6px;font-size:13px;color:#6B7280">
+                    = <span id="konz-h" style="font-weight:600;color:#1F2937">${(val("konzeptionsrahmenTage",0)||0)*8}</span> Stunden Budget
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button type="button" class="tm-btn" data-action="back-to-projekte">Abbrechen</button>
+              <button type="submit" class="tm-btn tm-btn-primary">Projekt speichern</button>
+            </div>
+          </form>
+        </div>
+      `);
+
+      document.getElementById("projekt-form").addEventListener("submit", e => {
+        e.preventDefault();
+        controller.handleProjektSubmit(new FormData(e.target));
+      });
+    },
+
+    async handleProjektSubmit(fd) {
+      ui.setMessage("Wird gespeichert…", "info");
+      try {
+        const mode   = fd.get("mode");
+        const itemId = fd.get("itemId");
+        const title  = (fd.get("title") || "").trim();
+        const firmaLookupId           = helpers.num(fd.get("firmaLookupId"));
+        const ansprechpartnerLookupId = helpers.num(fd.get("ansprechpartnerLookupId"));
+
+        if (!title)                    throw new Error("Projektname ist ein Pflichtfeld.");
+        if (!firmaLookupId)            throw new Error("Bitte eine Firma wählen.");
+        if (!ansprechpartnerLookupId)  throw new Error("Bitte einen Ansprechpartner wählen.");
+
+        const numOpt = (key) => { const v = helpers.num(fd.get(key)); return v !== null ? v : null; };
+
+        const fields = {
+          ProjektNr:               fd.get("projektNr") || null,
+          KontoNr:                 fd.get("kontoNr") || null,
+          FirmaLookupId:           firmaLookupId,
+          AnsprechpartnerLookupId: ansprechpartnerLookupId,
+          Status:                  fd.get("status") || "aktiv",
+          KmZumKunden:             numOpt("kmZumKunden"),
+          Archiviert:              fd.get("archiviert") === "on",
+          AnsatzEinsatz:           numOpt("ansatzEinsatz"),
+          AnsatzHalbtag:           numOpt("ansatzHalbtag"),
+          AnsatzCoEinsatz:         numOpt("ansatzCoEinsatz"),
+          AnsatzCoHalbtag:         numOpt("ansatzCoHalbtag"),
+          AnsatzStunde:            numOpt("ansatzStunde"),
+          AnsatzStueck:            numOpt("ansatzStueck"),
+          AnsatzPauschale:         numOpt("ansatzPauschale"),
+          AnsatzKonzeption:        numOpt("ansatzKonzeption"),
+          AnsatzAdmin:             numOpt("ansatzAdmin"),
+          AnsatzKmSpesen:          numOpt("ansatzKmSpesen"),
+          SpesenKontoNr:           fd.get("spesenKontoNr") || null,
+          KonzeptionsrahmenTage:   numOpt("konzeptionsrahmenTage")
+        };
+
+        if (mode === "edit" && itemId) {
+          fields.Title = title;
+          await api.patchItem(CONFIG.lists.projekte, Number(itemId), fields);
+        } else {
+          const created = await api.postItem(CONFIG.lists.projekte, { Title: title, FirmaLookupId: firmaLookupId });
+          const newId = created?.id || created?.fields?.id;
+          if (!newId) throw new Error("Neue Item-ID fehlt.");
+          await api.patchItem(CONFIG.lists.projekte, Number(newId), fields);
+        }
+
+        ui.setMessage("Projekt gespeichert.", "success");
+        await api.loadAll();
+        controller.navigate("projekte");
+      } catch (err) {
+        ui.setMessage(err.message || "Fehler beim Speichern.", "error");
+      }
     },
 
     closeModal() {
