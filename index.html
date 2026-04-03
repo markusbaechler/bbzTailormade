@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TM-App · bbz st.gallen</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+
+  <header class="tm-header">
+    <div class="tm-header-left">
+      <span class="tm-logo">bbz</span>
+      <span class="tm-appname">TM-App</span>
+    </div>
+    <nav class="tm-nav">
+      <button class="tm-nav-btn" data-route="projekte">Projekte</button>
+      <button class="tm-nav-btn" data-route="einsaetze">Einsätze</button>
+      <button class="tm-nav-btn" data-route="konzeption">Konzeption</button>
+    </nav>
+    <div class="tm-header-right">
+      <span id="auth-status" class="tm-auth-status"></span>
+      <button id="btn-login" class="tm-btn tm-btn-primary" style="display:none">Anmelden</button>
+      <button id="btn-refresh" class="tm-btn" style="display:none">↺</button>
+    </div>
+  </header>
+
+  <div id="global-message" class="tm-global-message" style="display:none"></div>
+
+  <main id="view-root" class="tm-view-root">
+    <div class="tm-loading-screen">
+      <div class="tm-spinner"></div>
+      <p>Wird geladen…</p>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
