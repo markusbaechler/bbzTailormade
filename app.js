@@ -1116,11 +1116,9 @@
           : helpers.num(fd.get("betragBerechnet_existing")); // bei Edit: behalten
 
         const fields = {
-          Title:             fd.get("titel") || `${kategorie} · ${datum}`,
           Datum:             datum + "T12:00:00Z",
           ProjektLookupId:   projektLookupId,
           Ort:               fd.get("ort") || null,
-          PersonLookupId:    helpers.num(fd.get("personLookupId")) || null,
           Bemerkungen:       fd.get("bemerkungen") || null,
           Kategorie:         kategorie,
           DauerTage:         ["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kategorie) ? 1.0
@@ -1132,6 +1130,10 @@
           Abrechnung:        fd.get("abrechnung") || "offen",
           Status:            fd.get("status") || null
         };
+
+        // Lookup-Felder nur senden wenn gesetzt — SP akzeptiert keine null-Werte für Lookups
+        const personId = helpers.num(fd.get("personLookupId"));
+        if (personId) fields.PersonLookupId = personId;
 
         if (mode === "edit" && itemId) {
           await api.patchItem(CONFIG.lists.einsaetze, Number(itemId), fields);
@@ -1249,13 +1251,16 @@
           Datum:           datum + "T12:00:00Z",
           ProjektLookupId: projektLookupId,
           Kategorie:       kategorie,
-          PersonLookupId:  helpers.num(fd.get("personLookupId")) || null,
           AufwandStunden:  aufwandStunden,
           BetragBerechnet: betragBerechnet,
           BetragFinal:     helpers.num(fd.get("betragFinal")),
           Verrechenbar:    fd.get("verrechenbar"),
           Bemerkungen:     fd.get("bemerkungen") || null
         };
+
+        // Lookup nur senden wenn gesetzt
+        const personId = helpers.num(fd.get("personLookupId"));
+        if (personId) fields.PersonLookupId = personId;
 
         if (mode === "edit" && itemId) {
           fields.Title = titelValue;
