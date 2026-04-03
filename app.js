@@ -1298,7 +1298,7 @@
     try {
       helpers.validateConfig();
 
-      if (!window.msal?.PublicClientApplication) throw new Error("MSAL nicht geladen.");
+      if (!window.msalBrowser?.PublicClientApplication) throw new Error("MSAL nicht geladen.");
 
       const msalConfig = {
         auth: {
@@ -1309,7 +1309,7 @@
         cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
       };
 
-      state.auth.msal = new msal.PublicClientApplication(msalConfig);
+      state.auth.msal = new msalBrowser.PublicClientApplication(msalConfig);
       await state.auth.msal.initialize();
 
       // Redirect-Response verarbeiten
