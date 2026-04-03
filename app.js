@@ -342,6 +342,68 @@
       if (!CONFIG.sharePoint.siteHostname)  missing.push("siteHostname");
       if (!CONFIG.sharePoint.sitePath)      missing.push("sitePath");
       if (missing.length) throw new Error(`Konfiguration unvollständig: ${missing.join(", ")}`);
+    },
+
+    // Typeahead-HTML: rendert ein Suchfeld mit verstecktem ID-Input
+    // items: [{id, label}], selectedId, name, placeholder, required
+    typeaheadHtml(name, items, selectedId, placeholder = "Suchen…", required = false) {
+      const sel = items.find(i => i.id === selectedId);
+      return `
+        <div class="tm-typeahead" data-name="${name}">
+          <input type="hidden" name="${name}" value="${selectedId || ""}" ${required ? "required" : ""} class="tm-typeahead-val">
+          <input type="text" class="tm-typeahead-input" placeholder="${helpers.esc(placeholder)}"
+            value="${helpers.esc(sel?.label || "")}"
+            autocomplete="off"
+            oninput="helpers.typeaheadFilter(this)"
+            onfocus="helpers.typeaheadOpen(this)"
+            onblur="setTimeout(()=>helpers.typeaheadClose(this),150)">
+          <div class="tm-typeahead-dropdown" style="display:none">
+            ${items.map(i => `<div class="tm-typeahead-item" data-id="${i.id}" onmousedown="helpers.typeaheadSelect(this)">${helpers.esc(i.label)}</div>`).join("")}
+          </div>
+        </div>`;
+    },
+
+    typeaheadOpen(input) {
+      const wrap = input.closest(".tm-typeahead");
+      const dd = wrap.querySelector(".tm-typeahead-dropdown");
+      helpers.typeaheadFilter(input);
+      dd.style.display = "block";
+    },
+
+    typeaheadClose(input) {
+      const wrap = input.closest(".tm-typeahead");
+      const dd = wrap.querySelector(".tm-typeahead-dropdown");
+      dd.style.display = "none";
+      // Wenn kein Wert gesetzt, Input leeren
+      const val = wrap.querySelector(".tm-typeahead-val").value;
+      if (!val) input.value = "";
+    },
+
+    typeaheadFilter(input) {
+      const wrap = input.closest(".tm-typeahead");
+      const dd = wrap.querySelector(".tm-typeahead-dropdown");
+      const q = input.value.toLowerCase();
+      let visible = 0;
+      dd.querySelectorAll(".tm-typeahead-item").forEach(item => {
+        const match = item.textContent.toLowerCase().includes(q);
+        item.style.display = match ? "block" : "none";
+        if (match) visible++;
+      });
+      dd.style.display = visible > 0 ? "block" : "none";
+    },
+
+    typeaheadSelect(item) {
+      const wrap = item.closest(".tm-typeahead");
+      wrap.querySelector(".tm-typeahead-val").value = item.dataset.id;
+      wrap.querySelector(".tm-typeahead-input").value = item.textContent.trim();
+      wrap.querySelector(".tm-typeahead-dropdown").style.display = "none";
+    },
+
+    typeaheadClear(name) {
+      const wrap = document.querySelector(`.tm-typeahead[data-name="${name}"]`);
+      if (!wrap) return;
+      wrap.querySelector(".tm-typeahead-val").value = "";
+      wrap.querySelector(".tm-typeahead-input").value = "";
     }
   };
 
@@ -1003,9 +1065,9 @@
       const kategorien = selProjekt ? helpers.verfuegbareKategorien(selProjekt) : ["Einsatz (Tag)", "Einsatz (Halbtag)", "Stunde", "Pauschale"];
       const selKat = einsatz?.kategorie || "";
 
-      const contactOptionen = state.data.contacts
-        .map(c => `<option value="${c.id}" ${(einsatz?.personLookupId === c.id) ? "selected" : ""}>${helpers.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</option>`)
-        .join("");
+      const contactItems = state.data.contacts
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname, "de"))
+        .map(c => ({ id: String(c.id), label: [c.nachname, c.vorname].filter(Boolean).join(", ") }));
 
       ui.renderModal(`
         <div class="tm-modal-backdrop">
@@ -1037,7 +1099,7 @@
                 <div class="tm-field" id="field-dauer-stunden" style="${selKat==="Stunde"?"":"display:none"}"><label>Stunden</label><input type="number" name="dauerStunden" min="0.5" step="0.5" value="${einsatz?.dauerStunden || ""}"></div>
                 <div class="tm-field" id="field-anzahl-stueck" style="${selKat==="Stück"?"":"display:none"}"><label>Anzahl Stück</label><input type="number" name="anzahlStueck" min="1" step="1" value="${einsatz?.anzahlStueck || ""}"></div>
                 <div class="tm-field"><label>Ort</label><input type="text" name="ort" value="${helpers.esc(einsatz?.ort || "")}"></div>
-                <div class="tm-field"><label>Person (Lead)</label><select name="personLookupId"><option value="">— keine —</option>${contactOptionen}</select></div>
+                <div class="tm-field"><label>Person (Lead)</label>${helpers.typeaheadHtml("personLookupId", contactItems, einsatz ? String(einsatz.personLookupId||"") : "", "Person suchen…")}</div>
                 <div class="tm-field tm-form-full"><label>Bemerkungen</label><textarea name="bemerkungen">${helpers.esc(einsatz?.bemerkungen || "")}</textarea></div>
                 <div class="tm-section-divider">Beträge</div>
                 <div class="tm-field"><label>Betrag berechnet</label><div class="tm-computed" id="betrag-preview">—</div><div class="tm-hint">Wird beim Speichern eingefroren</div></div>
@@ -1171,9 +1233,9 @@
         .map(p => `<option value="${p.id}" ${prefProjektId === p.id ? "selected" : ""}>${helpers.esc(p.title)}</option>`)
         .join("");
 
-      const contactOptionen = state.data.contacts
-        .map(c => `<option value="${c.id}" ${k?.personLookupId === c.id ? "selected" : ""}>${helpers.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</option>`)
-        .join("");
+      const contactItems = state.data.contacts
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname, "de"))
+        .map(c => ({ id: String(c.id), label: [c.nachname, c.vorname].filter(Boolean).join(", ") }));
 
       ui.renderModal(`
         <div class="tm-modal-backdrop">
@@ -1195,7 +1257,7 @@
                   </div>
                   <input type="hidden" id="kat-konz-hidden" name="kategorie" value="${helpers.esc(k?.kategorie || "Konzeption")}">
                 </div>
-                <div class="tm-field"><label>Person</label><select name="personLookupId"><option value="">— keine —</option>${contactOptionen}</select></div>
+                <div class="tm-field"><label>Person</label>${helpers.typeaheadHtml("personLookupId", contactItems, k ? String(k.personLookupId||"") : "", "Person suchen…")}</div>
                 <div class="tm-field"><label>Aufwand Stunden <span class="req">*</span></label><input type="number" name="aufwandStunden" min="0.25" step="0.25" value="${k?.aufwandStunden || ""}" required></div>
                 <div class="tm-field"><label>Betrag berechnet</label><div class="tm-computed">Berechnung nach Speichern</div><div class="tm-hint">Ansatz ÷ 8 × Stunden</div></div>
                 <div class="tm-field"><label>Betrag final (optional)</label><input type="number" name="betragFinal" step="0.01" value="${k?.betragFinal ?? ""}"></div>
@@ -1285,17 +1347,13 @@
       const p = id ? state.enriched.projekte.find(p => p.id === Number(id)) : null;
       const titel = p ? "Projekt bearbeiten" : "Neues Projekt erfassen";
 
-      const firmaOptionen = state.data.firms
+      const firmaItems = state.data.firms
         .sort((a,b) => a.title.localeCompare(b.title, "de"))
-        .map(f => `<option value="${f.id}" ${p?.firmaLookupId === f.id ? "selected" : ""}>${helpers.esc(f.title)}</option>`)
-        .join("");
+        .map(f => ({ id: String(f.id), label: f.title }));
 
-      const contactOptionen = state.data.contacts
+      const contactItems = state.data.contacts
         .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname, "de"))
-        .map(c => {
-          const name = [c.nachname, c.vorname].filter(Boolean).join(", ");
-          return `<option value="${c.id}" ${p?.ansprechpartnerLookupId === c.id ? "selected" : ""}>${helpers.esc(name)}</option>`;
-        }).join("");
+        .map(c => ({ id: String(c.id), label: [c.nachname, c.vorname].filter(Boolean).join(", ") }));
 
       const val = (key, fallback = "") => p ? (p[key] ?? fallback) : fallback;
       const chf = (key) => p?.[key] !== null && p?.[key] !== undefined ? p[key] : "";
@@ -1331,17 +1389,11 @@
                 </div>
                 <div class="tm-field">
                   <label>Firma <span class="req">*</span></label>
-                  <select name="firmaLookupId" required>
-                    <option value="">— wählen —</option>
-                    ${firmaOptionen}
-                  </select>
+                  ${helpers.typeaheadHtml("firmaLookupId", firmaItems, p ? String(p.firmaLookupId) : "", "Firma suchen…", true)}
                 </div>
                 <div class="tm-field">
                   <label>Ansprechpartner <span class="req">*</span></label>
-                  <select name="ansprechpartnerLookupId" required>
-                    <option value="">— wählen —</option>
-                    ${contactOptionen}
-                  </select>
+                  ${helpers.typeaheadHtml("ansprechpartnerLookupId", contactItems, p ? String(p.ansprechpartnerLookupId) : "", "Person suchen…", true)}
                 </div>
                 <div class="tm-field">
                   <label>Status <span class="req">*</span></label>
