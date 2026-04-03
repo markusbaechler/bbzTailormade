@@ -1298,7 +1298,8 @@
     try {
       helpers.validateConfig();
 
-      if (!window.msalBrowser?.PublicClientApplication) throw new Error("MSAL nicht geladen.");
+      const msalLib = window.msal || window.msalBrowser || window["@azure/msal-browser"];
+      if (!msalLib?.PublicClientApplication) throw new Error("MSAL nicht geladen.");
 
       const msalConfig = {
         auth: {
@@ -1309,7 +1310,7 @@
         cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
       };
 
-      state.auth.msal = new msalBrowser.PublicClientApplication(msalConfig);
+      state.auth.msal = new msalLib.PublicClientApplication(msalConfig);
       await state.auth.msal.initialize();
 
       // Redirect-Response verarbeiten
