@@ -592,6 +592,13 @@
         btn.addEventListener("click", () => controller.navigate(btn.dataset.route));
       });
 
+      // Zentrale Form-Submit-Delegation
+      document.addEventListener("submit", e => {
+        if (e.target.id === "projekt-form")    { e.preventDefault(); controller.handleProjektSubmit(new FormData(e.target)); return; }
+        if (e.target.id === "einsatz-form")    { e.preventDefault(); controller.handleEinsatzSubmit(new FormData(e.target)); return; }
+        if (e.target.id === "konzeption-form") { e.preventDefault(); controller.handleKonzeptionSubmit(new FormData(e.target)); return; }
+      });
+
       // Zentraler Click-Handler
       document.addEventListener("click", e => {
         const a = (sel) => e.target.closest(sel);
@@ -1056,10 +1063,13 @@
           </div>
         </div>`);
 
-      document.getElementById("einsatz-form").addEventListener("submit", e => {
-        e.preventDefault();
-        controller.handleEinsatzSubmit(new FormData(e.target));
-      });
+      const einsatzFormEl = document.querySelector("#einsatz-form") || ui.els.viewRoot?.querySelector("#einsatz-form");
+      if (einsatzFormEl) {
+        einsatzFormEl.addEventListener("submit", e => {
+          e.preventDefault();
+          controller.handleEinsatzSubmit(new FormData(e.target));
+        });
+      }
     },
 
     onProjektChangeEinsatz(sel) {
@@ -1202,10 +1212,13 @@
           </div>
         </div>`);
 
-      document.getElementById("konzeption-form").addEventListener("submit", e => {
-        e.preventDefault();
-        controller.handleKonzeptionSubmit(new FormData(e.target));
-      });
+      const konzFormEl = document.querySelector("#konzeption-form") || ui.els.viewRoot?.querySelector("#konzeption-form");
+      if (konzFormEl) {
+        konzFormEl.addEventListener("submit", e => {
+          e.preventDefault();
+          controller.handleKonzeptionSubmit(new FormData(e.target));
+        });
+      }
     },
 
     async handleKonzeptionSubmit(fd) {
@@ -1433,10 +1446,15 @@
         </div>
       `);
 
-      document.getElementById("projekt-form").addEventListener("submit", e => {
-        e.preventDefault();
-        controller.handleProjektSubmit(new FormData(e.target));
-      });
+      // Event-Delegation: Submit über den zentralen document-Handler
+      // Kein getElementById nötig — Form ist direkt im view-root
+      const formEl = ui.els.viewRoot?.querySelector("#projekt-form");
+      if (formEl) {
+        formEl.addEventListener("submit", e => {
+          e.preventDefault();
+          controller.handleProjektSubmit(new FormData(e.target));
+        });
+      }
     },
 
     async handleProjektSubmit(fd) {
