@@ -441,9 +441,9 @@
         state.data.projekte   = projekte;
         state.data.einsaetze  = einsaetze;
         state.data.konzeption = konzeption;
-        state.data.firms      = firms.map(f => ({ id: f.id, title: f.Title || "" }));
+        state.data.firms      = firms.map(f => ({ id: Number(f.id), title: f.Title || "" }));
         state.data.contacts   = contacts.map(c => ({
-          id:       c.id,
+          id:       Number(c.id),
           nachname: c.Title || "",
           vorname:  c.Vorname || ""
         }));
@@ -464,29 +464,29 @@
 
     projekt(raw) {
       const f = SCHEMA.projekte.fields;
-      const get = (key) => raw[f[key]] ?? raw[key] ?? null;
+      const get = (spName) => raw[spName] ?? null;
       const p = {
-        id:                      raw.id,
-        title:                   get("title") || "",
-        projektNr:               get("projektNr") || "",
-        kontoNr:                 get("kontoNr") || "",
-        firmaLookupId:           Number(raw["FirmaLookupId"] || raw["FirmaId"]) || null,
-        ansprechpartnerLookupId: Number(raw["AnsprechpartnerLookupId"]) || null,
-        status:                  get("status") || "",
-        kmZumKunden:             helpers.num(get("kmZumKunden")),
-        archiviert:              helpers.bool(get("archiviert")),
-        ansatzEinsatz:           helpers.num(get("ansatzEinsatz")),
-        ansatzHalbtag:           helpers.num(get("ansatzHalbtag")),
-        ansatzCoEinsatz:         helpers.num(get("ansatzCoEinsatz")),
-        ansatzCoHalbtag:         helpers.num(get("ansatzCoHalbtag")),
-        ansatzStunde:            helpers.num(get("ansatzStunde")),
-        ansatzStueck:            helpers.num(get("ansatzStueck")),
-        ansatzPauschale:         helpers.num(get("ansatzPauschale")),
-        ansatzKonzeption:        helpers.num(get("ansatzKonzeption")),
-        ansatzAdmin:             helpers.num(get("ansatzAdmin")),
-        ansatzKmSpesen:          helpers.num(get("ansatzKmSpesen")),
-        spesenKontoNr:           get("spesenKontoNr") || "",
-        konzeptionsrahmenTage:   helpers.num(get("konzeptionsrahmenTage"))
+        id:                      Number(raw.id),
+        title:                   get("Title") || "",
+        projektNr:               get("ProjektNr") || "",
+        kontoNr:                 get("KontoNr") || "",
+        firmaLookupId:           Number(raw["FirmaLookupId"] || raw["FirmaId"] || 0) || null,
+        ansprechpartnerLookupId: Number(raw["AnsprechpartnerLookupId"] || 0) || null,
+        status:                  get("Status") || "",
+        kmZumKunden:             helpers.num(get("KmZumKunden")),
+        archiviert:              helpers.bool(get("Archiviert")),
+        ansatzEinsatz:           helpers.num(get("AnsatzEinsatz")),
+        ansatzHalbtag:           helpers.num(get("AnsatzHalbtag")),
+        ansatzCoEinsatz:         helpers.num(get("AnsatzCoEinsatz")),
+        ansatzCoHalbtag:         helpers.num(get("AnsatzCoHalbtag")),
+        ansatzStunde:            helpers.num(get("AnsatzStunde")),
+        ansatzStueck:            helpers.num(get("AnsatzStueck")),
+        ansatzPauschale:         helpers.num(get("AnsatzPauschale")),
+        ansatzKonzeption:        helpers.num(get("AnsatzKonzeption")),
+        ansatzAdmin:             helpers.num(get("AnsatzAdmin")),
+        ansatzKmSpesen:          helpers.num(get("AnsatzKmSpesen")),
+        spesenKontoNr:           get("SpesenKontoNr") || "",
+        konzeptionsrahmenTage:   helpers.num(get("KonzeptionsrahmenTage"))
       };
       // Abgeleitete Werte
       p.firmaName          = helpers.firmName(p.firmaLookupId);
@@ -509,30 +509,30 @@
     },
 
     einsatz(raw) {
-      const get = (key) => raw[SCHEMA.einsaetze.fields[key]] ?? raw[key] ?? null;
+      const get = (spName) => raw[spName] ?? null;
       const e = {
-        id:             raw.id,
-        title:          get("title") || "",
-        datum:          get("datum"),
-        projektLookupId:Number(raw["ProjektLookupId"] || raw["ProjektId"]) || null,
-        ort:            get("ort") || "",
-        personLookupId: Number(raw["PersonLookupId"] || raw["PersonId"]) || null,
-        coPersonLookupId:Number(raw["CoPersonLookupId"] || raw["CoPersonId"]) || null,
-        bemerkungen:    get("bemerkungen") || "",
-        kategorie:      get("kategorie") || "",
-        dauerTage:      helpers.num(get("dauerTage")),
-        dauerStunden:   helpers.num(get("dauerStunden")),
-        anzahlStueck:   helpers.num(get("anzahlStueck")),
-        betragBerechnet:helpers.num(get("betragBerechnet")),
-        betragFinal:    helpers.num(get("betragFinal")),
-        coBetragBerechnet:helpers.num(get("coBetragBerechnet")),
-        coBetragFinal:  helpers.num(get("coBetragFinal")),
-        spesen:         helpers.bool(get("spesen")),
-        spesenZusatz:   helpers.num(get("spesenZusatz")),
-        spesenBerechnet:helpers.num(get("spesenBerechnet")),
-        spesenFinal:    helpers.num(get("spesenFinal")),
-        status:         get("status") || "",
-        abrechnung:     get("abrechnung") || "offen"
+        id:             Number(raw.id),
+        title:          get("Title") || "",
+        datum:          get("Datum"),
+        projektLookupId:Number(raw["ProjektLookupId"] || raw["ProjektId"] || 0) || null,
+        ort:            get("Ort") || "",
+        personLookupId: Number(raw["PersonLookupId"] || raw["PersonId"] || 0) || null,
+        coPersonLookupId:Number(raw["CoPersonLookupId"] || raw["CoPersonId"] || 0) || null,
+        bemerkungen:    get("Bemerkungen") || "",
+        kategorie:      get("Kategorie") || "",
+        dauerTage:      helpers.num(get("DauerTage")),
+        dauerStunden:   helpers.num(get("DauerStunden")),
+        anzahlStueck:   helpers.num(get("AnzahlStueck")),
+        betragBerechnet:helpers.num(get("BetragBerechnet")),
+        betragFinal:    helpers.num(get("BetragFinal")),
+        coBetragBerechnet:helpers.num(get("CoBetragBerechnet")),
+        coBetragFinal:  helpers.num(get("CoBetragFinal")),
+        spesen:         helpers.bool(get("Spesen")),
+        spesenZusatz:   helpers.num(get("SpesenZusatz")),
+        spesenBerechnet:helpers.num(get("SpesenBerechnet")),
+        spesenFinal:    helpers.num(get("SpesenFinal")),
+        status:         get("Status") || "",
+        abrechnung:     get("Abrechnung") || "offen"
       };
       e.datumFormatted = helpers.formatDate(e.datum);
       e.einsatzStatus  = helpers.einsatzStatus(e);
@@ -544,19 +544,19 @@
     },
 
     konzeptionEintrag(raw) {
-      const get = (key) => raw[SCHEMA.konzeption.fields[key]] ?? raw[key] ?? null;
+      const get = (spName) => raw[spName] ?? null;
       const k = {
-        id:              raw.id,
-        title:           get("title") || "",
-        datum:           get("datum"),
-        projektLookupId: Number(raw["ProjektLookupId"] || raw["ProjektId"]) || null,
-        kategorie:       get("kategorie") || "",
-        personLookupId:  Number(raw["PersonLookupId"] || raw["PersonId"]) || null,
-        aufwandStunden:  helpers.num(get("aufwandStunden")),
-        betragBerechnet: helpers.num(get("betragBerechnet")),
-        betragFinal:     helpers.num(get("betragFinal")),
-        verrechenbar:    get("verrechenbar") || "",
-        bemerkungen:     get("bemerkungen") || ""
+        id:              Number(raw.id),
+        title:           get("Title") || "",
+        datum:           get("Datum"),
+        projektLookupId: Number(raw["ProjektLookupId"] || raw["ProjektId"] || 0) || null,
+        kategorie:       get("Kategorie") || "",
+        personLookupId:  Number(raw["PersonLookupId"] || raw["PersonId"] || 0) || null,
+        aufwandStunden:  helpers.num(get("AufwandStunden")),
+        betragBerechnet: helpers.num(get("BetragBerechnet")),
+        betragFinal:     helpers.num(get("BetragFinal")),
+        verrechenbar:    get("Verrechenbar") || "",
+        bemerkungen:     get("Bemerkungen") || ""
       };
       k.datumFormatted = helpers.formatDate(k.datum);
       k.anzeigeBetrag  = helpers.anzeigebetrag(k.betragBerechnet, k.betragFinal);
