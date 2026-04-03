@@ -613,3 +613,39 @@ html, body {
   .tm-page-header { flex-direction: column; }
   .tm-kpi-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Typeahead ─────────────────────────────────────────────────────────────── */
+.tm-typeahead { position: relative; }
+.tm-typeahead-input {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius);
+  background: var(--tm-white);
+  color: var(--tm-text);
+  font-family: var(--tm-font);
+}
+.tm-typeahead-input:focus { outline: none; border-color: var(--tm-blue-mid); box-shadow: 0 0 0 2px rgba(46,117,182,.15); }
+.tm-typeahead-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: var(--tm-white);
+  border: 1px solid var(--tm-border);
+  border-radius: var(--tm-radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 300;
+  margin-top: 2px;
+}
+.tm-typeahead-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--tm-text);
+  border-bottom: 0.5px solid var(--tm-blue-pale);
+}
+.tm-typeahead-item:last-child { border-bottom: none; }
+.tm-typeahead-item:hover { background: var(--tm-blue-pale); }
