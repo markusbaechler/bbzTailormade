@@ -1570,18 +1570,28 @@
                       ? `<span style="font-size:11px;color:#8896a5">Ansatz: CHF ${h.chf(selProjekt.ansatzKmSpesen)}/km</span>`
                       : `<span style="font-size:11px;color:#950e13">⚠ Kein Km-Ansatz im Projekt</span>`}
                   </div>
-                  <div id="ef-wegspesen-detail" style="display:${e?.spesenBerechnet ? "flex" : "none"};align-items:center;gap:8px">
-                    <div class="ef-iw" style="max-width:140px">
-                      <input type="number" name="kmAnzahl" id="ef-km-input" min="0" step="1"
-                        value="${e?.spesenBerechnet && selProjekt?.ansatzKmSpesen ? Math.round(e.spesenBerechnet / selProjekt.ansatzKmSpesen / 2) : ""}"
-                        placeholder="km (einfach)"
-                        oninput="ctrl.efCalcWegspesen(this.value)">
+                  <div id="ef-wegspesen-detail" style="display:${e?.spesenBerechnet ? "flex" : "none"};flex-direction:column;gap:8px">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                      <div class="ef-iw" style="max-width:130px">
+                        <input type="number" name="kmAnzahl" id="ef-km-input" min="0" step="1"
+                          value="${e?.spesenBerechnet && selProjekt?.ansatzKmSpesen ? Math.round(e.spesenBerechnet / selProjekt.ansatzKmSpesen / 2) : ""}"
+                          placeholder="km (einfach)"
+                          oninput="ctrl.efCalcWegspesen(this.value)">
+                      </div>
+                      <span style="font-size:12px;color:#8896a5">× 2 (Hin & Zurück)</span>
+                      <div id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#1a8a5e">
+                        ${e?.spesenBerechnet ? "= CHF " + h.chf(e.spesenBerechnet) : ""}
+                      </div>
+                      <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="${e?.spesenBerechnet??''}">
                     </div>
-                    <span style="font-size:12px;color:#8896a5">× 2 (Hin & Zurück)</span>
-                    <span id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#004078">
-                      ${e?.spesenBerechnet ? "= CHF " + h.chf(e.spesenBerechnet) : ""}
-                    </span>
-                    <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="${e?.spesenBerechnet??''}">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div class="ef-ov" style="max-width:160px">
+                        <span class="ef-ov-p">CHF</span>
+                        <input type="number" name="spesenFinal" step="0.01" min="0"
+                          value="${e?.spesenFinal??""}" placeholder="Anpassen (optional)">
+                      </div>
+                      <span style="font-size:11px;color:#8896a5">Leer = berechneter Wert</span>
+                    </div>
                   </div>
                 </div>
                 <!-- Sonstige Spesen -->
@@ -1865,6 +1875,8 @@
         if (spesenZusatz !== null) fields.SpesenZusatz = spesenZusatz;
         const spesenBerechnet = h.num(fd.get("spesenBerechnet"));
         if (spesenBerechnet !== null) fields.SpesenBerechnet = spesenBerechnet;
+        const spesenFinal = h.num(fd.get("spesenFinal"));
+        if (spesenFinal !== null) fields.SpesenFinal = spesenFinal;
         const status = fd.get("status");
         if (status) fields.Status = status;
 
