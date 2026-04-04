@@ -437,7 +437,10 @@
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        let detail = text;
+        try { detail = JSON.parse(text)?.error?.message || text; } catch {}
+        console.error("SP API Error:", url, res.status, detail);
+        throw new Error(`HTTP ${res.status}: ${detail.slice(0, 300)}`);
       }
       if (res.status === 204) return null;
       return res.json();
