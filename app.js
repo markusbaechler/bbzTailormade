@@ -1359,17 +1359,25 @@
         const status = fd.get("status");
         if (status) fields.Status = status;
 
+        // Lookup-Felder via SP REST API
+        const lookupFields = {};
         const personId = h.num(fd.get("personLookupId"));
-        if (personId) fields[F.person_w] = personId;
+        if (personId) lookupFields[F.person_w] = personId;
+        lookupFields[F.projekt_w] = projId;
+        // ProjektLookupId aus fields entfernen — wird via patchLookups geschrieben
+        delete fields[F.projekt_w];
 
         if (mode === "edit" && itemId) {
+          const eid = Number(itemId);
           fields.Title = titel;
-          await api.patch(CONFIG.lists.einsaetze, Number(itemId), fields);
+          await api.patch(CONFIG.lists.einsaetze, eid, fields);
+          await api.patchLookups(CONFIG.lists.einsaetze, eid, lookupFields);
         } else {
           const cr  = await api.post(CONFIG.lists.einsaetze, titel);
           const nid = Number(cr?.id || cr?.fields?.id);
           if (!nid) throw new Error("Neue ID fehlt.");
           await api.patch(CONFIG.lists.einsaetze, nid, fields);
+          await api.patchLookups(CONFIG.lists.einsaetze, nid, lookupFields);
         }
 
         ui.closeModal();
@@ -1584,30 +1592,35 @@
         const ansatz = kat === "Admin" ? p?.ansatzAdmin : p?.ansatzKonzeption;
         const betragBer = (ansatz && std) ? (ansatz / 8) * std : null;
 
+        // Lookup-Felder via SP REST API
+        const lookupFields = { [F.projekt_w]: projId };
+        const personId = h.num(fd.get("personLookupId"));
+        if (personId) lookupFields[F.person_w] = personId;
+
         const fields = {
-          [F.projekt_w]: projId,
-          Kategorie:     kat,
+          Kategorie:      kat,
           AufwandStunden: std,
-          Verrechenbar:  fd.get("verrechenbar")
+          Verrechenbar:   fd.get("verrechenbar")
         };
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
         if (bf !== null) fields.BetragFinal = bf;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
-        const personId = h.num(fd.get("personLookupId"));
-        if (personId) fields[F.person_w] = personId;
 
         if (mode === "edit" && itemId) {
+          const eid = Number(itemId);
           fields.Title = titel;
           fields.Datum = datum + "T12:00:00Z";
-          await api.patch(CONFIG.lists.konzeption, Number(itemId), fields);
+          await api.patch(CONFIG.lists.konzeption, eid, fields);
+          await api.patchLookups(CONFIG.lists.konzeption, eid, lookupFields);
         } else {
           const cr  = await api.post(CONFIG.lists.konzeption, titel);
           const nid = Number(cr?.id || cr?.fields?.id);
           if (!nid) throw new Error("Neue ID fehlt.");
           fields.Datum = datum + "T12:00:00Z";
           await api.patch(CONFIG.lists.konzeption, nid, fields);
+          await api.patchLookups(CONFIG.lists.konzeption, nid, lookupFields);
         }
 
         ui.closeModal();
