@@ -254,8 +254,8 @@
       title:                   raw.Title || "",
       projektNr:               raw.ProjektNr || "",
       kontoNr:                 raw.KontoNr || "",
-      firmaLookupId:           Number(raw.FirmaLookupId||raw.FirmaId||0)||null,
-      ansprechpartnerLookupId: Number(raw.AnsprechpartnerLookupId||raw.AnsprechpartnerId||0)||null,
+      firmaLookupId:           Number(raw.FirmaLookupIdLookupId||raw.FirmaLookupId||0)||null,
+      ansprechpartnerLookupId: Number(raw.AnsprechpartnerLookupIdLookupId||raw.AnsprechpartnerLookupId||0)||null,
       status:                  raw.Status || "",
       kmZumKunden:             h.num(raw.KmZumKunden),
       archiviert:              h.bool(raw.Archiviert),
@@ -274,8 +274,8 @@
     };
     p.firmaName        = h.firmName(p.firmaLookupId);
     p.ansprechpartner  = h.contactName(p.ansprechpartnerLookupId);
-    p.einsaetze        = state.data.einsaetze.filter(e=>Number(e.ProjektLookupId||0)===p.id);
-    p.konzeintraege    = state.data.konzeption.filter(k=>Number(k.ProjektLookupId||0)===p.id);
+    p.einsaetze        = state.data.einsaetze.filter(e=>Number(e.ProjektLookupIdLookupId||e.ProjektLookupId||0)===p.id);
+    p.konzeintraege    = state.data.konzeption.filter(k=>Number(k.ProjektLookupIdLookupId||k.ProjektLookupId||0)===p.id);
     const aktiv        = p.einsaetze.filter(e=>!String(e.Status||"").toLowerCase().includes("abgesagt"));
     p.totalBetrag      = aktiv.reduce((s,e)=>s+(h.num(e.BetragFinal)??h.num(e.BetragBerechnet)??0),0);
     p.einsaetzeCount   = p.einsaetze.length;
@@ -289,10 +289,10 @@
       id:             Number(raw.id),
       title:          raw.Title || "",
       datum:          raw.Datum,
-      projektLookupId:Number(raw.ProjektLookupId||0)||null,
+      projektLookupId:Number(raw.ProjektLookupIdLookupId||raw.ProjektLookupId||0)||null,
       ort:            raw.Ort || "",
-      personLookupId: Number(raw.PersonLookupID||raw.PersonLookupId||0)||null,
-      coPersonLookupId:Number(raw.CoPersonLookupId||0)||null,
+      personLookupId: Number(raw.PersonLookupIDLookupId||raw.PersonLookupID||raw.PersonLookupId||0)||null,
+      coPersonLookupId:Number(raw.CoPersonLookupIdLookupId||raw.CoPersonLookupId||0)||null,
       bemerkungen:    raw.Bemerkungen || "",
       kategorie:      raw.Kategorie || "",
       dauerTage:      h.num(raw.DauerTage),
@@ -322,9 +322,9 @@
       id:              Number(raw.id),
       title:           raw.Title || "",
       datum:           raw.Datum,
-      projektLookupId: Number(raw.ProjektLookupId||0)||null,
+      projektLookupId: Number(raw.ProjektLookupIdLookupId||raw.ProjektLookupId||0)||null,
       kategorie:       raw.Kategorie || "",
-      personLookupId:  Number(raw.PersonLookupID||raw.PersonLookupId||0)||null,
+      personLookupId:  Number(raw.PersonLookupIDLookupId||raw.PersonLookupID||raw.PersonLookupId||0)||null,
       aufwandStunden:  h.num(raw.AufwandStunden),
       betragBerechnet: h.num(raw.BetragBerechnet),
       betragFinal:     h.num(raw.BetragFinal),
@@ -418,7 +418,7 @@
         state.data.einsaetze  = einsaetze;
         state.data.konzeption = konzeption;
         state.data.firms      = firms.map(f=>({id:Number(f.id),title:f.Title||""}));
-        state.data.contacts   = contacts.map(c=>({id:Number(c.id),nachname:c.Title||"",vorname:c.Vorname||"",FirmaLookupId:Number(c.FirmaLookupId||0)||null}));
+        state.data.contacts   = contacts.map(c=>({id:Number(c.id),nachname:c.Title||"",vorname:c.Vorname||"",FirmaLookupId:Number(c.FirmaLookupIdLookupId||c.FirmaLookupId||0)||null}));
         enrichAll();
       } finally {
         ui.setLoading(false);
