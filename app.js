@@ -103,6 +103,13 @@
       firms:      [],   // [{id, title}]
       contacts:   []    // [{id, nachname, vorname, firmaLookupId}]
     },
+    choices: {
+      // Dynamisch aus SP geladen — Choice-Felder pro Liste
+      projektStatus:      ["geplant","aktiv","abgeschlossen"],
+      einsatzAbrechnung:  ["offen","zur Abrechnung","abgerechnet"],
+      einsatzStatus:      ["abgesagt","abgesagt mit Kostenfolge"],
+      konzVerrechenbar:   ["Inklusive","Klärung nötig","zur Abrechnung","abgerechnet"]
+    },
     enriched: {
       projekte:   [],
       einsaetze:  [],
@@ -389,7 +396,7 @@
       }, 0);
     // Konzeption: nur "zur Abrechnung" und "abgerechnet"
     p.totalKonzeption = p.konzeintraege
-      .filter(k => ["zur Abrechnung","abgerechnet"].includes(k.Verrechenbar))
+      .filter(k => { const excl = state.choices.konzVerrechenbar.slice(0, 2); return !excl.includes(k.Verrechenbar); })
       .reduce((s,k) => s + (h.num(k.BetragFinal) ?? h.num(k.BetragBerechnet) ?? 0), 0);
     p.totalBetrag     = p.totalEinsaetze + p.totalKonzeption;
     p.einsaetzeCount  = p.einsaetze.length;
@@ -508,6 +515,34 @@
       return (state.meta.siteId = d.id);
     },
 
+    // Choice-Felder eines SP-Lists-Felds laden
+    async getChoices(list, fieldName) {
+      const sid = await api.siteId();
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/columns`;
+      const d = await api.req(url);
+      const col = (d.value || []).find(c => c.name === fieldName || c.displayName === fieldName);
+      return col?.choice?.choices || [];
+    },
+
+    async loadChoices() {
+      try {
+        const [projSt, einsAbrech, einsSt, konzVerr] = await Promise.all([
+          api.getChoices(CONFIG.lists.projekte,   "Status"),
+          api.getChoices(CONFIG.lists.einsaetze,  "Abrechnung"),
+          api.getChoices(CONFIG.lists.einsaetze,  "Status"),
+          api.getChoices(CONFIG.lists.konzeption, "Verrechenbar")
+        ]);
+        if (projSt.length)    state.choices.projektStatus     = projSt;
+        if (einsAbrech.length) state.choices.einsatzAbrechnung = einsAbrech;
+        if (einsSt.length)    state.choices.einsatzStatus     = einsSt;
+        if (konzVerr.length)  state.choices.konzVerrechenbar  = konzVerr;
+        debug.log("loadChoices", state.choices);
+      } catch (e) {
+        debug.err("loadChoices", e);
+        // Fallback auf Defaults — App läuft weiter
+      }
+    },
+
     async getItems(list) {
       const sid = await api.siteId();
       const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?$expand=fields&$top=5000`;
@@ -587,6 +622,7 @@
       ui.setLoading(true);
       ui.setMsg("Daten werden geladen…", "info");
       try {
+        // Choices einmalig laden (parallel zu Daten)
         const [projekte, einsaetze, konzeption, firms, contacts] = await Promise.all([
           api.getItems(CONFIG.lists.projekte),
           api.getItems(CONFIG.lists.einsaetze),
@@ -594,6 +630,7 @@
           api.getItems(CONFIG.lists.firms),
           api.getItems(CONFIG.lists.contacts)
         ]);
+        await api.loadChoices();
         state.data.projekte   = projekte;
         state.data.einsaetze  = einsaetze;
         state.data.konzeption = konzeption;
@@ -741,7 +778,7 @@
             oninput="state.filters.projekte.search=this.value;ctrl.render()">
           <select onchange="state.filters.projekte.status=this.value;ctrl.render()">
             <option value="">Alle Status</option>
-            ${["geplant","aktiv","abgeschlossen"].map(s => `<option value="${s}" ${f.status===s?"selected":""}>${s}</option>`).join("")}
+            ${state.choices.projektStatus.map(s => `<option value="${s}" ${f.status===s?"selected":""}>${s}</option>`).join("")}
           </select>
         </div>
         ${list.length ? `<div class="tm-proj-grid">${list.map(p => {
@@ -879,7 +916,7 @@
           <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="state.filters.einsaetze.search=this.value;ctrl.render()">
           <select onchange="state.filters.einsaetze.abrechnung=this.value;ctrl.render()">
             <option value="">Abrechnung: alle</option>
-            ${["offen","zur Abrechnung","abgerechnet"].map(s => `<option value="${s}" ${f.abrechnung===s?"selected":""}>${s}</option>`).join("")}
+            ${state.choices.einsatzAbrechnung.map(s => `<option value="${s}" ${f.abrechnung===s?"selected":""}>${s}</option>`).join("")}
           </select>
           <select onchange="state.filters.einsaetze.einsatzStatus=this.value;ctrl.render()">
             <option value="">Status: alle</option>
@@ -934,7 +971,7 @@
           <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="state.filters.konzeption.search=this.value;ctrl.render()">
           <select onchange="state.filters.konzeption.verrechenbar=this.value;ctrl.render()">
             <option value="">Verrechenbar: alle</option>
-            ${["Inklusive","Klärung nötig","zur Abrechnung","abgerechnet"].map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
+            ${state.choices.konzVerrechenbar.map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
           </select>
         </div>
         ${list.length ? `<div class="tm-table-wrap"><table class="tm-table">
@@ -1058,7 +1095,7 @@
                 <div class="tm-field">
                   <label>Status <span class="req">*</span></label>
                   <select name="status" required>
-                    ${["geplant","aktiv","abgeschlossen"].map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
+                    ${state.choices.projektStatus.map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
                   </select>
                 </div>
                 <div class="tm-field">
@@ -1512,14 +1549,14 @@
             <div class="ef-s">
               <div class="ef-l">Abrechnung</div>
               <div class="ef-sr">
-                ${["offen","zur Abrechnung","abgerechnet"].map(s => `<button type="button" class="ef-sp${(e?.abrechnung||"offen")===s?" on":""}"
+                ${state.choices.einsatzAbrechnung.map(s => `<button type="button" class="ef-sp${(e?.abrechnung||state.choices.einsatzAbrechnung[0])===s?" on":""}"
                   onclick="document.querySelectorAll('.ef-sp:not(.abg)').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('abr-hid').value='${h.esc(s)}'"
                   >${s.charAt(0).toUpperCase()+s.slice(1)}</button>`).join("")}
                 <button type="button" class="ef-sp abg${e?.status?" on":""}"
                   onclick="ctrl.efToggleAbgesagt(this)">Abgesagt</button>
               </div>
               <div id="ef-abg-opts" style="display:${e?.status?"flex":"none"};gap:6px;margin-top:8px">
-                ${["abgesagt","abgesagt mit Kostenfolge"].map(s => `<button type="button" class="ef-sp${e?.status===s?" on":""}"
+                ${state.choices.einsatzStatus.map(s => `<button type="button" class="ef-sp${e?.status===s?" on":""}"
                   style="font-size:11px"
                   onclick="document.querySelectorAll('#ef-abg-opts .ef-sp').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('status-hid').value='${h.esc(s)}'"
                   >${s}</button>`).join("")}
@@ -1925,7 +1962,7 @@
             <div class="tm-field tm-form-full">
               <label>Verrechenbar <span class="req">*</span></label>
               <select name="verrechenbar" required>
-                ${["Inklusive","Klärung nötig","zur Abrechnung","abgerechnet"].map(v => `<option value="${v}" ${(k?.verrechenbar||"Inklusive")===v?"selected":""}>${v}</option>`).join("")}
+                ${state.choices.konzVerrechenbar.map(v => `<option value="${v}" ${(k?.verrechenbar||state.choices.konzVerrechenbar[0])===v?"selected":""}>${v}</option>`).join("")}
               </select>
             </div>
             <div class="tm-field tm-form-full">
