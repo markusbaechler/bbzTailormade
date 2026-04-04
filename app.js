@@ -378,14 +378,22 @@
 
     async getItems(listTitle) {
       const sid = await api.getSiteId();
-      let url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items?expand=fields&$top=5000`;
-      const items = [];
+      // Erst IDs laden, dann fields separat — überspringt korrupte Items
+      let url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items?$top=5000`;
+      const ids = [];
       while (url) {
         const d = await api.req(url);
-        for (const i of (d.value||[])) {
-          if (i.fields) items.push({id: Number(i.id), ...i.fields});
-        }
+        for (const i of (d.value||[])) ids.push(Number(i.id));
         url = d["@odata.nextLink"] || null;
+      }
+      const items = [];
+      for (const id of ids) {
+        try {
+          const f = await api.req(`https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items/${id}/fields`);
+          if (f) items.push({id, ...f});
+        } catch(e) {
+          console.warn(`Item ${id} in ${listTitle} übersprungen:`, e.message);
+        }
       }
       return items;
     },
