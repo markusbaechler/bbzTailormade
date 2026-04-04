@@ -1177,34 +1177,44 @@
           ? helpers.berechneBetrag(projekt, kategorie, dauerTage, dauerStunden, anzahlStueck)
           : helpers.num(fd.get("betragBerechnet_existing")); // bei Edit: behalten
 
+        const einsatzTitle = fd.get("titel")?.trim() || `${kategorie} · ${helpers.toDateInput(datum) || datum}`;
+
         const fields = {
           Datum:             datum + "T12:00:00Z",
           ProjektLookupId:   projektLookupId,
-          Ort:               fd.get("ort") || null,
-          Bemerkungen:       fd.get("bemerkungen") || null,
           Kategorie:         kategorie,
-          DauerTage:         ["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kategorie) ? 1.0
-                           : ["Einsatz (Halbtag)","Co-Einsatz (Halbtag)"].includes(kategorie) ? 0.5 : null,
-          DauerStunden:      kategorie === "Stunde" ? dauerStunden : null,
-          AnzahlStueck:      kategorie === "Stück"  ? anzahlStueck : null,
-          BetragBerechnet:   betragBerechnet,
-          BetragFinal:       helpers.num(fd.get("betragFinal")),
-          Abrechnung:        fd.get("abrechnung") || "offen",
-          Status:            fd.get("status") || null
+          Abrechnung:        fd.get("abrechnung") || "offen"
         };
 
-        // Lookup-Felder nur senden wenn gesetzt — SP akzeptiert keine null-Werte für Lookups
+        // Optionale Felder nur wenn nicht leer
+        const ort = fd.get("ort")?.trim();
+        if (ort) fields.Ort = ort;
+        const bem = fd.get("bemerkungen")?.trim();
+        if (bem) fields.Bemerkungen = bem;
+        const status = fd.get("status");
+        if (status) fields.Status = status;
+
+        // Dauer-Felder: immer eines setzen, andere weglassen
+        if (["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kategorie))         fields.DauerTage = 1.0;
+        else if (["Einsatz (Halbtag)","Co-Einsatz (Halbtag)"].includes(kategorie)) fields.DauerTage = 0.5;
+        else if (kategorie === "Stunde" && dauerStunden)   fields.DauerStunden = dauerStunden;
+        else if (kategorie === "Stück" && anzahlStueck)    fields.AnzahlStueck = anzahlStueck;
+
+        if (betragBerechnet !== null) fields.BetragBerechnet = betragBerechnet;
+        const betragFinal = helpers.num(fd.get("betragFinal"));
+        if (betragFinal !== null) fields.BetragFinal = betragFinal;
+
+        // Lookup-Felder nur wenn gesetzt
         const personId = helpers.num(fd.get("personLookupId"));
         if (personId) fields.PersonLookupId = personId;
 
         if (mode === "edit" && itemId) {
+          fields.Title = einsatzTitle;
           await api.patchItem(CONFIG.lists.einsaetze, Number(itemId), fields);
         } else {
-          const created = await api.postItem(CONFIG.lists.einsaetze, { Title: fields.Title, ProjektLookupId: projektLookupId });
+          const created = await api.postItem(CONFIG.lists.einsaetze, { Title: einsatzTitle, ProjektLookupId: projektLookupId });
           const newId = created?.id || created?.fields?.id;
           if (!newId) throw new Error("Neue Item-ID fehlt.");
-          delete fields.Title;
-          delete fields.ProjektLookupId;
           await api.patchItem(CONFIG.lists.einsaetze, Number(newId), fields);
         }
 
@@ -1314,11 +1324,14 @@
           ProjektLookupId: projektLookupId,
           Kategorie:       kategorie,
           AufwandStunden:  aufwandStunden,
-          BetragBerechnet: betragBerechnet,
-          BetragFinal:     helpers.num(fd.get("betragFinal")),
-          Verrechenbar:    fd.get("verrechenbar"),
-          Bemerkungen:     fd.get("bemerkungen") || null
+          Verrechenbar:    fd.get("verrechenbar")
         };
+
+        if (betragBerechnet !== null) fields.BetragBerechnet = betragBerechnet;
+        const betragFinal = helpers.num(fd.get("betragFinal"));
+        if (betragFinal !== null) fields.BetragFinal = betragFinal;
+        const bem = fd.get("bemerkungen")?.trim();
+        if (bem) fields.Bemerkungen = bem;
 
         // Lookup nur senden wenn gesetzt
         const personId = helpers.num(fd.get("personLookupId"));
