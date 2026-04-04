@@ -769,11 +769,19 @@
                 <div class="tm-field"><label>Projekt-Nr.</label><input type="text" name="projektNr" value="${h.esc(v("projektNr"))}"></div>
                 <div class="tm-field"><label>Konto-Nr. Honorar</label><input type="text" name="kontoNr" value="${h.esc(v("kontoNr"))}" placeholder="z.B. 4210"></div>
                 <div class="tm-field"><label>Firma <span class="req">*</span></label>
-                  ${h.typeaheadHtml("firmaLookupId",firmaItems,p?String(p.firmaLookupId||""):"","Firma suchen…")}
+                  <select name="firmaLookupId" required onchange="ctrl.onFirmaChange(this)">
+                    <option value="">— Firma wählen —</option>
+                    ${state.data.firms.sort((a,b)=>a.title.localeCompare(b.title,"de")).map(f=>`<option value="${f.id}" ${p?.firmaLookupId===f.id?"selected":""}>${h.esc(f.title)}</option>`).join("")}
+                  </select>
                   <span class="tm-hint">Nach Auswahl werden Ansprechpartner gefiltert</span>
                 </div>
                 <div class="tm-field"><label>Ansprechpartner <span class="req">*</span></label>
-                  <div id="ap-wrap">${h.typeaheadHtml("ansprechpartnerLookupId",contactItems,p?String(p.ansprechpartnerLookupId||""):"","Person suchen…")}</div>
+                  <div id="ap-wrap">
+                    <select name="ansprechpartnerLookupId" required>
+                      <option value="">— Person wählen —</option>
+                      ${contactItems.map(c=>`<option value="${c.id}" ${p?.ansprechpartnerLookupId===Number(c.id)?"selected":""}>${h.esc(c.label)}</option>`).join("")}
+                    </select>
+                  </div>
                 </div>
                 <div class="tm-field"><label>Status <span class="req">*</span></label><select name="status" required>${["geplant","aktiv","abgeschlossen"].map(s=>`<option value="${s}" ${v("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}</select></div>
                 <div class="tm-field"><label>Km zum Kunden</label><input type="number" name="kmZumKunden" value="${chfv("kmZumKunden")}" placeholder="z.B. 28"><span class="tm-hint">bbz SG → Kundendomizil (App rechnet ×2)</span></div>
@@ -826,19 +834,6 @@
             </div>
           </form>
         </div>`);
-      // Firma-Wechsel → Ansprechpartner filtern
-      const taFirma = document.querySelector(".tm-typeahead[data-name=\'firmaLookupId\'] .tm-ta-val");
-      if (taFirma) {
-        taFirma.addEventListener("change", () => {
-          const fId = Number(taFirma.value)||null;
-          const filtered = state.data.contacts
-            .filter(c => !fId || Number(c.FirmaLookupId||c.firmaLookupId||0) === fId)
-            .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"))
-            .map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
-          const wrap = document.getElementById("ap-wrap");
-          if (wrap) wrap.innerHTML = h.typeaheadHtml("ansprechpartnerLookupId", filtered, "", "Person suchen…");
-        });
-      }
     },
 
     async saveProjekt(fd) {
@@ -952,7 +947,17 @@
       </div></div>`);
     },
 
-    onProjChange(sel) {
+    onFirmaChange(sel) {
+      const fId = Number(sel.value)||null;
+      const filtered = state.data.contacts
+        .filter(c => !fId || c.FirmaLookupId === fId)
+        .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
+      const wrap = document.getElementById("ap-wrap");
+      if (wrap) wrap.innerHTML = `<select name="ansprechpartnerLookupId" required>
+        <option value="">— Person wählen —</option>
+        ${filtered.map(c=>`<option value="${c.id}">${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
+      </select>`;
+    },
       const p = state.enriched.projekte.find(p=>p.id===Number(sel.value));
       const kats = h.kategorien(p);
       const grp = document.getElementById("kat-grp");
