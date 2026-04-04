@@ -1574,7 +1574,7 @@
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                       <div class="ef-iw" style="max-width:130px">
                         <input type="number" name="kmAnzahl" id="ef-km-input" min="0" step="1"
-                          value="${e?.spesenBerechnet && selProjekt?.ansatzKmSpesen ? Math.round(e.spesenBerechnet / selProjekt.ansatzKmSpesen / 2) : ""}"
+                          value="${e?.spesenBerechnet && selProjekt?.ansatzKmSpesen ? Math.round(e.spesenBerechnet / selProjekt.ansatzKmSpesen / 2) : (selProjekt?.kmZumKunden || "")}"
                           placeholder="km (einfach)"
                           oninput="ctrl.efCalcWegspesen(this.value)">
                       </div>
@@ -1732,7 +1732,16 @@
       }
       detail.style.display = show ? "flex" : "none";
       btn.classList.toggle("on", show);
-      if (!show) {
+      if (show) {
+        // Km aus Projektstammdaten vorausfüllen und direkt berechnen
+        const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+        const kmInp = document.getElementById("ef-km-input");
+        if (kmInp && !kmInp.value && proj?.kmZumKunden) {
+          kmInp.value = proj.kmZumKunden;
+          ctrl.efCalcWegspesen(proj.kmZumKunden);
+        }
+      } else {
         const km = document.getElementById("ef-km-input");
         if (km) km.value = "";
         const ber = document.getElementById("ef-spesen-ber");
