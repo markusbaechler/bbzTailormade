@@ -635,11 +635,15 @@
           </select>
         </div>
         ${list.length?`<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung / Projekt</th><th>Kategorie</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
-          <tbody>${list.map(e=>`<tr class="${["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)?"cancelled":""}">
+          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Projekt / Firma</th><th>Kategorie</th><th>Person</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
+          <tbody>${list.map(e=>{
+            const proj = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
+            return `<tr class="${["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)?"cancelled":""}">
             <td class="tm-nowrap">${h.esc(e.datumFmt)}</td>
-            <td><div style="font-weight:500">${h.esc(e.title)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(e.projektTitle)}</div></td>
+            <td style="font-weight:500">${h.esc(e.title)}</td>
+            <td><div style="font-weight:500">${h.esc(e.projektTitle)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(proj?.firmaName||"")}</div></td>
             <td class="tm-muted">${h.esc(e.kategorie)}</td>
+            <td class="tm-muted">${h.esc(e.personName)}</td>
             <td class="tm-right tm-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
             <td>${h.statusBadge(e)}</td>
             <td>${h.abrBadge(e.abrechnung)}</td>
@@ -647,7 +651,7 @@
               <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎</button>
               <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}">⧉</button>
             </div></td>
-          </tr>`).join("")}</tbody></table></div>`:ui.empty("Keine Einsätze gefunden.")}
+          </tr>`;}).join("")}</tbody></table></div>`:ui.empty("Keine Einsätze gefunden.")}
       `);
     },
 
@@ -863,8 +867,21 @@
       const selProjekt = prefProjId ? state.enriched.projekte.find(p=>p.id===prefProjId) : null;
       const kats = h.kategorien(selProjekt);
       const selKat = e?.kategorie||"";
-      const contactItems = state.data.contacts.sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de")).map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
-      const projektOpts  = state.enriched.projekte.filter(p=>!p.archiviert).map(p=>`<option value="${p.id}" ${prefProjId===p.id?"selected":""}>${h.esc(p.title)}${p.projektNr?` (#${p.projektNr})`:""}</option>`).join("");
+
+      // Eingeloggter User als Default-Person
+      const loggedInName = state.auth.account?.name || "";
+      const defaultPerson = state.data.contacts.find(c => {
+        const fullName = [c.vorname, c.nachname].filter(Boolean).join(" ");
+        return fullName.toLowerCase() === loggedInName.toLowerCase() ||
+               [c.nachname, c.vorname].filter(Boolean).join(", ").toLowerCase() === loggedInName.toLowerCase();
+      });
+      const defaultPersonId = e ? String(e.personLookupId||"") : (defaultPerson ? String(defaultPerson.id) : "");
+
+      const contactItems = state.data.contacts
+        .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"))
+        .map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
+      const projektOpts = state.enriched.projekte.filter(p=>!p.archiviert)
+        .map(p=>`<option value="${p.id}" ${prefProjId===p.id?"selected":""}>${h.esc(p.title)}${p.projektNr?` (#${p.projektNr})`:""}</option>`).join("");
 
       ui.renderModal(`<div class="tm-modal-backdrop"><div class="tm-modal">
         <div class="tm-modal-header"><span class="tm-modal-title">${id?"Einsatz bearbeiten":"Einsatz erfassen"}</span><button class="tm-modal-close" data-close-modal>✕</button></div>
@@ -874,7 +891,7 @@
             <input type="hidden" name="mode" value="${id?"edit":"create"}">
             <div class="tm-field"><label>Datum <span class="req">*</span></label><input type="date" name="datum" value="${h.esc(e?h.toDateInput(e.datum):"")}"></div>
             <div class="tm-field"><label>Projekt <span class="req">*</span></label><select name="projektLookupId" required onchange="ctrl.onProjChange(this)"><option value="">— wählen —</option>${projektOpts}</select></div>
-            <div class="tm-field tm-form-full"><label>Kategorie <span class="req">*</span></label>
+            <div class="tm-field tm-form-full"><label>Beschreibung</label><input type="text" name="titel" value="${h.esc(e?.title||"")}" placeholder="z.B. Kick-off Workshop, Modul 3 Leadership…"></div>
               <div class="tm-radio-group" id="kat-grp">${kats.map(k=>`<div class="tm-radio-btn${selKat===k?" sel":""}" onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('kat-hid').value='${k}';ctrl.onKatChange('${k}')">${h.esc(k)}</div>`).join("")}</div>
               <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
             </div>
@@ -889,7 +906,7 @@
             <div class="tm-field" id="fd-std" style="${selKat==="Stunde"?"":"display:none"}"><label>Stunden</label><input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden||""}"></div>
             <div class="tm-field" id="fd-stk" style="${selKat==="Stück"?"":"display:none"}"><label>Anzahl Stück</label><input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck||""}"></div>
             <div class="tm-field"><label>Ort</label><input type="text" name="ort" value="${h.esc(e?.ort||"")}"></div>
-            <div class="tm-field"><label>Person (Lead)</label>${h.typeaheadHtml("personLookupId",contactItems,e?String(e.personLookupId||""):"","Person suchen…")}</div>
+            <div class="tm-field"><label>Person (Lead)</label>${h.typeaheadHtml("personLookupId",contactItems,defaultPersonId,"Person suchen…")}</div>
             <div class="tm-field tm-form-full"><label>Bemerkungen</label><textarea name="bemerkungen">${h.esc(e?.bemerkungen||"")}</textarea></div>
             <div class="tm-section-divider">Beträge</div>
             <div class="tm-field"><label>Betrag berechnet</label><div class="tm-computed">Wird beim Speichern eingefroren</div></div>
@@ -934,7 +951,8 @@
         const dauerStunden = h.num(fd.get("dauerStunden"));
         const anzahlStueck = h.num(fd.get("anzahlStueck"));
         const betragBer    = h.berechneBetrag(p, kat, dauerTage, dauerStunden, anzahlStueck);
-        const titel = `${kat} · ${datum}`;
+        const titelInput = fd.get("titel")?.trim();
+        const titel = titelInput || `${kat} · ${datum}`;
 
         const fields = {
           Datum:            datum+"T12:00:00Z",
@@ -980,6 +998,15 @@
     openKonzeptionForm(id, projektId=null) {
       const k = id ? state.enriched.konzeption.find(k=>k.id===id) : null;
       const prefProjId = projektId||(k?.projektLookupId||null);
+
+      const loggedInName = state.auth.account?.name || "";
+      const defaultPerson = state.data.contacts.find(c => {
+        const fullName = [c.vorname, c.nachname].filter(Boolean).join(" ");
+        return fullName.toLowerCase() === loggedInName.toLowerCase() ||
+               [c.nachname, c.vorname].filter(Boolean).join(", ").toLowerCase() === loggedInName.toLowerCase();
+      });
+      const defaultPersonId = k ? String(k.personLookupId||"") : (defaultPerson ? String(defaultPerson.id) : "");
+
       const contactItems = state.data.contacts.sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de")).map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
       const projektOpts  = state.enriched.projekte.filter(p=>!p.archiviert).map(p=>`<option value="${p.id}" ${prefProjId===p.id?"selected":""}>${h.esc(p.title)}</option>`).join("");
 
@@ -998,7 +1025,7 @@
               </div>
               <input type="hidden" id="kat-konz" name="kategorie" value="${h.esc(k?.kategorie||"Konzeption")}">
             </div>
-            <div class="tm-field"><label>Person</label>${h.typeaheadHtml("personLookupId",contactItems,k?String(k.personLookupId||""):"","Person suchen…")}</div>
+            <div class="tm-field"><label>Person</label>${h.typeaheadHtml("personLookupId",contactItems,defaultPersonId,"Person suchen…")}</div>
             <div class="tm-field"><label>Aufwand Stunden <span class="req">*</span></label><input type="number" name="aufwandStunden" min="0.25" step="0.25" value="${k?.aufwandStunden||""}" required></div>
             <div class="tm-field"><label>Betrag berechnet</label><div class="tm-computed">Ansatz ÷ 8 × Stunden</div></div>
             <div class="tm-field"><label>Betrag final (optional)</label><input type="number" name="betragFinal" step="0.01" value="${k?.betragFinal??""}"></div>
