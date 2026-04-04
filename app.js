@@ -1551,8 +1551,8 @@
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
                 <button type="button" id="ef-spesen-toggle"
                   class="ef-sp${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? " on" : ""}"
-                  onclick="ctrl.efToggleSpesen(this)"
-                  data-open="${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? '1' : '0'}"
+                  id="ef-spesen-btn"
+                  onclick="ctrl.efToggleSpesen()"
                   style="font-size:13px;padding:7px 16px">
                   ${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? "Spesen verrechenbar ✓" : "Spesen verrechenbar?"}
                 </button>
@@ -1562,9 +1562,9 @@
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                     <button type="button" id="ef-wegspesen-toggle"
+                      id="ef-wegspesen-toggle"
                       class="ef-sp${e?.spesenBerechnet ? " on" : ""}"
-                      onclick="ctrl.efToggleWegspesen(this)"
-                      data-open="${e?.spesenBerechnet ? '1' : '0'}"
+                      onclick="ctrl.efToggleWegspesen()"
                       style="font-size:12px;padding:5px 12px">
                       Wegspesen
                     </button>
@@ -1697,54 +1697,44 @@
       }
     },
 
-    efToggleSpesen(btn) {
+    efToggleSpesen() {
+      const btn = document.getElementById("ef-spesen-btn");
       const detail = document.getElementById("ef-spesen-detail");
-      if (!detail) return;
-      // State via data-Attribut — unabhängig von CSS
-      const isOpen = btn.dataset.open === "1";
+      if (!btn || !detail) return;
+      const isOpen = btn.classList.contains("on");
       if (isOpen) {
-        // Deaktivieren
-        btn.dataset.open = "0";
         detail.style.display = "none";
         btn.classList.remove("on");
         btn.textContent = "Spesen verrechenbar?";
-        const weg = document.getElementById("ef-wegspesen-detail");
-        if (weg) weg.style.display = "none";
-        const wt = document.getElementById("ef-wegspesen-toggle");
-        if (wt) { wt.classList.remove("on"); wt.dataset.open = "0"; }
-        const km = document.getElementById("ef-km-input");
-        if (km) km.value = "";
-        const ber = document.getElementById("ef-spesen-ber");
-        if (ber) ber.value = "";
-        const tot = document.getElementById("ef-wegspesen-total");
-        if (tot) tot.textContent = "";
+        ctrl.efToggleWegspesen(true); // force close
         const zusatz = document.querySelector("[name='spesenZusatz']");
         if (zusatz) zusatz.value = "";
         const sf = document.querySelector("[name='spesenFinal']");
         if (sf) sf.value = "";
       } else {
-        // Aktivieren
-        btn.dataset.open = "1";
         detail.style.display = "flex";
         btn.classList.add("on");
         btn.textContent = "Spesen verrechenbar \u2713";
       }
     },
 
-    efToggleWegspesen(btn) {
+    efToggleWegspesen(forceClose = false) {
+      const btn = document.getElementById("ef-wegspesen-toggle");
       const detail = document.getElementById("ef-wegspesen-detail");
       if (!detail) return;
-      const show = btn.dataset.open !== "1";
-      // Prüfen ob Km-Ansatz vorhanden
-      const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-      const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-      if (show && !proj?.ansatzKmSpesen) {
-        ui.setMsg("Kein Km-Ansatz im Projekt hinterlegt. Bitte zuerst in den Projektsettings erfassen.", "error");
-        return;
+      const isOpen = btn?.classList.contains("on");
+      const show = forceClose ? false : !isOpen;
+      if (show) {
+        // Prüfen ob Km-Ansatz vorhanden
+        const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+        if (!proj?.ansatzKmSpesen) {
+          ui.setMsg("Kein Km-Ansatz im Projekt hinterlegt. Bitte zuerst in den Projektsettings erfassen.", "error");
+          return;
+        }
       }
-      btn.dataset.open = show ? "1" : "0";
       detail.style.display = show ? "flex" : "none";
-      btn.classList.toggle("on", show);
+      if (btn) btn.classList.toggle("on", show);
       if (show) {
         // Km aus Projektstammdaten vorausfüllen und direkt berechnen
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
