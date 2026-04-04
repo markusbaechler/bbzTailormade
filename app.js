@@ -225,6 +225,7 @@
       // Callback für Firma→Person-Filter
       const name = w.dataset.name;
       if (name === "ansprechpartnerLookupId") ctrl.onApSelected(item.dataset.id);
+      if (name === "coPersonLookupId") ctrl.updateCoBetrag();
     },
 
     // Einsatz-Status
@@ -369,8 +370,10 @@
       dauerTage:       h.num(raw.DauerTage),
       dauerStunden:    h.num(raw.DauerStunden),
       anzahlStueck:    h.num(raw.AnzahlStueck),
-      betragBerechnet: h.num(raw.BetragBerechnet),
-      betragFinal:     h.num(raw.BetragFinal),
+      betragBerechnet:   h.num(raw.BetragBerechnet),
+      betragFinal:       h.num(raw.BetragFinal),
+      coBetragBerechnet: h.num(raw.CoBetragBerechnet),
+      coBetragFinal:     h.num(raw.CoBetragFinal),
       spesenZusatz:    h.num(raw.SpesenZusatz),
       spesenBerechnet: h.num(raw.SpesenBerechnet),
       spesenFinal:     h.num(raw.SpesenFinal),
@@ -382,6 +385,8 @@
     e.anzeigeBetrag = h.num(e.betragFinal) ?? h.num(e.betragBerechnet);
     e.projektTitle  = state.data.projekte.find(p => Number(p.id) === e.projektLookupId)?.Title || "";
     e.personName    = h.contactName(e.personLookupId);
+    e.coPersonName  = h.contactName(e.coPersonLookupId);
+    e.coAnzeigeBetrag = h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet);
     return e;
   }
 
@@ -394,8 +399,10 @@
       kategorie:       raw.Kategorie || "",
       personLookupId:  h.rdLookup(raw, F.konz_person_r),
       aufwandStunden:  h.num(raw.AufwandStunden),
-      betragBerechnet: h.num(raw.BetragBerechnet),
-      betragFinal:     h.num(raw.BetragFinal),
+      betragBerechnet:   h.num(raw.BetragBerechnet),
+      betragFinal:       h.num(raw.BetragFinal),
+      coBetragBerechnet: h.num(raw.CoBetragBerechnet),
+      coBetragFinal:     h.num(raw.CoBetragFinal),
       verrechenbar:    raw.Verrechenbar || "",
       bemerkungen:     raw.Bemerkungen || ""
     };
@@ -723,13 +730,13 @@
         const list = p.einsaetze.map(enrichEinsatz).sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
         if (!list.length) return ui.empty("Noch keine Einsätze erfasst.");
         return `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
+          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Lead / Co-Lead</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
           <tbody>${list.map(e => `<tr class="${["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)?"cancelled":""}">
             <td class="tm-nowrap">${h.esc(e.datumFmt)}</td>
             <td style="font-weight:500">${h.esc(e.title)}</td>
             <td class="tm-muted">${h.esc(e.kategorie)}</td>
-            <td class="tm-muted">${h.esc(e.personName)}</td>
-            <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}</td>
+            <td class="tm-muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName !== "—" ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.esc(e.coPersonName)}</div>` : ""}</td>
+            <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}${e.coAnzeigeBetrag !== null && e.coAnzeigeBetrag !== undefined ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.chf(e.coAnzeigeBetrag)}</div>` : ""}</td>
             <td>${h.statusBadge(e)}</td>
             <td>${h.abrBadge(e.abrechnung)}</td>
             <td><div class="tm-actions">
@@ -844,8 +851,8 @@
               <td style="font-weight:500">${h.esc(e.title)}</td>
               <td><div style="font-weight:500">${h.esc(e.projektTitle)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(proj?.firmaName||"")}</div></td>
               <td class="tm-muted">${h.esc(e.kategorie)}</td>
-              <td class="tm-muted">${h.esc(e.personName)}</td>
-              <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}</td>
+              <td class="tm-muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName !== "—" ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.esc(e.coPersonName)}</div>` : ""}</td>
+              <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}${e.coAnzeigeBetrag !== null && e.coAnzeigeBetrag !== undefined ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.chf(e.coAnzeigeBetrag)}</div>` : ""}</td>
               <td>${h.statusBadge(e)}</td>
               <td>${h.abrBadge(e.abrechnung)}</td>
               <td><div class="tm-actions">
@@ -1097,6 +1104,28 @@
       `);
     },
 
+    // Co-Lead gewählt → Co-Betrag anzeigen
+    updateCoBetrag() {
+      const coVal = document.querySelector('.tm-typeahead[data-name="coPersonLookupId"] .tm-ta-val')?.value;
+      const hasCoLead = !!coVal;
+      const kat = document.getElementById("kat-hid")?.value || "";
+      const isTagKat = kat && !["Stunde","Stück","Pauschale"].includes(kat);
+      const show = isTagKat && hasCoLead;
+      ["fd-cobetrag","fd-cobetragfinal"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = show ? "" : "none";
+      });
+      if (show) {
+        const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+        const coKat = kat.replace("Einsatz", "Co-Einsatz");
+        const dauerTage = kat.includes("Halbtag") ? 0.5 : 1;
+        const coBetrag = proj ? h.berechneBetrag(proj, coKat, dauerTage, null, null) : null;
+        const disp = document.getElementById("cobetrag-display");
+        if (disp) disp.textContent = coBetrag !== null ? "CHF " + h.chf(coBetrag) : "— (nicht konfiguriert)";
+      }
+    },
+
     // Ansprechpartner gewählt → Firma automatisch befüllen
     onApSelected(contactId) {
       const cId = Number(contactId) || null;
@@ -1270,14 +1299,24 @@
 
             <div class="tm-section-divider">Beträge</div>
             <div class="tm-field">
-              <label>Betrag (aus Projektsettings)</label>
+              <label>Betrag Lead (aus Projektsettings)</label>
               <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="betrag-display">
                 ${betragBer !== null ? "CHF " + h.chf(betragBer) : "— (Kategorie wählen)"}
               </div>
             </div>
             <div class="tm-field">
-              <label>Betrag anpassen (optional)</label>
-              <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Leer = Projektsetting übernehmen">
+              <label>Betrag Lead anpassen (optional)</label>
+              <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Leer = Projektsetting">
+            </div>
+            <div class="tm-field" id="fd-cobetrag" style="${isTagKat && selCoPerson ? "" : "display:none"}">
+              <label>Betrag Co-Lead (aus Projektsettings)</label>
+              <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="cobetrag-display">
+                ${(() => { const cob = selProjekt ? h.berechneBetrag(selProjekt, selKat.replace("Einsatz","Co-Einsatz"), selKat.includes("Halbtag")?0.5:1, null, null) : null; return cob !== null ? "CHF " + h.chf(cob) : "—"; })()}
+              </div>
+            </div>
+            <div class="tm-field" id="fd-cobetragfinal" style="${isTagKat && selCoPerson ? "" : "display:none"}">
+              <label>Betrag Co-Lead anpassen (optional)</label>
+              <input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal??""}" placeholder="Leer = Projektsetting">
             </div>
 
             <div class="tm-section-divider">Status</div>
@@ -1336,6 +1375,8 @@
       const betrag = proj ? h.berechneBetrag(proj, kat, dauerTage, std, stk) : null;
       const disp = document.getElementById("betrag-display");
       if (disp) disp.textContent = betrag !== null ? "CHF " + h.chf(betrag) : "— (nicht konfiguriert)";
+      // Co-Betrag aktualisieren
+      ctrl.updateCoBetrag();
     },
 
     async saveEinsatz(fd) {
@@ -1377,6 +1418,15 @@
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
         if (bf !== null) fields.BetragFinal = bf;
+        // Co-Betrag: nur wenn Co-Lead gesetzt
+        const coPersonId2 = h.num(fd.get("coPersonLookupId"));
+        if (coPersonId2) {
+          const coKat = kat.replace("Einsatz", "Co-Einsatz");
+          const coBetragBer = h.berechneBetrag(p, coKat, dauerTage, dauerStunden, anzahlStueck);
+          if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
+          const cbf = h.num(fd.get("coBetragFinal"));
+          if (cbf !== null) fields.CoBetragFinal = cbf;
+        }
 
         const ort = (fd.get("ort") || "").trim();
         if (ort) fields.Ort = ort;
@@ -1631,6 +1681,15 @@
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
         if (bf !== null) fields.BetragFinal = bf;
+        // Co-Betrag: nur wenn Co-Lead gesetzt
+        const coPersonId2 = h.num(fd.get("coPersonLookupId"));
+        if (coPersonId2) {
+          const coKat = kat.replace("Einsatz", "Co-Einsatz");
+          const coBetragBer = h.berechneBetrag(p, coKat, dauerTage, dauerStunden, anzahlStueck);
+          if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
+          const cbf = h.num(fd.get("coBetragFinal"));
+          if (cbf !== null) fields.CoBetragFinal = cbf;
+        }
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
 
