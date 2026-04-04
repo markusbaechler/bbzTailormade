@@ -1042,7 +1042,13 @@
     onFirmaSelected(firmaId) {
       const fId = Number(firmaId) || null;
       const wrap = document.getElementById("ap-wrap");
-      if (wrap) wrap.innerHTML = ui.contactSelect("ansprechpartnerLookupId", null, fId, true);
+      if (!wrap) return;
+      // Aktuellen AP-Wert lesen bevor er überschrieben wird
+      const currentApId = Number(wrap.querySelector("select")?.value) || null;
+      // AP beibehalten wenn er zur neuen Firma gehört, sonst null
+      const contact = currentApId ? state.data.contacts.find(c => c.id === currentApId) : null;
+      const keepAp = (contact && (!fId || contact.firmaLookupId === fId)) ? currentApId : null;
+      wrap.innerHTML = ui.contactSelect("ansprechpartnerLookupId", keepAp, fId, true);
     },
 
     async saveProjekt(fd) {
