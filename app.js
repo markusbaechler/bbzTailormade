@@ -33,20 +33,28 @@
   // ════════════════════════════════════════════════════════════════════════
   const F = {
     // ProjekteTM — Lesen
-    firma_r:           "FirmaLookupIdLookupId",   // Fallback: FirmaLookupId
-    ansprechpartner_r: "AnsprechpartnerLookupIdLookupId",   // Fallback: AnsprechpartnerLookupId
+    firma_r:           "FirmaLookupIdLookupId",
+    ansprechpartner_r: "AnsprechpartnerLookupIdLookupId",
     // ProjekteTM — Schreiben
     firma_w:           "FirmaLookupId",
     ansprechpartner_w: "AnsprechpartnerLookupId",
 
-    // EinsaetzeTM + KonzeptionTM — Lesen
+    // EinsaetzeTM — Lesen
+    // PersonLookupId0 weil SP den internen Namen wegen Konflikt mit "0" versehen hat
     projekt_r:         "ProjektLookupIdLookupId",
-    person_r:          "PersonLookupIdLookupId",
+    person_r:          "PersonLookupId0LookupId",
     coPerson_r:        "CoPersonLookupIdLookupId",
-    // EinsaetzeTM + KonzeptionTM — Schreiben
+    // EinsaetzeTM — Schreiben
     projekt_w:         "ProjektLookupId",
-    person_w:          "PersonLookupId",
-    coPerson_w:        "CoPersonLookupId"
+    person_w:          "PersonLookupId0",
+    coPerson_w:        "CoPersonLookupId",
+
+    // KonzeptionTM — Lesen (PersonLookupId OHNE "0")
+    konz_projekt_r:    "ProjektLookupIdLookupId",
+    konz_person_r:     "PersonLookupIdLookupId",
+    // KonzeptionTM — Schreiben
+    konz_projekt_w:    "ProjektLookupId",
+    konz_person_w:     "PersonLookupId"
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -337,7 +345,7 @@
     p.firmaName       = h.firmName(p.firmaLookupId);
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
     p.einsaetze       = state.data.einsaetze.filter(e => h.rdLookup(e, F.projekt_r) === p.id);
-    p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.projekt_r) === p.id);
+    p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
     p.totalBetrag     = p.einsaetze
       .filter(e => !String(e.Status||"").toLowerCase().includes("abgesagt"))
       .reduce((s,e) => s + (h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0), 0);
@@ -382,9 +390,9 @@
       id:              Number(raw.id),
       title:           raw.Title || "",
       datum:           raw.Datum,
-      projektLookupId: h.rdLookup(raw, F.projekt_r),
+      projektLookupId: h.rdLookup(raw, F.konz_projekt_r),
       kategorie:       raw.Kategorie || "",
-      personLookupId:  h.rdLookup(raw, F.person_r),
+      personLookupId:  h.rdLookup(raw, F.konz_person_r),
       aufwandStunden:  h.num(raw.AufwandStunden),
       betragBerechnet: h.num(raw.BetragBerechnet),
       betragFinal:     h.num(raw.BetragFinal),
@@ -1593,9 +1601,9 @@
         const betragBer = (ansatz && std) ? (ansatz / 8) * std : null;
 
         // Lookup-Felder via SP REST API
-        const lookupFields = { [F.projekt_w]: projId };
+        const lookupFields = { [F.konz_projekt_w]: projId };
         const personId = h.num(fd.get("personLookupId"));
-        if (personId) lookupFields[F.person_w] = personId;
+        if (personId) lookupFields[F.konz_person_w] = personId;
 
         const fields = {
           Kategorie:      kat,
