@@ -446,7 +446,9 @@
 
     async getItems(list) {
       const sid = await api.siteId();
-      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?$expand=fields&$top=5000`;
+      // $select=fields/* stellt sicher dass SP alle Felder zurückgibt,
+      // inkl. Lookup-Felder die sonst bei $expand=fields fehlen können.
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?$expand=fields($select=*)&$top=5000`;
       const items = [];
       let next = url;
       while (next) {
@@ -585,7 +587,7 @@
       const firms = state.data.firms.sort((a,b) => a.title.localeCompare(b.title, "de"));
       return `<select name="${h.esc(name)}" ${required?"required":""} ${onchange?`onchange="${onchange}"`:""}>
         <option value="">— Firma wählen —</option>
-        ${firms.map(f => `<option value="${f.id}" ${f.id === selectedId ? "selected" : ""}>${h.esc(f.title)}</option>`).join("")}
+        ${firms.map(f => `<option value="${f.id}" ${String(f.id) === String(selectedId||"") ? "selected" : ""}>${h.esc(f.title)}</option>`).join("")}
       </select>`;
     },
 
