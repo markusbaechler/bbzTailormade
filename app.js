@@ -471,11 +471,11 @@
     // PATCH: nur gesetzte Felder — keine null-Werte für Lookup/Choice/Number
     async patch(list, itemId, fields) {
       const sid = await api.siteId();
-      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}/fields`;
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}`;
       // null-Werte filtern
       const clean = Object.fromEntries(Object.entries(fields).filter(([,v]) => v !== null && v !== undefined));
       debug.log(`patch:${list}:${itemId}`, clean);
-      return api.req(url, { method: "PATCH", body: JSON.stringify(clean) });
+      return api.req(url, { method: "PATCH", body: JSON.stringify({ fields: clean }) });
     },
 
     async loadAll() {
