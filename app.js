@@ -958,6 +958,8 @@
         ${filtered.map(c=>`<option value="${c.id}">${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
       </select>`;
     },
+
+    onProjChange(sel) {
       const p = state.enriched.projekte.find(p=>p.id===Number(sel.value));
       const kats = h.kategorien(p);
       const grp = document.getElementById("kat-grp");
