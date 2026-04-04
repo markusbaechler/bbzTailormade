@@ -1550,66 +1550,55 @@
               <div class="ef-l">Spesen</div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
                 <button type="button" id="ef-spesen-btn"
-                  class="ef-sp${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? " on" : ""}"
+                  class="ef-sp"
                   onclick="ctrl.efToggleSpesen()"
                   style="font-size:13px;padding:7px 16px">
-                  ${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? "Spesen verrechenbar ✓" : "Spesen verrechenbar?"}
+                  Spesen verrechenbar?
                 </button>
               </div>
-              <div id="ef-spesen-detail" style="display:${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? "flex" : "none"};flex-direction:column;gap:10px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:9px;padding:12px 14px">
-                <!-- Wegspesen -->
+              <div id="ef-spesen-detail" style="display:none;flex-direction:column;gap:10px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:9px;padding:12px 14px">
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <button type="button" id="ef-wegspesen-toggle"
-                      id="ef-wegspesen-toggle"
-                      class="ef-sp${e?.spesenBerechnet ? " on" : ""}"
+                    <button type="button" id="ef-wegspesen-btn"
+                      class="ef-sp"
                       onclick="ctrl.efToggleWegspesen()"
                       style="font-size:12px;padding:5px 12px">
                       Wegspesen
                     </button>
-                    ${selProjekt?.ansatzKmSpesen
-                      ? `<span style="font-size:11px;color:#8896a5">Ansatz: CHF ${h.chf(selProjekt.ansatzKmSpesen)}/km</span>`
-                      : `<span style="font-size:11px;color:#950e13">⚠ Kein Km-Ansatz im Projekt</span>`}
+                    <span id="ef-km-ansatz-label" style="font-size:11px;color:#8896a5">Ansatz: CHF {}/km</span>
                   </div>
-                  <div id="ef-wegspesen-detail" style="display:${e?.spesenBerechnet ? "flex" : "none"};flex-direction:column;gap:8px">
+                  <div id="ef-wegspesen-detail" style="display:none;flex-direction:column;gap:8px">
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                       <div class="ef-iw" style="max-width:130px">
                         <input type="number" name="kmAnzahl" id="ef-km-input" min="0" step="1"
-                          value="${e?.spesenBerechnet && selProjekt?.ansatzKmSpesen ? Math.round(e.spesenBerechnet / selProjekt.ansatzKmSpesen / 2) : (selProjekt?.kmZumKunden || "")}"
                           placeholder="km (einfach)"
                           oninput="ctrl.efCalcWegspesen(this.value)">
                       </div>
                       <span style="font-size:12px;color:#8896a5">× 2 (Hin & Zurück)</span>
-                      <div id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#1a8a5e">
-                        ${e?.spesenBerechnet ? "= CHF " + h.chf(e.spesenBerechnet) : ""}
-                      </div>
-                      <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="${e?.spesenBerechnet??''}">
+                      <div id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#1a8a5e"></div>
+                      <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="">
                     </div>
                     <div style="display:flex;align-items:center;gap:8px">
                       <div class="ef-ov" style="max-width:160px">
                         <span class="ef-ov-p">CHF</span>
-                        <input type="number" name="spesenFinal" step="0.01" min="0"
-                          value="${e?.spesenFinal??""}" placeholder="Anpassen (optional)">
+                        <input type="number" name="spesenFinal" id="ef-spesen-final" step="0.01" min="0" placeholder="Anpassen (optional)">
                       </div>
                       <span style="font-size:11px;color:#8896a5">Leer = berechneter Wert</span>
                     </div>
                   </div>
                 </div>
-                <!-- Sonstige Spesen -->
                 <div>
                   <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:5px">Sonstige Spesen</div>
                   <div style="display:flex;align-items:center;gap:8px">
                     <div class="ef-ov" style="max-width:160px">
                       <span class="ef-ov-p">CHF</span>
-                      <input type="number" name="spesenZusatz" step="0.01" min="0"
-                        value="${e?.spesenZusatz??""}" placeholder="Betrag">
+                      <input type="number" name="spesenZusatz" id="ef-spesen-zusatz" step="0.01" min="0" placeholder="Betrag">
                     </div>
                     <span style="font-size:11px;color:#8896a5">Details in Bemerkungen ergänzen</span>
                   </div>
                 </div>
               </div>
             </div>
-
             <!-- Bemerkungen -->
             <div class="ef-s">
               <div class="ef-l">Bemerkungen (optional)</div>
@@ -1646,6 +1635,46 @@
           </button>
         </div>
       </div>`);
+
+      // Spesen-Felder nach Render initialisieren (vermeidet Template-String-Probleme)
+      setTimeout(() => {
+        const ansatz = selProjekt?.ansatzKmSpesen;
+        const label = document.getElementById("ef-km-ansatz-label");
+        if (label) {
+          if (ansatz) label.textContent = "Ansatz: CHF " + h.chf(ansatz) + "/km";
+          else { label.textContent = "\u26a0 Kein Km-Ansatz im Projekt"; label.style.color = "#950e13"; }
+        }
+
+        const hasSp = !!(e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal);
+        if (hasSp) {
+          const btn = document.getElementById("ef-spesen-btn");
+          const detail = document.getElementById("ef-spesen-detail");
+          if (btn) { btn.classList.add("on"); btn.textContent = "Spesen verrechenbar \u2713"; }
+          if (detail) detail.style.display = "flex";
+        }
+
+        const hasWeg = !!e?.spesenBerechnet;
+        if (hasWeg) {
+          const wbtn = document.getElementById("ef-wegspesen-btn");
+          const wdetail = document.getElementById("ef-wegspesen-detail");
+          if (wbtn) wbtn.classList.add("on");
+          if (wdetail) wdetail.style.display = "flex";
+          const kmInp = document.getElementById("ef-km-input");
+          if (kmInp && ansatz) {
+            const km = Math.round(e.spesenBerechnet / ansatz / 2);
+            kmInp.value = km;
+          }
+          const ber = document.getElementById("ef-spesen-ber");
+          if (ber) ber.value = e.spesenBerechnet || "";
+          const tot = document.getElementById("ef-wegspesen-total");
+          if (tot && e.spesenBerechnet) tot.textContent = "= CHF " + h.chf(e.spesenBerechnet);
+          const sf = document.getElementById("ef-spesen-final");
+          if (sf) sf.value = e?.spesenFinal || "";
+        }
+
+        const zusatz = document.getElementById("ef-spesen-zusatz");
+        if (zusatz && e?.spesenZusatz) zusatz.value = e.spesenZusatz;
+      }, 0);
     },
     // ── Einsatz-Formular Helfer ──────────────────────────────────────────
     efUpdateHeader(sel) {
@@ -1697,43 +1726,55 @@
     },
 
     efToggleSpesen() {
-      const btn = document.getElementById("ef-spesen-btn");
+      const btn    = document.getElementById("ef-spesen-btn");
       const detail = document.getElementById("ef-spesen-detail");
       if (!btn || !detail) return;
-      const isOpen = btn.classList.contains("on");
-      if (isOpen) {
-        detail.style.display = "none";
+      if (btn.classList.contains("on")) {
+        // Deaktivieren
         btn.classList.remove("on");
         btn.textContent = "Spesen verrechenbar?";
-        ctrl.efToggleWegspesen(true); // force close
-        const zusatz = document.querySelector("[name='spesenZusatz']");
-        if (zusatz) zusatz.value = "";
-        const sf = document.querySelector("[name='spesenFinal']");
-        if (sf) sf.value = "";
+        detail.style.display = "none";
+        // Wegspesen zurücksetzen
+        const wb = document.getElementById("ef-wegspesen-btn");
+        const wd = document.getElementById("ef-wegspesen-detail");
+        if (wb) wb.classList.remove("on");
+        if (wd) wd.style.display = "none";
+        const km = document.getElementById("ef-km-input");       if (km) km.value = "";
+        const ber = document.getElementById("ef-spesen-ber");    if (ber) ber.value = "";
+        const tot = document.getElementById("ef-wegspesen-total"); if (tot) tot.textContent = "";
+        const sf = document.getElementById("ef-spesen-final");   if (sf) sf.value = "";
+        const sz = document.getElementById("ef-spesen-zusatz");  if (sz) sz.value = "";
       } else {
-        detail.style.display = "flex";
+        // Aktivieren
         btn.classList.add("on");
-        btn.textContent = "Spesen verrechenbar \u2713";
+        btn.textContent = "Spesen verrechenbar ✓";
+        detail.style.display = "flex";
       }
     },
 
-    efToggleWegspesen(forceClose = false) {
-      const btn = document.getElementById("ef-wegspesen-toggle");
+    efToggleWegspesen() {
+      const btn    = document.getElementById("ef-wegspesen-btn");
       const detail = document.getElementById("ef-wegspesen-detail");
-      if (!detail) return;
-      const isOpen = btn?.classList.contains("on");
-      const show = forceClose ? false : !isOpen;
-      if (show) {
-        // Prüfen ob Km-Ansatz vorhanden
-        const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-        if (!proj?.ansatzKmSpesen) {
-          ui.setMsg("Kein Km-Ansatz im Projekt hinterlegt. Bitte zuerst in den Projektsettings erfassen.", "error");
-          return;
-        }
+      if (!btn || !detail) return;
+      if (btn.classList.contains("on")) {
+        // Deaktivieren
+        btn.classList.remove("on");
+        detail.style.display = "none";
+        const km  = document.getElementById("ef-km-input");        if (km) km.value = "";
+        const ber = document.getElementById("ef-spesen-ber");      if (ber) ber.value = "";
+        const tot = document.getElementById("ef-wegspesen-total"); if (tot) tot.textContent = "";
+        const sf  = document.getElementById("ef-spesen-final");    if (sf) sf.value = "";
+        return;
       }
-      detail.style.display = show ? "flex" : "none";
-      if (btn) btn.classList.toggle("on", show);
+      // Aktivieren — Km-Ansatz prüfen
+      const projId = Number(document.querySelector("[name=\'projektLookupId\']")?.value) || null;
+      const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+      if (!proj?.ansatzKmSpesen) {
+        ui.setMsg("Kein Km-Ansatz im Projekt. Bitte in Projektsettings erfassen.", "error");
+        return;
+      }
+      btn.classList.add("on");
+      detail.style.display = "flex";
       if (show) {
         // Km aus Projektstammdaten vorausfüllen und direkt berechnen
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
