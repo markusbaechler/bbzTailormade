@@ -1978,7 +1978,7 @@
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
       ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
-    },,
+    },
 
     // ── Konzeption-Formular ────────────────────────────────────────────────
     openKonzeptionForm(id, projektId = null) {
