@@ -866,6 +866,7 @@
       state.filters.route = route;
       if (route !== "projekt-detail") state.selection.projektId = null;
       this.render();
+      window.scrollTo(0, 0);
     },
 
     openProjekt(id) {
@@ -873,6 +874,7 @@
       state.selection.projektId = id;
       state.filters.route = "projekt-detail";
       this.render();
+      window.scrollTo(0, 0);
     },
 
     setTab(route, tab) { state.filters.activeTab[route] = tab; this.render(); },
