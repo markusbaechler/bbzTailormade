@@ -454,17 +454,18 @@
       return data.id;
     },
 
-    async getListItems(listTitle, select = null, expand = null) {
+    async getListItems(listTitle) {
       const siteId = await api.getSiteId();
-      let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listTitle}/items?expand=fields&$top=5000`;
-      if (select) url += `&$select=${select}`;
+      let url = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${encodeURIComponent(listTitle)}/items?expand=fields&$top=5000`;
       const items = [];
       while (url) {
         const data = await api.fetch(url);
-        items.push(...(data.value || []));
+        for (const i of (data.value || [])) {
+          if (i.fields) items.push({ id: Number(i.id), ...i.fields });
+        }
         url = data["@odata.nextLink"] || null;
       }
-      return items.map(i => ({ id: Number(i.id), ...i.fields }));
+      return items;
     },
 
     async postItem(listTitle, fields) {
@@ -1184,7 +1185,7 @@
 
         const fields = {
           Datum:             datum + "T12:00:00Z",
-          Projekt:   projektLookupId,
+          ProjektLookupId:   projektLookupId,
           Kategorie:         kategorie,
           Abrechnung:        fd.get("abrechnung") || "offen"
         };
@@ -1209,13 +1210,13 @@
 
         // Lookup-Felder nur wenn gesetzt
         const personId = helpers.num(fd.get("personLookupId"));
-        if (personId) fields.Person = personId;
+        if (personId) fields.PersonLookupId = personId;
 
         if (mode === "edit" && itemId) {
           fields.Title = einsatzTitle;
           await api.patchItem(CONFIG.lists.einsaetze, Number(itemId), fields);
         } else {
-          const created = await api.postItem(CONFIG.lists.einsaetze, { Title: einsatzTitle, Projekt: projektLookupId });
+          const created = await api.postItem(CONFIG.lists.einsaetze, { Title: einsatzTitle, ProjektLookupId: projektLookupId });
           const newId = created?.id || created?.fields?.id;
           if (!newId) throw new Error("Neue Item-ID fehlt.");
           await api.patchItem(CONFIG.lists.einsaetze, Number(newId), fields);
@@ -1324,7 +1325,7 @@
 
         const fields = {
           Datum:           datum + "T12:00:00Z",
-          Projekt: projektLookupId,
+          ProjektLookupId: projektLookupId,
           Kategorie:       kategorie,
           AufwandStunden:  aufwandStunden,
           Verrechenbar:    fd.get("verrechenbar")
@@ -1338,13 +1339,13 @@
 
         // Lookup nur senden wenn gesetzt
         const personId = helpers.num(fd.get("personLookupId"));
-        if (personId) fields.Person = personId;
+        if (personId) fields.PersonLookupId = personId;
 
         if (mode === "edit" && itemId) {
           fields.Title = titelValue;
           await api.patchItem(CONFIG.lists.konzeption, Number(itemId), fields);
         } else {
-          const created = await api.postItem(CONFIG.lists.konzeption, { Title: titelValue, Projekt: projektLookupId });
+          const created = await api.postItem(CONFIG.lists.konzeption, { Title: titelValue, ProjektLookupId: projektLookupId });
           const newId = created?.id || created?.fields?.id;
           if (!newId) throw new Error("Neue Item-ID fehlt.");
           await api.patchItem(CONFIG.lists.konzeption, Number(newId), fields);
@@ -1548,8 +1549,8 @@
         const fields = {
           ProjektNr:               fd.get("projektNr") || null,
           KontoNr:                 fd.get("kontoNr") || null,
-          Firma:           firmaLookupId,
-          Ansprechpartner: ansprechpartnerLookupId,
+          FirmaLookupId:           firmaLookupId,
+          AnsprechpartnerLookupId: ansprechpartnerLookupId,
           Status:                  fd.get("status") || "aktiv",
           KmZumKunden:             numOpt("kmZumKunden"),
           Archiviert:              fd.get("archiviert") === "on",
@@ -1571,7 +1572,7 @@
           fields.Title = title;
           await api.patchItem(CONFIG.lists.projekte, Number(itemId), fields);
         } else {
-          const created = await api.postItem(CONFIG.lists.projekte, { Title: title, Firma: firmaLookupId });
+          const created = await api.postItem(CONFIG.lists.projekte, { Title: title, FirmaLookupId: firmaLookupId });
           const newId = created?.id || created?.fields?.id;
           if (!newId) throw new Error("Neue Item-ID fehlt.");
           await api.patchItem(CONFIG.lists.projekte, Number(newId), fields);
