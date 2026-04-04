@@ -1102,7 +1102,9 @@
         ctrl.navigate("projekte");
       } catch (e) {
         debug.err("saveProjekt", e);
+        state.form = null;
         ui.setMsg(e.message || "Fehler beim Speichern.", "error");
+        ctrl.render();
       }
     },
 
