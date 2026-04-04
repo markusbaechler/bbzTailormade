@@ -30,8 +30,8 @@
       title:                   "Title",
       projektNr:               "ProjektNr",
       kontoNr:                 "KontoNr",
-      firmaLookupId:           "FirmaLookupID",
-      ansprechpartnerLookupId: "AnsprechpartnerLookupID",
+      firmaLookupId:           "FirmaLookupId",
+      ansprechpartnerLookupId: "AnsprechpartnerLookupId",
       status:                  "Status",
       kmZumKunden:             "KmZumKunden",
       archiviert:              "Archiviert",
@@ -51,10 +51,10 @@
     einsaetze: {
       title:             "Title",
       datum:             "Datum",
-      projektLookupId:   "ProjektLookupID",
+      projektLookupId:   "ProjektLookupId",
       ort:               "Ort",
-      personLookupId:    "PersonLookupID",
-      coPersonLookupID:  "CoPersonLookupID",
+      personLookupId:    "PersonLookupId",
+      coPersonLookupId:  "CoPersonLookupId",
       bemerkungen:       "Bemerkungen",
       kategorie:         "Kategorie",
       dauerTage:         "DauerTage",
@@ -74,9 +74,9 @@
     konzeption: {
       title:           "Title",
       datum:           "Datum",
-      projektLookupId: "ProjektLookupID",
+      projektLookupId: "ProjektLookupId",
       kategorie:       "Kategorie",
-      personLookupId:  "PersonLookupID",
+      personLookupId:  "PersonLookupId",
       aufwandStunden:  "AufwandStunden",
       betragBerechnet: "BetragBerechnet",
       betragFinal:     "BetragFinal",
@@ -252,8 +252,8 @@
       title:                   raw.Title || "",
       projektNr:               raw.ProjektNr || "",
       kontoNr:                 raw.KontoNr || "",
-      firmaLookupId:           Number(raw.FirmaLookupID||0)||null,
-      ansprechpartnerLookupId: Number(raw.AnsprechpartnerLookupID||0)||null,
+      firmaLookupId:           Number(raw.FirmaLookupId||0)||null,
+      ansprechpartnerLookupId: Number(raw.AnsprechpartnerLookupId||0)||null,
       status:                  raw.Status || "",
       kmZumKunden:             h.num(raw.KmZumKunden),
       archiviert:              h.bool(raw.Archiviert),
@@ -272,8 +272,8 @@
     };
     p.firmaName        = h.firmName(p.firmaLookupId);
     p.ansprechpartner  = h.contactName(p.ansprechpartnerLookupId);
-    p.einsaetze        = state.data.einsaetze.filter(e=>Number(e.ProjektLookupID||0)===p.id);
-    p.konzeintraege    = state.data.konzeption.filter(k=>Number(k.ProjektLookupID||0)===p.id);
+    p.einsaetze        = state.data.einsaetze.filter(e=>Number(e.ProjektLookupId||0)===p.id);
+    p.konzeintraege    = state.data.konzeption.filter(k=>Number(k.ProjektLookupId||0)===p.id);
     const aktiv        = p.einsaetze.filter(e=>!String(e.Status||"").toLowerCase().includes("abgesagt"));
     p.totalBetrag      = aktiv.reduce((s,e)=>s+(h.num(e.BetragFinal)??h.num(e.BetragBerechnet)??0),0);
     p.einsaetzeCount   = p.einsaetze.length;
@@ -287,10 +287,10 @@
       id:             Number(raw.id),
       title:          raw.Title || "",
       datum:          raw.Datum,
-      projektLookupId:Number(raw.ProjektLookupID||0)||null,
+      projektLookupId:Number(raw.ProjektLookupId||0)||null,
       ort:            raw.Ort || "",
-      personLookupId: Number(raw.PersonLookupID||0)||null,
-      coPersonLookupID:Number(raw.CoPersonLookupID||0)||null,
+      personLookupId: Number(raw.PersonLookupId||0)||null,
+      coPersonLookupId:Number(raw.CoPersonLookupId||0)||null,
       bemerkungen:    raw.Bemerkungen || "",
       kategorie:      raw.Kategorie || "",
       dauerTage:      h.num(raw.DauerTage),
@@ -320,9 +320,9 @@
       id:              Number(raw.id),
       title:           raw.Title || "",
       datum:           raw.Datum,
-      projektLookupId: Number(raw.ProjektLookupID||0)||null,
+      projektLookupId: Number(raw.ProjektLookupId||0)||null,
       kategorie:       raw.Kategorie || "",
-      personLookupId:  Number(raw.PersonLookupID||0)||null,
+      personLookupId:  Number(raw.PersonLookupId||0)||null,
       aufwandStunden:  h.num(raw.AufwandStunden),
       betragBerechnet: h.num(raw.BetragBerechnet),
       betragFinal:     h.num(raw.BetragFinal),
@@ -378,22 +378,14 @@
 
     async getItems(listTitle) {
       const sid = await api.getSiteId();
-      // Erst IDs laden, dann fields separat — überspringt korrupte Items
-      let url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items?$top=5000`;
-      const ids = [];
+      let url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items?expand=fields&$top=5000`;
+      const items = [];
       while (url) {
         const d = await api.req(url);
-        for (const i of (d.value||[])) ids.push(Number(i.id));
-        url = d["@odata.nextLink"] || null;
-      }
-      const items = [];
-      for (const id of ids) {
-        try {
-          const f = await api.req(`https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(listTitle)}/items/${id}/fields`);
-          if (f) items.push({id, ...f});
-        } catch(e) {
-          console.warn(`Item ${id} in ${listTitle} übersprungen:`, e.message);
+        for (const i of (d.value||[])) {
+          if (i.fields) items.push({id: Number(i.id), ...i.fields});
         }
+        url = d["@odata.nextLink"] || null;
       }
       return items;
     },
@@ -833,8 +825,8 @@
         const fields = {};
         h.setIf(fields,"ProjektNr",   s("projektNr"));
         h.setIf(fields,"KontoNr",     s("kontoNr"));
-        fields.FirmaLookupID           = firmaId;
-        fields.AnsprechpartnerLookupID = apId;
+        fields.FirmaLookupId           = firmaId;
+        fields.AnsprechpartnerLookupId = apId;
         fields.Status                  = fd.get("status")||"aktiv";
         fields.Archiviert              = fd.get("archiviert")==="on";
         h.setIf(fields,"KmZumKunden",          n("kmZumKunden"));
@@ -855,7 +847,7 @@
           fields.Title = title;
           await api.patch(CONFIG.lists.projekte, Number(itemId), fields);
         } else {
-          const cr = await api.post(CONFIG.lists.projekte, {Title:title, FirmaLookupID:firmaId});
+          const cr = await api.post(CONFIG.lists.projekte, {Title:title});
           const nid = Number(cr?.id||cr?.fields?.id); if(!nid) throw new Error("Neue ID fehlt.");
           await api.patch(CONFIG.lists.projekte, nid, fields);
         }
@@ -946,7 +938,7 @@
 
         const fields = {
           Datum:            datum+"T12:00:00Z",
-          ProjektLookupID:  projId,
+          ProjektLookupId:  projId,
           Kategorie:        kat,
           Abrechnung:       fd.get("abrechnung")||"offen"
         };
@@ -962,15 +954,16 @@
         if (betragBer!==null) fields.BetragBerechnet=betragBer;
         const bf=h.num(fd.get("betragFinal")); if(bf!==null) fields.BetragFinal=bf;
 
-        // Person: nur wenn gesetzt. SP-interner Feldname: PersonLookupID (bestätigt via /columns)
+        // Person: nur wenn gesetzt. SP-interner Feldname: PersonLookupId (bestätigt via /columns)
         const personId=h.num(fd.get("personLookupId")); if(personId) fields.PersonLookupID=personId;
 
         if (mode==="edit"&&itemId) {
           fields.Title=titel;
           await api.patch(CONFIG.lists.einsaetze, Number(itemId), fields);
         } else {
-          const cr = await api.post(CONFIG.lists.einsaetze, {Title:titel, ProjektLookupID:projId});
+          const cr = await api.post(CONFIG.lists.einsaetze, {Title:titel});
           const nid = Number(cr?.id||cr?.fields?.id); if(!nid) throw new Error("Neue ID fehlt.");
+          fields.ProjektLookupId = projId;
           await api.patch(CONFIG.lists.einsaetze, nid, fields);
         }
         ui.closeModal(); ui.setMsg("Einsatz gespeichert.","success");
@@ -1043,7 +1036,7 @@
 
         const fields = {
           Datum:            datum+"T12:00:00Z",
-          ProjektLookupID:  projId,
+          ProjektLookupId:  projId,
           Kategorie:        kat,
           AufwandStunden:   std,
           Verrechenbar:     fd.get("verrechenbar")
@@ -1057,8 +1050,9 @@
           fields.Title=titel;
           await api.patch(CONFIG.lists.konzeption, Number(itemId), fields);
         } else {
-          const cr = await api.post(CONFIG.lists.konzeption, {Title:titel, ProjektLookupID:projId});
+          const cr = await api.post(CONFIG.lists.konzeption, {Title:titel});
           const nid = Number(cr?.id||cr?.fields?.id); if(!nid) throw new Error("Neue ID fehlt.");
+          fields.ProjektLookupId = projId;
           await api.patch(CONFIG.lists.konzeption, nid, fields);
         }
         ui.closeModal(); ui.setMsg("Aufwand gespeichert.","success");
