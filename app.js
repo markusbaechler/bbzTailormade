@@ -1182,13 +1182,22 @@
 
     // ── Einsatz-Formular ──────────────────────────────────────────────────
     openEinsatzForm(id, projektId = null) {
-      const e         = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
+      const e          = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
       const prefProjId = projektId || (e?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
-      const kats      = h.kategorien(selProjekt);
-      const selKat    = e?.kategorie || "";
-      const defPerson = h.defaultPerson();
-      const selPerson = e ? e.personLookupId : (defPerson?.id || null);
+      const kats       = h.kategorien(selProjekt);
+      const selKat     = e?.kategorie || "";
+      const defPerson  = h.defaultPerson();
+      const selPerson  = e ? e.personLookupId : (defPerson?.id || null);
+      const selCoPerson = e?.coPersonLookupId || null;
+
+      // Betrag aus Projektsettings berechnen
+      const betragBer = selProjekt ? h.berechneBetrag(selProjekt, selKat,
+        selKat.includes("Halbtag") ? 0.5 : 1,
+        e?.dauerStunden, e?.anzahlStueck) : null;
+
+      // Zeige Co-Lead nur bei Tag/Halbtag-Kategorien
+      const isTagKat = selKat && !["Stunde","Stück","Pauschale"].includes(selKat);
 
       const projektOpts = state.enriched.projekte
         .filter(p => !p.archiviert)
@@ -1231,22 +1240,12 @@
               <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
             </div>
 
-            <div class="tm-field" id="fd-tage" style="${["Stunde","Stück","Pauschale"].includes(selKat)?"display:none":""}"><!-- Tag/Halbtag wird durch Kategorie bestimmt -->
-              <label>Dauer</label>
-              <div class="tm-radio-group">
-                <div class="tm-radio-btn${(e?.dauerTage||1)===1?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('dt-hid').value='1'">Ganztag (1.0)</div>
-                <div class="tm-radio-btn${e?.dauerTage===0.5?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('dt-hid').value='0.5'">Halbtag (0.5)</div>
-              </div>
-              <input type="hidden" id="dt-hid" name="dauerTage" value="${e?.dauerTage || 1}">
-            </div>
             <div class="tm-field" id="fd-std" style="${selKat==="Stunde"?"":"display:none"}">
-              <label>Stunden</label>
+              <label>Stunden <span class="req">*</span></label>
               <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden||""}">
             </div>
             <div class="tm-field" id="fd-stk" style="${selKat==="Stück"?"":"display:none"}">
-              <label>Anzahl Stück</label>
+              <label>Anzahl Stück <span class="req">*</span></label>
               <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck||""}">
             </div>
 
@@ -1259,6 +1258,11 @@
               ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
             </div>
 
+            <div class="tm-field tm-form-full" id="fd-coperson" style="${isTagKat?"":"display:none"}">
+              <label>Co-Lead (optional)</label>
+              ${ui.personTypeahead("coPersonLookupId", selCoPerson ? String(selCoPerson) : "")}
+            </div>
+
             <div class="tm-field tm-form-full">
               <label>Bemerkungen</label>
               <textarea name="bemerkungen">${h.esc(e?.bemerkungen||"")}</textarea>
@@ -1266,12 +1270,14 @@
 
             <div class="tm-section-divider">Beträge</div>
             <div class="tm-field">
-              <label>Betrag berechnet</label>
-              <div class="tm-computed">Wird beim Speichern eingefroren</div>
+              <label>Betrag (aus Projektsettings)</label>
+              <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="betrag-display">
+                ${betragBer !== null ? "CHF " + h.chf(betragBer) : "— (Kategorie wählen)"}
+              </div>
             </div>
             <div class="tm-field">
-              <label>Betrag final (optional)</label>
-              <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Manuelle Überschreibung">
+              <label>Betrag anpassen (optional)</label>
+              <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Leer = Projektsetting übernehmen">
             </div>
 
             <div class="tm-section-divider">Status</div>
@@ -1316,9 +1322,20 @@
     },
 
     onKatChange(kat) {
-      document.getElementById("fd-tage").style.display = ["Stunde","Stück","Pauschale"].includes(kat) ? "none" : "";
-      document.getElementById("fd-std").style.display  = kat === "Stunde" ? "" : "none";
-      document.getElementById("fd-stk").style.display  = kat === "Stück"  ? "" : "none";
+      document.getElementById("fd-std").style.display     = kat === "Stunde" ? "" : "none";
+      document.getElementById("fd-stk").style.display     = kat === "Stück"  ? "" : "none";
+      const isTagKat = kat && !["Stunde","Stück","Pauschale"].includes(kat);
+      const coPerson = document.getElementById("fd-coperson");
+      if (coPerson) coPerson.style.display = isTagKat ? "" : "none";
+      // Betrag aus Projektsettings neu berechnen
+      const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+      const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+      const std = h.num(document.querySelector("[name='dauerStunden']")?.value);
+      const stk = h.num(document.querySelector("[name='anzahlStueck']")?.value);
+      const dauerTage = kat.includes("Halbtag") ? 0.5 : 1;
+      const betrag = proj ? h.berechneBetrag(proj, kat, dauerTage, std, stk) : null;
+      const disp = document.getElementById("betrag-display");
+      if (disp) disp.textContent = betrag !== null ? "CHF " + h.chf(betrag) : "— (nicht konfiguriert)";
     },
 
     async saveEinsatz(fd) {
@@ -1351,14 +1368,15 @@
           Abrechnung:       fd.get("abrechnung") || "offen"
         };
 
-        if (["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kat))           fields.DauerTage    = 1.0;
-        else if (["Einsatz (Halbtag)","Co-Einsatz (Halbtag)"].includes(kat)) fields.DauerTage = 0.5;
+        // DauerTage direkt aus Kategorie ableiten — kein separates Dauer-Radio nötig
+        if (["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kat))               fields.DauerTage    = 1.0;
+        else if (["Einsatz (Halbtag)","Co-Einsatz (Halbtag)"].includes(kat)) fields.DauerTage    = 0.5;
         else if (kat === "Stunde"  && dauerStunden) fields.DauerStunden = dauerStunden;
         else if (kat === "Stück"   && anzahlStueck) fields.AnzahlStueck = anzahlStueck;
 
-        if (betragBer    !== null) fields.BetragBerechnet = betragBer;
+        if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
-        if (bf !== null)           fields.BetragFinal = bf;
+        if (bf !== null) fields.BetragFinal = bf;
 
         const ort = (fd.get("ort") || "").trim();
         if (ort) fields.Ort = ort;
@@ -1368,11 +1386,11 @@
         if (status) fields.Status = status;
 
         // Lookup-Felder via SP REST API
-        const lookupFields = {};
+        const lookupFields = { [F.projekt_w]: projId };
         const personId = h.num(fd.get("personLookupId"));
         if (personId) lookupFields[F.person_w] = personId;
-        lookupFields[F.projekt_w] = projId;
-        // ProjektLookupId aus fields entfernen — wird via patchLookups geschrieben
+        const coPersonId = h.num(fd.get("coPersonLookupId"));
+        if (coPersonId) lookupFields[F.coPerson_w] = coPersonId;
         delete fields[F.projekt_w];
 
         if (mode === "edit" && itemId) {
