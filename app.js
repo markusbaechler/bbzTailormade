@@ -1549,9 +1549,8 @@
             <div class="ef-s">
               <div class="ef-l">Spesen</div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-                <button type="button" id="ef-spesen-toggle"
+                <button type="button" id="ef-spesen-btn"
                   class="ef-sp${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? " on" : ""}"
-                  id="ef-spesen-btn"
                   onclick="ctrl.efToggleSpesen()"
                   style="font-size:13px;padding:7px 16px">
                   ${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? "Spesen verrechenbar ✓" : "Spesen verrechenbar?"}
