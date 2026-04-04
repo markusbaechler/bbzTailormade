@@ -1643,7 +1643,12 @@
       ctrl.updateCoBetrag();
     },
 
+    _saveEinsatzTs: 0,
     async saveEinsatz(fd) {
+      // Debounce: verhindert Mehrfach-Submit
+      const now = Date.now();
+      if (now - ctrl._saveEinsatzTs < 2000) return;
+      ctrl._saveEinsatzTs = now;
       ui.setMsg("Wird gespeichert…", "info");
       try {
         const mode   = fd.get("mode");
@@ -1654,7 +1659,10 @@
 
         debug.log("saveEinsatz:formData", { datum, kat, projId, mode, itemId });
 
-        if (!datum)  throw new Error("Datum ist Pflichtfeld.");
+        if (!datum) {
+          document.querySelector("[name='datum']")?.focus();
+          throw new Error("Bitte Datum auswählen.");
+        }
         if (!projId) throw new Error("Bitte Projekt wählen.");
         if (!kat)    throw new Error("Bitte Kategorie wählen.");
 
@@ -1941,7 +1949,10 @@
 
         debug.log("saveKonzeption:formData", { datum, kat, projId, titel, std, mode });
 
-        if (!datum)  throw new Error("Datum ist Pflichtfeld.");
+        if (!datum) {
+          document.querySelector("[name='datum']")?.focus();
+          throw new Error("Bitte Datum auswählen.");
+        }
         if (!projId) throw new Error("Bitte Projekt wählen.");
         if (!titel)  throw new Error("Beschreibung ist Pflichtfeld.");
         if (!kat)    throw new Error("Bitte Kategorie wählen.");
