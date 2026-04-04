@@ -648,7 +648,7 @@
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
-        if (a(".tm-modal-backdrop") && !a(".tm-modal")) { ctrl.closeModal(); return; }
+        if (a(".tm-modal-backdrop") && !a(".tm-modal") && !a(".ef-m")) { ctrl.closeModal(); return; }
       });
     },
 
