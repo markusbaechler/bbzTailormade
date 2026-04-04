@@ -1698,12 +1698,12 @@
     efToggleSpesen(btn) {
       const detail = document.getElementById("ef-spesen-detail");
       if (!detail) return;
-      const show = detail.style.display === "none";
-      detail.style.display = show ? "flex" : "none";
-      btn.classList.toggle("on", show);
-      btn.textContent = show ? "Spesen verrechenbar \u2713" : "Spesen verrechenbar?";
-      if (!show) {
-        // Alles zurücksetzen beim Deaktivieren
+      const isOpen = detail.style.display !== "none";
+      if (isOpen) {
+        // Deaktivieren — alles zurücksetzen
+        detail.style.display = "none";
+        btn.classList.remove("on");
+        btn.textContent = "Spesen verrechenbar?";
         const weg = document.getElementById("ef-wegspesen-detail");
         if (weg) weg.style.display = "none";
         const wt = document.getElementById("ef-wegspesen-toggle");
@@ -1716,6 +1716,13 @@
         if (tot) tot.textContent = "";
         const zusatz = document.querySelector("[name='spesenZusatz']");
         if (zusatz) zusatz.value = "";
+        const sf = document.querySelector("[name='spesenFinal']");
+        if (sf) sf.value = "";
+      } else {
+        // Aktivieren
+        detail.style.display = "flex";
+        btn.classList.add("on");
+        btn.textContent = "Spesen verrechenbar \u2713";
       }
     },
 
