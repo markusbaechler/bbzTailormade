@@ -149,14 +149,21 @@
     },
     inc(a, b) { return String(a||"").toLowerCase().includes(String(b||"").toLowerCase()); },
 
-    // Lookup aus raw SP-Item lesen (doppeltes LookupId-Suffix)
+    // Lookup aus raw SP-Item lesen
+    // SP/Graph gibt Lookup-Felder inkonsistent zurück:
+    // - manchmal mit doppeltem Suffix: FirmaLookupIdLookupId
+    // - manchmal nur einfach: FirmaLookupId
+    // - manchmal als Objekt: { LookupId: 203, LookupValue: "..." }
+    // Wir prüfen alle Varianten.
     rdLookup(raw, readField) {
-      // SP gibt Lookup-Felder manchmal mit doppeltem LookupId-Suffix zurück.
-      // Wir prüfen beide Varianten um SP-Inkonsistenzen abzufangen.
-      const val = raw[readField]
-        ?? raw[readField.replace(/LookupIdLookupId$/, 'LookupId')]
-        ?? raw[readField.replace(/LookupIdLookupId$/, 'ID')]
-        ?? 0;
+      // Direkt mit dem gegebenen Feldnamen (z.B. FirmaLookupIdLookupId)
+      let val = raw[readField];
+      // Einfaches Suffix (z.B. FirmaLookupId)
+      if (val == null) val = raw[readField.replace(/LookupIdLookupId$/, 'LookupId')];
+      // Mit grossem ID (z.B. FirmaLookupID)  
+      if (val == null) val = raw[readField.replace(/LookupIdLookupId$/, 'ID')];
+      // Als Objekt mit LookupId-Property
+      if (val != null && typeof val === 'object') val = val.LookupId ?? val.lookupId;
       return Number(val) || null;
     },
 
@@ -446,9 +453,15 @@
 
     async getItems(list) {
       const sid = await api.siteId();
-      // $select=fields/* stellt sicher dass SP alle Felder zurückgibt,
-      // inkl. Lookup-Felder die sonst bei $expand=fields fehlen können.
-      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?$expand=fields($select=*)&$top=5000`;
+      // Lookup-Felder werden von Graph API bei $expand=fields ohne $select weggelassen.
+      // Daher pro Liste explizit die Lookup-Felder selektieren.
+      const selectMap = {
+        ProjekteTM:   "fields($select=Title,ProjektNr,KontoNr,Status,Archiviert,FirmaLookupId,AnsprechpartnerLookupId,KmZumKunden,AnsatzEinsatz,AnsatzHalbtag,AnsatzCoEinsatz,AnsatzCoHalbtag,AnsatzStunde,AnsatzStueck,AnsatzPauschale,AnsatzKonzeption,AnsatzAdmin,AnsatzKmSpesen,SpesenKontoNr,KonzeptionsrahmenTage)",
+        EinsaetzeTM:  "fields($select=Title,Datum,ProjektLookupId,PersonLookupId,CoPersonLookupId,Kategorie,Ort,DauerTage,DauerStunden,AnzahlStueck,BetragBerechnet,BetragFinal,SpesenZusatz,SpesenBerechnet,SpesenFinal,Status,Abrechnung,Bemerkungen)",
+        KonzeptionTM: "fields($select=Title,Datum,ProjektLookupId,PersonLookupId,Kategorie,AufwandStunden,BetragBerechnet,BetragFinal,Verrechenbar,Bemerkungen)",
+      };
+      const expand = selectMap[list] ? `$expand=${selectMap[list]}` : "$expand=fields";
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?${expand}&$top=5000`;
       const items = [];
       let next = url;
       while (next) {
@@ -470,14 +483,14 @@
       return api.req(url, { method: "POST", body: JSON.stringify({ fields: { Title: title } }) });
     },
 
-    // PATCH: nur gesetzte Felder — keine null-Werte für Lookup/Choice/Number
+    // PATCH: direkt auf /fields endpoint — kein fields-Wrapper nötig
     async patch(list, itemId, fields) {
       const sid = await api.siteId();
-      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}`;
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}/fields`;
       // null-Werte filtern
       const clean = Object.fromEntries(Object.entries(fields).filter(([,v]) => v !== null && v !== undefined));
       debug.log(`patch:${list}:${itemId}`, clean);
-      return api.req(url, { method: "PATCH", body: JSON.stringify({ fields: clean }) });
+      return api.req(url, { method: "PATCH", body: JSON.stringify(clean) });
     },
 
     async loadAll() {
