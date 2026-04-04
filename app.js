@@ -453,15 +453,7 @@
 
     async getItems(list) {
       const sid = await api.siteId();
-      // Lookup-Felder werden von Graph API bei $expand=fields ohne $select weggelassen.
-      // Daher pro Liste explizit die Lookup-Felder selektieren.
-      const selectMap = {
-        ProjekteTM:   "fields($select=Title,ProjektNr,KontoNr,Status,Archiviert,FirmaLookupId,AnsprechpartnerLookupId,KmZumKunden,AnsatzEinsatz,AnsatzHalbtag,AnsatzCoEinsatz,AnsatzCoHalbtag,AnsatzStunde,AnsatzStueck,AnsatzPauschale,AnsatzKonzeption,AnsatzAdmin,AnsatzKmSpesen,SpesenKontoNr,KonzeptionsrahmenTage)",
-        EinsaetzeTM:  "fields($select=Title,Datum,ProjektLookupId,PersonLookupId,CoPersonLookupId,Kategorie,Ort,DauerTage,DauerStunden,AnzahlStueck,BetragBerechnet,BetragFinal,SpesenZusatz,SpesenBerechnet,SpesenFinal,Status,Abrechnung,Bemerkungen)",
-        KonzeptionTM: "fields($select=Title,Datum,ProjektLookupId,PersonLookupId,Kategorie,AufwandStunden,BetragBerechnet,BetragFinal,Verrechenbar,Bemerkungen)",
-      };
-      const expand = selectMap[list] ? `$expand=${selectMap[list]}` : "$expand=fields";
-      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?${expand}&$top=5000`;
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items?$expand=fields&$top=5000`;
       const items = [];
       let next = url;
       while (next) {
@@ -483,7 +475,48 @@
       return api.req(url, { method: "POST", body: JSON.stringify({ fields: { Title: title } }) });
     },
 
-    // PATCH: direkt auf /fields endpoint — kein fields-Wrapper nötig
+    // SP-Token für REST API (Lookup-Felder)
+    async spToken() {
+      try {
+        const r = await state.auth.msal.acquireTokenSilent({
+          scopes: ["https://bbzsg.sharepoint.com/AllSites.Write"],
+          account: state.auth.account
+        });
+        return r.accessToken;
+      } catch {
+        const r = await state.auth.msal.acquireTokenPopup({
+          scopes: ["https://bbzsg.sharepoint.com/AllSites.Write"]
+        });
+        return r.accessToken;
+      }
+    },
+
+    // Lookup-Felder via SP REST API schreiben (Graph API ignoriert diese)
+    async patchLookups(list, itemId, lookupFields) {
+      const tok = await api.spToken();
+      const formValues = Object.entries(lookupFields)
+        .filter(([,v]) => v !== null && v !== undefined)
+        .map(([k, v]) => ({ FieldName: k, FieldValue: String(v) }));
+      if (!formValues.length) return;
+      const url = `https://${CONFIG.sp.hostname}${CONFIG.sp.sitePath}/_api/web/lists/getbytitle('${list}')/items(${itemId})/validateUpdateListItem`;
+      debug.log(`patchLookups:${list}:${itemId}`, lookupFields);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + tok,
+          "Content-Type": "application/json;odata=verbose",
+          Accept: "application/json;odata=verbose"
+        },
+        body: JSON.stringify({ formValues, bNewDocumentUpdate: false })
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`SP REST ${res.status}: ${txt.slice(0, 200)}`);
+      }
+      return res.json();
+    },
+
+    // PATCH: Graph API für normale Felder
     async patch(list, itemId, fields) {
       const sid = await api.siteId();
       const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}/fields`;
@@ -1087,12 +1120,15 @@
         const n = k => { const v = h.num(fd.get(k)); return v !== null ? v : undefined; };
         const s = k => fd.get(k) || undefined;
 
-        // fields — nur gesetzte Werte, null-frei
+        // Lookup-Felder via SP REST API (Graph API ignoriert diese)
+        const lookupFields = {};
+        if (firmaId) lookupFields[F.firma_w] = firmaId;
+        if (apId)    lookupFields[F.ansprechpartner_w] = apId;
+
+        // Normale Felder via Graph API
         const fields = {
-          [F.firma_w]:           firmaId,
-          [F.ansprechpartner_w]: apId,
-          Status:                fd.get("status") || "aktiv",
-          Archiviert:            fd.get("archiviert") === "on"
+          Status:    fd.get("status") || "aktiv",
+          Archiviert: fd.get("archiviert") === "on"
         };
         if (s("projektNr"))              fields.ProjektNr = s("projektNr");
         if (s("kontoNr"))                fields.KontoNr   = s("kontoNr");
@@ -1111,13 +1147,17 @@
         if (n("konzeptionsrahmenTage") != null) fields.KonzeptionsrahmenTage = n("konzeptionsrahmenTage");
 
         if (mode === "edit" && itemId) {
+          const eid = Number(itemId);
           fields.Title = title;
-          await api.patch(CONFIG.lists.projekte, Number(itemId), fields);
+          await api.patch(CONFIG.lists.projekte, eid, fields);
+          await api.patchLookups(CONFIG.lists.projekte, eid, lookupFields);
         } else {
           const cr  = await api.post(CONFIG.lists.projekte, title);
           const nid = Number(cr?.id || cr?.fields?.id);
           if (!nid) throw new Error("Neue ID fehlt im POST-Response.");
+          fields.Title = title;
           await api.patch(CONFIG.lists.projekte, nid, fields);
+          await api.patchLookups(CONFIG.lists.projekte, nid, lookupFields);
         }
 
         state.form = null;
