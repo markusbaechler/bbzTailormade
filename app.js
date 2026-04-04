@@ -1563,6 +1563,22 @@
               </div>
             </div>
 
+            <!-- Spesen -->
+            ${selProjekt?.ansatzKmSpesen ? `
+            <div class="ef-dv"></div>
+            <div class="ef-s">
+              <div class="ef-l">Spesen</div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="ef-iw" style="max-width:200px">
+                  <input type="number" name="spesenZusatz" step="0.01" min="0"
+                    value="${e?.spesenZusatz??""}"
+                    placeholder="CHF Zusatzspesen">
+                </div>
+                <span style="font-size:12px;color:#8896a5">Km-Ansatz: CHF ${h.chf(selProjekt.ansatzKmSpesen)}/km</span>
+              </div>
+              <div style="font-size:11px;color:#8896a5;margin-top:2px">Fahrtkosten, Parkgebühren oder andere Auslagen</div>
+            </div>` : ""}
+
             <!-- Bemerkungen -->
             <div class="ef-s">
               <div class="ef-l">Bemerkungen (optional)</div>
@@ -1746,6 +1762,8 @@
         if (ort) fields.Ort = ort;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
+        const spesenZusatz = h.num(fd.get("spesenZusatz"));
+        if (spesenZusatz !== null) fields.SpesenZusatz = spesenZusatz;
         const status = fd.get("status");
         if (status) fields.Status = status;
 
