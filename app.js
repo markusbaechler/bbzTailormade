@@ -284,7 +284,6 @@
       if (!p) return [];
       const k = [];
       if (p.ansatzEinsatz)   { k.push("Einsatz (Tag)"); k.push("Einsatz (Halbtag)"); }
-      if (p.ansatzCoEinsatz) { k.push("Co-Einsatz (Tag)"); k.push("Co-Einsatz (Halbtag)"); }
       if (p.ansatzStunde)    k.push("Stunde");
       if (p.ansatzStueck)    k.push("Stück");
       if (p.ansatzPauschale) k.push("Pauschale");
@@ -294,15 +293,21 @@
     berechneBetrag(p, kat, tage, std, stk) {
       if (!p) return null;
       switch (kat) {
-        case "Einsatz (Tag)":        return (p.ansatzEinsatz  || 0) * 1.0;
-        case "Einsatz (Halbtag)":    return p.ansatzHalbtag;
-        case "Co-Einsatz (Tag)":     return (p.ansatzCoEinsatz || 0) * 1.0;
-        case "Co-Einsatz (Halbtag)": return p.ansatzCoHalbtag;
-        case "Stunde":               return (p.ansatzStunde   || 0) * (std || 0);
-        case "Stück":                return (p.ansatzStueck   || 0) * (stk || 0);
-        case "Pauschale":            return p.ansatzPauschale;
+        case "Einsatz (Tag)":    return p.ansatzEinsatz || null;
+        case "Einsatz (Halbtag)": return p.ansatzHalbtag || null;
+        case "Stunde":           return (p.ansatzStunde || 0) * (std || 0) || null;
+        case "Stück":            return (p.ansatzStueck || 0) * (stk || 0) || null;
+        case "Pauschale":        return p.ansatzPauschale || null;
         default: return null;
       }
+    },
+
+    // Co-Betrag aus Projektsettings
+    berechneCoBetrag(p, kat) {
+      if (!p) return null;
+      if (kat === "Einsatz (Tag)")     return p.ansatzCoEinsatz || null;
+      if (kat === "Einsatz (Halbtag)") return p.ansatzCoHalbtag || null;
+      return null;
     },
 
     // Eingeloggten User als Kontakt finden
@@ -607,6 +612,7 @@
         if (a("[data-action='edit-einsatz']"))     { ctrl.openEinsatzForm(+a("[data-action='edit-einsatz']").dataset.id); return; }
         if (a("[data-action='edit-konzeption']"))  { ctrl.openKonzeptionForm(+a("[data-action='edit-konzeption']").dataset.id); return; }
         if (a("[data-action='copy-einsatz']"))     { ctrl.copyEinsatz(+a("[data-action='copy-einsatz']").dataset.id); return; }
+        if (a("[data-action='delete-einsatz']"))  { ctrl.deleteEinsatz(+a("[data-action='delete-einsatz']").dataset.id); return; }
         if (a("[data-action='new-projekt']"))      { ctrl.openProjektForm(null); return; }
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
@@ -742,6 +748,7 @@
             <td><div class="tm-actions">
               <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎</button>
               <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" title="Löschen" style="color:var(--tm-red)">🗑</button>
             </div></td>
           </tr>`).join("")}</tbody></table></div>`;
       };
@@ -858,6 +865,7 @@
               <td><div class="tm-actions">
                 <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎</button>
                 <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}">⧉</button>
+                <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" title="Löschen" style="color:var(--tm-red)">🗑</button>
               </div></td>
             </tr>`;
           }).join("")}</tbody></table></div>` : ui.empty("Keine Einsätze gefunden.")}
@@ -1118,9 +1126,7 @@
       if (show) {
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
         const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-        const coKat = kat.replace("Einsatz", "Co-Einsatz");
-        const dauerTage = kat.includes("Halbtag") ? 0.5 : 1;
-        const coBetrag = proj ? h.berechneBetrag(proj, coKat, dauerTage, null, null) : null;
+        const coBetrag = proj ? h.berechneCoBetrag(proj, kat) : null;
         const disp = document.getElementById("cobetrag-display");
         if (disp) disp.textContent = coBetrag !== null ? "CHF " + h.chf(coBetrag) : "— (nicht konfiguriert)";
       }
@@ -1226,7 +1232,7 @@
         e?.dauerStunden, e?.anzahlStueck) : null;
 
       // Zeige Co-Lead nur bei Tag/Halbtag-Kategorien
-      const isTagKat = selKat && !["Stunde","Stück","Pauschale"].includes(selKat);
+      const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
       const projektOpts = state.enriched.projekte
         .filter(p => !p.archiviert)
@@ -1311,7 +1317,7 @@
             <div class="tm-field" id="fd-cobetrag" style="${isTagKat && selCoPerson ? "" : "display:none"}">
               <label>Betrag Co-Lead (aus Projektsettings)</label>
               <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="cobetrag-display">
-                ${(() => { const cob = selProjekt ? h.berechneBetrag(selProjekt, selKat.replace("Einsatz","Co-Einsatz"), selKat.includes("Halbtag")?0.5:1, null, null) : null; return cob !== null ? "CHF " + h.chf(cob) : "—"; })()}
+                ${selProjekt && selKat ? (h.berechneCoBetrag(selProjekt, selKat) !== null ? "CHF " + h.chf(h.berechneCoBetrag(selProjekt, selKat)) : "—") : "—"}
               </div>
             </div>
             <div class="tm-field" id="fd-cobetragfinal" style="${isTagKat && selCoPerson ? "" : "display:none"}">
@@ -1363,9 +1369,16 @@
     onKatChange(kat) {
       document.getElementById("fd-std").style.display     = kat === "Stunde" ? "" : "none";
       document.getElementById("fd-stk").style.display     = kat === "Stück"  ? "" : "none";
-      const isTagKat = kat && !["Stunde","Stück","Pauschale"].includes(kat);
+      const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(kat);
       const coPerson = document.getElementById("fd-coperson");
       if (coPerson) coPerson.style.display = isTagKat ? "" : "none";
+      if (!isTagKat) {
+        // Co-Lead und Co-Betrag verstecken wenn nicht Tag/Halbtag
+        ["fd-cobetrag","fd-cobetragfinal"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.display = "none";
+        });
+      }
       // Betrag aus Projektsettings neu berechnen
       const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
       const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
@@ -1410,8 +1423,8 @@
         };
 
         // DauerTage direkt aus Kategorie ableiten — kein separates Dauer-Radio nötig
-        if (["Einsatz (Tag)","Co-Einsatz (Tag)"].includes(kat))               fields.DauerTage    = 1.0;
-        else if (["Einsatz (Halbtag)","Co-Einsatz (Halbtag)"].includes(kat)) fields.DauerTage    = 0.5;
+        if (kat === "Einsatz (Tag)")     fields.DauerTage = 1.0;
+        else if (kat === "Einsatz (Halbtag)") fields.DauerTage = 0.5;
         else if (kat === "Stunde"  && dauerStunden) fields.DauerStunden = dauerStunden;
         else if (kat === "Stück"   && anzahlStueck) fields.AnzahlStueck = anzahlStueck;
 
@@ -1421,8 +1434,7 @@
         // Co-Betrag: nur wenn Co-Lead gesetzt
         const coPersonId2 = h.num(fd.get("coPersonLookupId"));
         if (coPersonId2) {
-          const coKat = kat.replace("Einsatz", "Co-Einsatz");
-          const coBetragBer = h.berechneBetrag(p, coKat, dauerTage, dauerStunden, anzahlStueck);
+          const coBetragBer = h.berechneCoBetrag(p, kat);
           if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
           const cbf = h.num(fd.get("coBetragFinal"));
           if (cbf !== null) fields.CoBetragFinal = cbf;
@@ -1463,6 +1475,26 @@
       } catch (e) {
         debug.err("saveEinsatz", e);
         ui.setMsg(e.message || "Fehler.", "error");
+      }
+    },
+
+    async deleteEinsatz(id) {
+      const e = state.enriched.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      const label = e.title || e.datumFmt || `Einsatz #${id}`;
+      if (!confirm(`Einsatz "${label}" wirklich löschen?`)) return;
+      try {
+        const sid = await api.siteId();
+        const tok = await api.token();
+        const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(CONFIG.lists.einsaetze)}/items/${id}`;
+        const res = await fetch(url, { method: "DELETE", headers: { Authorization: "Bearer " + tok } });
+        if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+        ui.setMsg("Einsatz gelöscht.", "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (e) {
+        debug.err("deleteEinsatz", e);
+        ui.setMsg("Fehler beim Löschen: " + e.message, "error");
       }
     },
 
@@ -1684,8 +1716,7 @@
         // Co-Betrag: nur wenn Co-Lead gesetzt
         const coPersonId2 = h.num(fd.get("coPersonLookupId"));
         if (coPersonId2) {
-          const coKat = kat.replace("Einsatz", "Co-Einsatz");
-          const coBetragBer = h.berechneBetrag(p, coKat, dauerTage, dauerStunden, anzahlStueck);
+          const coBetragBer = h.berechneCoBetrag(p, kat);
           if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
           const cbf = h.num(fd.get("coBetragFinal"));
           if (cbf !== null) fields.CoBetragFinal = cbf;
