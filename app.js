@@ -379,13 +379,19 @@
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
     p.einsaetze       = state.data.einsaetze.filter(e => h.rdLookup(e, F.projekt_r) === p.id);
     p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
-    p.totalBetrag     = p.einsaetze
-      .filter(e => !String(e.Status||"").toLowerCase().includes("abgesagt"))
+    // Einsätze: abgesagt ❌, abgesagt mit Kostenfolge ✅
+    p.totalEinsaetze  = p.einsaetze
+      .filter(e => String(e.Status||"").toLowerCase() !== "abgesagt")
       .reduce((s,e) => {
         const lead = h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0;
         const co   = h.num(e.CoBetragFinal) ?? h.num(e.CoBetragBerechnet) ?? 0;
         return s + lead + co;
       }, 0);
+    // Konzeption: nur "zur Abrechnung" und "abgerechnet"
+    p.totalKonzeption = p.konzeintraege
+      .filter(k => ["zur Abrechnung","abgerechnet"].includes(k.Verrechenbar))
+      .reduce((s,k) => s + (h.num(k.BetragFinal) ?? h.num(k.BetragBerechnet) ?? 0), 0);
+    p.totalBetrag     = p.totalEinsaetze + p.totalKonzeption;
     p.einsaetzeCount  = p.einsaetze.length;
     p.konzStunden     = p.konzeintraege.reduce((s,k) => s + (h.num(k.AufwandStunden) || 0), 0);
     p.konzBudgetH     = p.konzeptionsrahmenTage ? p.konzeptionsrahmenTage * 8 : null;
