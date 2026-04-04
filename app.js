@@ -1923,12 +1923,11 @@
         if (ort) fields.Ort = ort;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
-        const spesenZusatz = h.num(fd.get("spesenZusatz"));
-        if (spesenZusatz !== null) fields.SpesenZusatz = spesenZusatz;
-        const spesenBerechnet = h.num(fd.get("spesenBerechnet"));
-        if (spesenBerechnet !== null) fields.SpesenBerechnet = spesenBerechnet;
-        const spesenFinal = h.num(fd.get("spesenFinal"));
-        if (spesenFinal !== null) fields.SpesenFinal = spesenFinal;
+        // Spesen: immer explizit setzen (auch 0) — sonst behält SP den alten Wert
+        const spesenAktiv = document.getElementById("ef-spesen-btn")?.classList.contains("on");
+        fields.SpesenZusatz    = spesenAktiv ? (h.num(fd.get("spesenZusatz"))    ?? 0) : 0;
+        fields.SpesenBerechnet = spesenAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
+        fields.SpesenFinal     = spesenAktiv ? (h.num(fd.get("spesenFinal"))     ?? 0) : 0;
         const status = fd.get("status");
         if (status) fields.Status = status;
 
