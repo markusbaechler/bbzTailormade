@@ -216,7 +216,7 @@
       w.querySelector(".tm-ta-dd").style.display = "none";
       // Callback für Firma→Person-Filter
       const name = w.dataset.name;
-      if (name === "firmaLookupId") ctrl.onFirmaSelected(item.dataset.id);
+      if (name === "ansprechpartnerLookupId") ctrl.onApSelected(item.dataset.id);
     },
 
     // Einsatz-Status
@@ -952,14 +952,15 @@
                   <input type="text" name="kontoNr" value="${h.esc(cv("kontoNr"))}" placeholder="z.B. 4210">
                 </div>
                 <div class="tm-field">
-                  <label>Firma <span class="req">*</span></label>
-                  ${ui.firmaSelect("firmaLookupId", p?.firmaLookupId || null, true, "ctrl.onFirmaSelected(this.value)")}
+                  <label>Ansprechpartner <span class="req">*</span></label>
+                  ${ui.personTypeahead("ansprechpartnerLookupId", p?.ansprechpartnerLookupId ? String(p.ansprechpartnerLookupId) : "")}
                 </div>
                 <div class="tm-field">
-                  <label>Ansprechpartner <span class="req">*</span></label>
-                  <div id="ap-wrap">
-                    ${ui.contactSelect("ansprechpartnerLookupId", p?.ansprechpartnerLookupId || null, p?.firmaLookupId || null, true)}
+                  <label>Firma</label>
+                  <div id="firma-display" style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:13px;color:var(--tm-text)">
+                    ${h.esc(p?.firmaName || "— wird aus Ansprechpartner übernommen —")}
                   </div>
+                  <input type="hidden" name="firmaLookupId" id="firma-hidden" value="${p?.firmaLookupId || ""}">
                 </div>
                 <div class="tm-field">
                   <label>Status <span class="req">*</span></label>
@@ -1055,17 +1056,16 @@
       `);
     },
 
-    // Firma-Auswahl → Ansprechpartner-Select aktualisieren
-    onFirmaSelected(firmaId) {
-      const fId = Number(firmaId) || null;
-      const wrap = document.getElementById("ap-wrap");
-      if (!wrap) return;
-      // Aktuellen AP-Wert lesen bevor er überschrieben wird
-      const currentApId = Number(wrap.querySelector("select")?.value) || null;
-      // AP beibehalten wenn er zur neuen Firma gehört, sonst null
-      const contact = currentApId ? state.data.contacts.find(c => c.id === currentApId) : null;
-      const keepAp = (contact && (!fId || contact.firmaLookupId === fId)) ? currentApId : null;
-      wrap.innerHTML = ui.contactSelect("ansprechpartnerLookupId", keepAp, fId, true);
+    // Ansprechpartner gewählt → Firma automatisch befüllen
+    onApSelected(contactId) {
+      const cId = Number(contactId) || null;
+      const contact = cId ? state.data.contacts.find(c => c.id === cId) : null;
+      const firmaId = contact?.firmaLookupId || null;
+      const firmaName = firmaId ? h.firmName(firmaId) : "—";
+      const disp = document.getElementById("firma-display");
+      const hidden = document.getElementById("firma-hidden");
+      if (disp) disp.textContent = firmaName;
+      if (hidden) hidden.value = firmaId || "";
     },
 
     async saveProjekt(fd) {
@@ -1074,14 +1074,15 @@
         const mode   = fd.get("mode");
         const itemId = fd.get("itemId");
         const title  = (fd.get("title") || "").trim();
-        const firmaId = Number(fd.get("firmaLookupId")) || null;
         const apId    = Number(fd.get("ansprechpartnerLookupId")) || null;
+        // Firma automatisch aus Ansprechpartner ableiten
+        const contact = apId ? state.data.contacts.find(c => c.id === apId) : null;
+        const firmaId = Number(fd.get("firmaLookupId")) || contact?.firmaLookupId || null;
 
         debug.log("saveProjekt:formData", { title, firmaId, apId, mode, itemId });
 
-        if (!title)   throw new Error("Projektname ist Pflichtfeld.");
-        if (!firmaId) throw new Error("Bitte Firma wählen.");
-        if (!apId)    throw new Error("Bitte Ansprechpartner wählen.");
+        if (!title) throw new Error("Projektname ist Pflichtfeld.");
+        if (!apId)  throw new Error("Bitte Ansprechpartner wählen.");
 
         const n = k => { const v = h.num(fd.get(k)); return v !== null ? v : undefined; };
         const s = k => fd.get(k) || undefined;
