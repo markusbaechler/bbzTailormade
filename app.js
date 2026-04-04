@@ -1851,12 +1851,11 @@
       ctrl.updateCoBetrag();
     },
 
-    _saveEinsatzTs: 0,
+    _saveEinsatzBusy: false,
     async saveEinsatz(fd) {
-      // Debounce: verhindert Mehrfach-Submit
-      const now = Date.now();
-      if (now - ctrl._saveEinsatzTs < 2000) return;
-      ctrl._saveEinsatzTs = now;
+      // Guard: verhindert Mehrfach-Submit (Flag, nicht Timestamp)
+      if (ctrl._saveEinsatzBusy) return;
+      ctrl._saveEinsatzBusy = true;
       ui.setMsg("Wird gespeichert…", "info");
       try {
         const mode   = fd.get("mode");
@@ -1949,6 +1948,8 @@
       } catch (e) {
         debug.err("saveEinsatz", e);
         ui.setMsg(e.message || "Fehler.", "error");
+      } finally {
+        ctrl._saveEinsatzBusy = false;
       }
     },
 
