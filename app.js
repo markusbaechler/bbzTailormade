@@ -1044,7 +1044,7 @@
         if (betragBer!==null) fields.BetragBerechnet=betragBer;
         const bf=h.num(fd.get("betragFinal")); if(bf!==null) fields.BetragFinal=bf;
         const bem=fd.get("bemerkungen")?.trim(); if(bem) fields.Bemerkungen=bem;
-        const personId=h.num(fd.get("personLookupId")); if(personId) fields.PersonLookupID=personId;
+        const personId=h.num(fd.get("personLookupId")); if(personId) fields.PersonLookupId=personId;
 
         if (mode==="edit"&&itemId) {
           fields.Title=titel;
