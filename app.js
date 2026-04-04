@@ -222,10 +222,37 @@
       w.querySelector(".tm-ta-val").value   = item.dataset.id;
       w.querySelector(".tm-ta-input").value = item.textContent.trim();
       w.querySelector(".tm-ta-dd").style.display = "none";
-      // Callback für Firma→Person-Filter
       const name = w.dataset.name;
       if (name === "ansprechpartnerLookupId") ctrl.onApSelected(item.dataset.id);
-      if (name === "coPersonLookupId") ctrl.updateCoBetrag();
+      // Lead Pill aktualisieren
+      if (name === "personLookupId") {
+        const personName = item.textContent.trim();
+        const initials = n => n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+        const av = document.getElementById("ef-lead-av");
+        const nm = document.getElementById("ef-lead-name");
+        const pill = document.getElementById("ef-lead-pill");
+        const ta = document.getElementById("ef-lead-ta");
+        if (av) av.textContent = initials(personName);
+        if (nm) nm.textContent = personName;
+        if (pill) pill.style.display = "inline-flex";
+        if (ta) ta.style.display = "none";
+      }
+      // Co-Lead Pill aktualisieren
+      if (name === "coPersonLookupId_ta") {
+        const coName = item.textContent.trim();
+        const initials = n => n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+        const av = document.getElementById("ef-co-av");
+        const nm = document.getElementById("ef-co-name");
+        const pill = document.getElementById("ef-co-pill");
+        const ta = document.getElementById("ef-co-ta");
+        const coVal = document.getElementById("coperson-val");
+        if (av) av.textContent = initials(coName);
+        if (nm) nm.textContent = coName;
+        if (pill) pill.style.display = "inline-flex";
+        if (ta) ta.style.display = "none";
+        if (coVal) coVal.value = item.dataset.id;
+        ctrl.updateCoBetrag();
+      }
     },
 
     // Einsatz-Status
@@ -354,7 +381,11 @@
     p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
     p.totalBetrag     = p.einsaetze
       .filter(e => !String(e.Status||"").toLowerCase().includes("abgesagt"))
-      .reduce((s,e) => s + (h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0), 0);
+      .reduce((s,e) => {
+        const lead = h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0;
+        const co   = h.num(e.CoBetragFinal) ?? h.num(e.CoBetragBerechnet) ?? 0;
+        return s + lead + co;
+      }, 0);
     p.einsaetzeCount  = p.einsaetze.length;
     p.konzStunden     = p.konzeintraege.reduce((s,k) => s + (h.num(k.AufwandStunden) || 0), 0);
     p.konzBudgetH     = p.konzeptionsrahmenTage ? p.konzeptionsrahmenTage * 8 : null;
@@ -1114,21 +1145,29 @@
 
     // Co-Lead gewählt → Co-Betrag anzeigen
     updateCoBetrag() {
-      const coVal = document.querySelector('.tm-typeahead[data-name="coPersonLookupId"] .tm-ta-val')?.value;
+      // Neues Formular: coperson-val hidden field
+      const coVal = document.getElementById("coperson-val")?.value ||
+                    document.querySelector('.tm-typeahead[data-name="coPersonLookupId_ta"] .tm-ta-val')?.value || "";
       const hasCoLead = !!coVal;
       const kat = document.getElementById("kat-hid")?.value || "";
-      const isTagKat = kat && !["Stunde","Stück","Pauschale"].includes(kat);
+      const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(kat);
       const show = isTagKat && hasCoLead;
-      ["fd-cobetrag","fd-cobetragfinal"].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = show ? "" : "none";
-      });
+      const coBcItem = document.getElementById("ef-bc-co");
+      const bcGrid = document.getElementById("ef-bc-grid");
+      if (coBcItem) coBcItem.style.display = show ? "" : "none";
+      if (bcGrid) {
+        if (show) bcGrid.classList.add("two");
+        else bcGrid.classList.remove("two");
+      }
       if (show) {
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
         const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
         const coBetrag = proj ? h.berechneCoBetrag(proj, kat) : null;
-        const disp = document.getElementById("cobetrag-display");
-        if (disp) disp.textContent = coBetrag !== null ? "CHF " + h.chf(coBetrag) : "— (nicht konfiguriert)";
+        const card = document.getElementById("ef-bc-co-card");
+        if (card) {
+          if (coBetrag === null) card.innerHTML = '<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Co-Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>';
+          else card.innerHTML = '<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Co-Lead \u00b7 aus Projekt</div><div class="ef-bc-val">CHF ' + h.chf(coBetrag) + '</div></div>';
+        }
       }
     },
 
@@ -1225,128 +1264,343 @@
       const defPerson  = h.defaultPerson();
       const selPerson  = e ? e.personLookupId : (defPerson?.id || null);
       const selCoPerson = e?.coPersonLookupId || null;
+      const isTagKat   = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
-      // Betrag aus Projektsettings berechnen
-      const betragBer = selProjekt ? h.berechneBetrag(selProjekt, selKat,
-        selKat.includes("Halbtag") ? 0.5 : 1,
-        e?.dauerStunden, e?.anzahlStueck) : null;
-
-      // Zeige Co-Lead nur bei Tag/Halbtag-Kategorien
-      const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
+      const betragBer   = selProjekt && selKat ? h.berechneBetrag(selProjekt, selKat, 1, e?.dauerStunden, e?.anzahlStueck) : null;
+      const coBetragBer = selProjekt && selKat ? h.berechneCoBetrag(selProjekt, selKat) : null;
+      const personName   = selPerson ? h.contactName(selPerson) : null;
+      const coPersonName = selCoPerson ? h.contactName(selCoPerson) : null;
+      const initials = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
 
       const projektOpts = state.enriched.projekte
         .filter(p => !p.archiviert)
         .map(p => `<option value="${p.id}" ${prefProjId === p.id ? "selected" : ""}>${h.esc(p.title)}${p.projektNr ? ` (#${p.projektNr})` : ""}</option>`)
         .join("");
 
-      ui.renderModal(`<div class="tm-modal">
-        <div class="tm-modal-header">
-          <span class="tm-modal-title">${id ? "Einsatz bearbeiten" : "Einsatz erfassen"}</span>
-          <button class="tm-modal-close" data-close-modal>✕</button>
+      const katBtnHtml = kats.map(k => `<button type="button" class="ef-kat-btn${selKat===k?" active":""}"
+        onclick="document.querySelectorAll('.ef-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</button>`).join("");
+
+      const betragLeadCard = () => {
+        if (!selKat) return `<div class="ef-bc ef-bc-pending"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Kategorie wählen</div></div>`;
+        if (betragBer === null) return `<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>`;
+        return `<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Lead · aus Projekt</div><div class="ef-bc-val">CHF ${h.chf(betragBer)}</div></div>`;
+      };
+      const betragCoCard = () => {
+        if (coBetragBer === null) return `<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Co-Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>`;
+        return `<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Co-Lead · aus Projekt</div><div class="ef-bc-val">CHF ${h.chf(coBetragBer)}</div></div>`;
+      };
+
+      ui.renderModal(`<style>
+        .ef-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:efUp .25s cubic-bezier(.16,1,.3,1)}
+        @keyframes efUp{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
+        .ef-hd{background:linear-gradient(135deg,#004078,#0a5a9e);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .ef-hd-l{display:flex;align-items:center;gap:10px}
+        .ef-hd-ic{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px}
+        .ef-hd-t{color:#fff;font-size:15px;font-weight:700}
+        .ef-hd-s{color:rgba(255,255,255,.6);font-size:12px;margin-top:1px}
+        .ef-cl{width:30px;height:30px;background:rgba(255,255,255,.12);border:none;border-radius:8px;color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .ef-cl:hover{background:rgba(255,255,255,.22)}
+        .ef-bd{overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}
+        .ef-s{display:flex;flex-direction:column;gap:7px}
+        .ef-l{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
+        .ef-r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .ef-iw{position:relative}
+        .ef-ii{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#8896a5;pointer-events:none}
+        .ef-iw input,.ef-iw select,.ef-iw textarea{width:100%;font-family:inherit;font-size:14px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:9px 11px;outline:none;transition:border-color .15s,background .15s,box-shadow .15s;-webkit-appearance:none}
+        .ef-iw.hi input{padding-left:32px}
+        .ef-iw input:focus,.ef-iw select:focus,.ef-iw textarea:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        .ef-iw input::placeholder,.ef-iw textarea::placeholder{color:#8896a5;font-weight:400}
+        .ef-iw textarea{resize:none;height:64px;line-height:1.5}
+        .ef-kg{display:flex;flex-wrap:wrap;gap:6px}
+        .ef-kat-btn{flex:0 0 auto;padding:8px 15px;font-family:inherit;font-size:13px;font-weight:600;color:#4a5568;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;cursor:pointer;transition:all .15s;white-space:nowrap}
+        .ef-kat-btn:hover{border-color:#0a5a9e;color:#0a5a9e;background:#f0f6fc}
+        .ef-kat-btn.active{background:#004078;border-color:#004078;color:#fff;box-shadow:0 2px 8px rgba(0,64,120,.25)}
+        .ef-pr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .ef-pp{display:inline-flex;align-items:center;gap:8px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;padding:6px 12px 6px 7px;cursor:pointer;transition:all .15s}
+        .ef-pp:hover{border-color:#0a5a9e;background:#f0f6fc}
+        .ef-av{width:26px;height:26px;background:linear-gradient(135deg,#004078,#0a5a9e);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+        .ef-av.co{background:linear-gradient(135deg,#6b7280,#4b5563)}
+        .ef-pn{font-size:13px;font-weight:600;color:#1a2332}
+        .ef-pr-role{font-size:10px;color:#8896a5;font-weight:500}
+        .ef-pe{font-size:12px;color:#8896a5;margin-left:2px}
+        .ef-addco{display:inline-flex;align-items:center;gap:6px;background:none;border:1.5px dashed #dde4ec;border-radius:100px;padding:6px 14px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;cursor:pointer;transition:all .15s}
+        .ef-addco:hover{border-color:#0a5a9e;color:#0a5a9e}
+        .ef-bc-grid{display:grid;gap:10px}
+        .ef-bc-grid.two{grid-template-columns:1fr 1fr}
+        .ef-bi{display:flex;flex-direction:column;gap:5px}
+        .ef-bc{border-radius:8px;padding:10px 13px;border:1.5px solid #dde4ec}
+        .ef-bc-ok{background:#e8f5ef;border-color:rgba(26,138,94,.2)}
+        .ef-bc-warn{background:#fef3c7;border-color:rgba(180,83,9,.2)}
+        .ef-bc-pending{background:#f4f7fb}
+        .ef-bc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a8a5e}
+        .ef-bc-warn .ef-bc-lbl{color:#b45309}
+        .ef-bc-pending .ef-bc-lbl{color:#8896a5}
+        .ef-bc-val{font-size:18px;font-weight:700;color:#1a2332;letter-spacing:-.3px;margin-top:1px}
+        .ef-bc-warn .ef-bc-val,.ef-bc-pending .ef-bc-val{font-size:13px;font-weight:500;color:#b45309}
+        .ef-bc-pending .ef-bc-val{color:#8896a5}
+        .ef-ov{position:relative}
+        .ef-ov-p{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:#8896a5;pointer-events:none}
+        .ef-ov input{background:#fff;font-size:13px;padding:8px 10px 8px 30px;border-radius:8px;border:1.5px solid #dde4ec;width:100%;font-family:inherit;font-weight:500;color:#1a2332;outline:none;transition:border-color .15s}
+        .ef-ov input:focus{border-color:#0a5a9e;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        .ef-ov input::placeholder{color:#8896a5;font-weight:400}
+        .ef-sr{display:flex;gap:6px;flex-wrap:wrap}
+        .ef-sp{padding:6px 14px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;cursor:pointer;background:#f4f7fb;color:#4a5568;transition:all .15s;font-family:inherit}
+        .ef-sp:hover{border-color:#0a5a9e}
+        .ef-sp.on{background:#004078;border-color:#004078;color:#fff}
+        .ef-sp.abg{color:#950e13;border-color:rgba(149,14,19,.3)}
+        .ef-sp.abg.on{background:#950e13;border-color:#950e13;color:#fff}
+        .ef-dv{height:1px;background:#dde4ec;margin:2px 0}
+        .ef-ft{padding:13px 22px 18px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #dde4ec;flex-shrink:0;gap:10px}
+        .ef-btn-c{padding:9px 20px;border-radius:9px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer;transition:all .15s}
+        .ef-btn-c:hover{border-color:#4a5568}
+        .ef-btn-s{padding:9px 28px;border-radius:9px;font-family:inherit;font-size:14px;font-weight:700;background:linear-gradient(135deg,#004078,#0a5a9e);border:none;color:#fff;cursor:pointer;box-shadow:0 3px 12px rgba(0,64,120,.3);transition:all .15s;display:flex;align-items:center;gap:6px}
+        .ef-btn-s:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,64,120,.38)}
+        .ef-sub-inp{display:none;margin-top:8px}
+        .ef-sub-inp.show{display:block}
+        .ef-ta-wrap{display:none}
+        .ef-proj-card{background:#e8f1f9;border:1.5px solid rgba(0,64,120,.15);border-radius:9px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+      </style>
+      <div class="ef-m">
+        <div class="ef-hd">
+          <div class="ef-hd-l">
+            <div class="ef-hd-ic">📋</div>
+            <div>
+              <div class="ef-hd-t">${id ? "Einsatz bearbeiten" : "Einsatz erfassen"}</div>
+              <div class="ef-hd-s" id="ef-hd-sub">${selProjekt ? h.esc(selProjekt.title) + (selProjekt.firmaName ? " · " + h.esc(selProjekt.firmaName) : "") : "Projekt wählen"}</div>
+            </div>
+          </div>
+          <button class="ef-cl" data-close-modal>✕</button>
         </div>
-        <div class="tm-modal-body">
-          <form id="einsatz-form" class="tm-form-grid" autocomplete="off">
+
+        <div class="ef-bd">
+          <form id="einsatz-form" autocomplete="off">
             <input type="hidden" name="itemId" value="${id || ""}">
-            <input type="hidden" name="mode"   value="${id ? "edit" : "create"}">
+            <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
+            <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
+            <input type="hidden" id="coperson-val" name="coPersonLookupId" value="${selCoPerson || ""}">
+            <input type="hidden" id="abr-hid" name="abrechnung" value="${e?.abrechnung||"offen"}">
+            <input type="hidden" id="status-hid" name="status" value="${e?.status||""}">
 
-            <div class="tm-field">
-              <label>Datum <span class="req">*</span></label>
-              <input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required>
-            </div>
-            <div class="tm-field">
-              <label>Projekt <span class="req">*</span></label>
-              <select name="projektLookupId" required onchange="ctrl.onProjChange(this)">
-                <option value="">— wählen —</option>
-                ${projektOpts}
-              </select>
-            </div>
-
-            <div class="tm-field tm-form-full">
-              <label>Beschreibung</label>
-              <input type="text" name="titel" value="${h.esc(e?.title||"")}" placeholder="z.B. Kick-off Workshop, Modul 3…">
-            </div>
-
-            <div class="tm-field tm-form-full">
-              <label>Kategorie <span class="req">*</span></label>
-              <div class="tm-radio-group" id="kat-grp">
-                ${kats.map(k => `<div class="tm-radio-btn${selKat===k?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</div>`).join("")}
-              </div>
-              <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
-            </div>
-
-            <div class="tm-field" id="fd-std" style="${selKat==="Stunde"?"":"display:none"}">
-              <label>Stunden <span class="req">*</span></label>
-              <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden||""}">
-            </div>
-            <div class="tm-field" id="fd-stk" style="${selKat==="Stück"?"":"display:none"}">
-              <label>Anzahl Stück <span class="req">*</span></label>
-              <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck||""}">
-            </div>
-
-            <div class="tm-field">
-              <label>Ort</label>
-              <input type="text" name="ort" value="${h.esc(e?.ort||"")}">
-            </div>
-            <div class="tm-field">
-              <label>Person (Lead)</label>
-              ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
-            </div>
-
-            <div class="tm-field tm-form-full" id="fd-coperson" style="${isTagKat?"":"display:none"}">
-              <label>Co-Lead (optional)</label>
-              ${ui.personTypeahead("coPersonLookupId", selCoPerson ? String(selCoPerson) : "")}
-            </div>
-
-            <div class="tm-field tm-form-full">
-              <label>Bemerkungen</label>
-              <textarea name="bemerkungen">${h.esc(e?.bemerkungen||"")}</textarea>
-            </div>
-
-            <div class="tm-section-divider">Beträge</div>
-            <div class="tm-field">
-              <label>Betrag Lead (aus Projektsettings)</label>
-              <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="betrag-display">
-                ${betragBer !== null ? "CHF " + h.chf(betragBer) : "— (Kategorie wählen)"}
+            <!-- Datum & Ort -->
+            <div class="ef-s">
+              <div class="ef-l">Datum & Ort</div>
+              <div class="ef-r2">
+                <div class="ef-iw hi"><span class="ef-ii">📅</span><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
+                <div class="ef-iw hi"><span class="ef-ii">📍</span><input type="text" name="ort" value="${h.esc(e?.ort||"")}" placeholder="Ort, Zoom…"></div>
               </div>
             </div>
-            <div class="tm-field">
-              <label>Betrag Lead anpassen (optional)</label>
-              <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Leer = Projektsetting">
+
+            <!-- Projekt -->
+            <div class="ef-s">
+              <div class="ef-l">Projekt</div>
+              ${selProjekt ? `
+              <div class="ef-proj-card">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:8px;height:8px;background:#004078;border-radius:50%;flex-shrink:0"></div>
+                  <div>
+                    <div style="font-size:14px;font-weight:600;color:#004078">${h.esc(selProjekt.title)}</div>
+                    <div style="font-size:12px;color:#8896a5">${selProjekt.projektNr?"#"+h.esc(selProjekt.projektNr)+" · ":""}${h.esc(selProjekt.firmaName)}</div>
+                  </div>
+                </div>
+                <span style="font-size:11px;color:#0a5a9e;font-weight:600;text-decoration:underline;cursor:pointer"
+                  onclick="this.closest('.ef-proj-card').style.display='none';document.getElementById('ef-proj-sel').style.display='block'">ändern</span>
+              </div>
+              <div class="ef-iw" id="ef-proj-sel" style="display:none">
+                <select name="projektLookupId" onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
+                  ${projektOpts}
+                </select>
+              </div>` : `
+              <div class="ef-iw">
+                <select name="projektLookupId" required onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
+                  <option value="">— Projekt wählen —</option>
+                  ${projektOpts}
+                </select>
+              </div>`}
             </div>
-            <div class="tm-field" id="fd-cobetrag" style="${isTagKat && selCoPerson ? "" : "display:none"}">
-              <label>Betrag Co-Lead (aus Projektsettings)</label>
-              <div style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:14px;font-weight:600;color:var(--tm-text)" id="cobetrag-display">
-                ${selProjekt && selKat ? (h.berechneCoBetrag(selProjekt, selKat) !== null ? "CHF " + h.chf(h.berechneCoBetrag(selProjekt, selKat)) : "—") : "—"}
+
+            <!-- Kategorie -->
+            <div class="ef-s">
+              <div class="ef-l">Kategorie</div>
+              <div class="ef-kg" id="kat-grp">
+                ${kats.length ? katBtnHtml : `<span style="font-size:13px;color:#8896a5">Zuerst Projekt wählen</span>`}
+              </div>
+              <div id="fd-std" class="ef-sub-inp${selKat==="Stunde"?" show":""}">
+                <div class="ef-iw" style="max-width:200px">
+                  <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden||""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+                </div>
+              </div>
+              <div id="fd-stk" class="ef-sub-inp${selKat==="Stück"?" show":""}">
+                <div class="ef-iw" style="max-width:200px">
+                  <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck||""}" placeholder="Anzahl Stück" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+                </div>
               </div>
             </div>
-            <div class="tm-field" id="fd-cobetragfinal" style="${isTagKat && selCoPerson ? "" : "display:none"}">
-              <label>Betrag Co-Lead anpassen (optional)</label>
-              <input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal??""}" placeholder="Leer = Projektsetting">
+
+            <!-- Personen -->
+            <div class="ef-s">
+              <div class="ef-l">Personen</div>
+              <div class="ef-pr" id="ef-pr">
+                <!-- Lead Pill -->
+                <div class="ef-pp" onclick="ctrl.efOpenPicker('lead')" id="ef-lead-pill">
+                  <div class="ef-av" id="ef-lead-av">${personName ? h.esc(initials(personName)) : "?"}</div>
+                  <div>
+                    <div class="ef-pn" id="ef-lead-name">${personName ? h.esc(personName) : "Person wählen"}</div>
+                    <div class="ef-pr-role">Lead</div>
+                  </div>
+                  <span class="ef-pe">✎</span>
+                </div>
+                <!-- Lead typeahead (versteckt) -->
+                <div class="ef-ta-wrap" id="ef-lead-ta">
+                  ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
+                </div>
+
+                <!-- Co-Lead Add Button -->
+                <button type="button" class="ef-addco" id="ef-addco-btn"
+                  style="${isTagKat?"":"display:none"}"
+                  onclick="ctrl.efToggleCo(true)">
+                  <span>＋</span> Co-Lead
+                </button>
+
+                <!-- Co-Lead Pill -->
+                <div class="ef-pp" id="ef-co-pill" style="${selCoPerson?"":"display:none"}" onclick="ctrl.efOpenPicker('co')">
+                  <div class="ef-av co" id="ef-co-av">${coPersonName ? h.esc(initials(coPersonName)) : "?"}</div>
+                  <div>
+                    <div class="ef-pn" id="ef-co-name">${coPersonName ? h.esc(coPersonName) : "—"}</div>
+                    <div class="ef-pr-role">Co-Lead</div>
+                  </div>
+                  <span class="ef-pe" onclick="event.stopPropagation();ctrl.efToggleCo(false)">✕</span>
+                </div>
+                <!-- Co typeahead (versteckt) -->
+                <div class="ef-ta-wrap" id="ef-co-ta">
+                  ${ui.personTypeahead("coPersonLookupId_ta", selCoPerson ? String(selCoPerson) : "")}
+                </div>
+              </div>
             </div>
 
-            <div class="tm-section-divider">Status</div>
-            <div class="tm-field">
-              <label>Abrechnung <span class="req">*</span></label>
-              <select name="abrechnung">
-                ${["offen","zur Abrechnung","abgerechnet"].map(s => `<option value="${s}" ${(e?.abrechnung||"offen")===s?"selected":""}>${s}</option>`).join("")}
-              </select>
-            </div>
-            <div class="tm-field">
-              <label>Status</label>
-              <select name="status">
-                <option value="">—</option>
-                ${["abgesagt","abgesagt mit Kostenfolge"].map(s => `<option value="${s}" ${e?.status===s?"selected":""}>${s}</option>`).join("")}
-              </select>
+            <!-- Beschreibung -->
+            <div class="ef-s">
+              <div class="ef-l">Beschreibung (optional)</div>
+              <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title||"")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
             </div>
 
-            <div class="tm-form-actions tm-form-full">
-              <button type="button" class="tm-btn" data-close-modal>Abbrechen</button>
-              <button type="submit" class="tm-btn tm-btn-primary">Speichern</button>
+            <div class="ef-dv"></div>
+
+            <!-- Beträge -->
+            <div class="ef-s">
+              <div class="ef-l">Beträge</div>
+              <div class="ef-bc-grid${selCoPerson && isTagKat ? " two" : ""}" id="ef-bc-grid">
+                <div class="ef-bi">
+                  <div id="ef-bc-lead">${betragLeadCard()}</div>
+                  <div class="ef-ov"><span class="ef-ov-p">CHF</span><input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Anpassen (optional)"></div>
+                </div>
+                <div class="ef-bi" id="ef-bc-co" style="${selCoPerson && isTagKat ? "" : "display:none"}">
+                  <div id="ef-bc-co-card">${betragCoCard()}</div>
+                  <div class="ef-ov"><span class="ef-ov-p">CHF</span><input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal??""}" placeholder="Anpassen (optional)"></div>
+                </div>
+              </div>
             </div>
+
+            <div class="ef-dv"></div>
+
+            <!-- Abrechnung -->
+            <div class="ef-s">
+              <div class="ef-l">Abrechnung</div>
+              <div class="ef-sr">
+                ${["offen","zur Abrechnung","abgerechnet"].map(s => `<button type="button" class="ef-sp${(e?.abrechnung||"offen")===s?" on":""}"
+                  onclick="document.querySelectorAll('.ef-sp:not(.abg)').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('abr-hid').value='${h.esc(s)}'"
+                  >${s.charAt(0).toUpperCase()+s.slice(1)}</button>`).join("")}
+                <button type="button" class="ef-sp abg${e?.status?" on":""}"
+                  onclick="ctrl.efToggleAbgesagt(this)">Abgesagt</button>
+              </div>
+              <div id="ef-abg-opts" style="display:${e?.status?"flex":"none"};gap:6px;margin-top:8px">
+                ${["abgesagt","abgesagt mit Kostenfolge"].map(s => `<button type="button" class="ef-sp${e?.status===s?" on":""}"
+                  style="font-size:11px"
+                  onclick="document.querySelectorAll('#ef-abg-opts .ef-sp').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('status-hid').value='${h.esc(s)}'"
+                  >${s}</button>`).join("")}
+              </div>
+            </div>
+
+            <!-- Bemerkungen -->
+            <div class="ef-s">
+              <div class="ef-l">Bemerkungen (optional)</div>
+              <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen||"")}</textarea></div>
+            </div>
+
           </form>
         </div>
+
+        <div class="ef-ft">
+          <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
+          <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+            <span>✓</span> Speichern
+          </button>
+        </div>
       </div>`);
+    },
+    // ── Einsatz-Formular Helfer ──────────────────────────────────────────
+    efUpdateHeader(sel) {
+      const p = state.enriched.projekte.find(p => p.id === Number(sel.value));
+      const sub = document.getElementById("ef-hd-sub");
+      if (sub && p) sub.textContent = p.title + (p.firmaName ? " · " + p.firmaName : "");
+    },
+
+    efOpenPicker(type) {
+      const taId = type === "lead" ? "ef-lead-ta" : "ef-co-ta";
+      const pillId = type === "lead" ? "ef-lead-pill" : "ef-co-pill";
+      const ta = document.getElementById(taId);
+      const pill = document.getElementById(pillId);
+      if (!ta || !pill) return;
+      pill.style.display = "none";
+      ta.style.display = "block";
+      ta.querySelector(".tm-ta-input")?.focus();
+    },
+
+    efToggleCo(show) {
+      const addBtn = document.getElementById("ef-addco-btn");
+      const coPill = document.getElementById("ef-co-pill");
+      const coBc   = document.getElementById("ef-bc-co");
+      const bcGrid = document.getElementById("ef-bc-grid");
+      const coVal  = document.getElementById("coperson-val");
+      if (show) {
+        if (addBtn) addBtn.style.display = "none";
+        if (coPill) coPill.style.display = "inline-flex";
+        // Open co picker immediately
+        ctrl.efOpenPicker("co");
+      } else {
+        if (addBtn) addBtn.style.display = "inline-flex";
+        if (coPill) coPill.style.display = "none";
+        if (coBc)   coBc.style.display = "none";
+        if (bcGrid) bcGrid.classList.remove("two");
+        if (coVal)  coVal.value = "";
+        // Reset co typeahead
+        const coTa = document.getElementById("ef-co-ta");
+        if (coTa) {
+          coTa.style.display = "none";
+          const inp = coTa.querySelector(".tm-ta-input");
+          const val = coTa.querySelector(".tm-ta-val");
+          if (inp) inp.value = "";
+          if (val) val.value = "";
+        }
+        // Update co betrag display
+        ctrl.updateCoBetrag();
+      }
+    },
+
+    efToggleAbgesagt(btn) {
+      const opts = document.getElementById("ef-abg-opts");
+      const statusHid = document.getElementById("status-hid");
+      if (opts.style.display === "none" || opts.style.display === "") {
+        opts.style.display = "flex";
+        btn.classList.add("on");
+        if (statusHid && !statusHid.value) statusHid.value = "abgesagt";
+        // Set first option active
+        const first = opts.querySelector(".ef-sp");
+        if (first) { first.classList.add("on"); }
+      } else {
+        opts.style.display = "none";
+        btn.classList.remove("on");
+        if (statusHid) statusHid.value = "";
+      }
     },
 
     onProjChange(sel) {
@@ -1367,28 +1621,25 @@
     },
 
     onKatChange(kat) {
-      document.getElementById("fd-std").style.display     = kat === "Stunde" ? "" : "none";
-      document.getElementById("fd-stk").style.display     = kat === "Stück"  ? "" : "none";
+      const fdStd = document.getElementById("fd-std");
+      const fdStk = document.getElementById("fd-stk");
+      if (fdStd) fdStd.className = "ef-sub-inp" + (kat === "Stunde" ? " show" : "");
+      if (fdStk) fdStk.className = "ef-sub-inp" + (kat === "St\u00fcck"  ? " show" : "");
       const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(kat);
-      const coPerson = document.getElementById("fd-coperson");
-      if (coPerson) coPerson.style.display = isTagKat ? "" : "none";
-      if (!isTagKat) {
-        // Co-Lead und Co-Betrag verstecken wenn nicht Tag/Halbtag
-        ["fd-cobetrag","fd-cobetragfinal"].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = "none";
-        });
-      }
-      // Betrag aus Projektsettings neu berechnen
+      const addCoBtn = document.getElementById("ef-addco-btn");
+      if (addCoBtn) addCoBtn.style.display = isTagKat ? "inline-flex" : "none";
+      if (!isTagKat) ctrl.efToggleCo(false);
       const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
       const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
       const std = h.num(document.querySelector("[name='dauerStunden']")?.value);
       const stk = h.num(document.querySelector("[name='anzahlStueck']")?.value);
-      const dauerTage = kat.includes("Halbtag") ? 0.5 : 1;
-      const betrag = proj ? h.berechneBetrag(proj, kat, dauerTage, std, stk) : null;
-      const disp = document.getElementById("betrag-display");
-      if (disp) disp.textContent = betrag !== null ? "CHF " + h.chf(betrag) : "— (nicht konfiguriert)";
-      // Co-Betrag aktualisieren
+      const betrag = proj ? h.berechneBetrag(proj, kat, 1, std, stk) : null;
+      const leadCard = document.getElementById("ef-bc-lead");
+      if (leadCard) {
+        if (!kat) leadCard.innerHTML = '<div class="ef-bc ef-bc-pending"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Kategorie w\u00e4hlen</div></div>';
+        else if (betrag === null) leadCard.innerHTML = '<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>';
+        else leadCard.innerHTML = '<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Lead \u00b7 aus Projekt</div><div class="ef-bc-val">CHF ' + h.chf(betrag) + '</div></div>';
+      }
       ctrl.updateCoBetrag();
     },
 
