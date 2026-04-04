@@ -388,7 +388,7 @@
     p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
     // Einsätze: abgesagt ❌, abgesagt mit Kostenfolge ✅
     p.totalEinsaetze  = p.einsaetze
-      .filter(e => String(e.Status||"").toLowerCase() !== "abgesagt")
+      .filter(e => { const s = h.einsatzStatus(e); return s !== "abgesagt"; })  // berechnet, nicht raw
       .reduce((s,e) => {
         const lead = h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0;
         const co   = h.num(e.CoBetragFinal) ?? h.num(e.CoBetragBerechnet) ?? 0;
@@ -396,7 +396,7 @@
       }, 0);
     // Konzeption: nur "zur Abrechnung" und "abgerechnet"
     p.totalKonzeption = p.konzeintraege
-      .filter(k => { const excl = state.choices.konzVerrechenbar.slice(0, 2); return !excl.includes(k.Verrechenbar); })
+      .filter(k => ["zur Abrechnung","abgerechnet"].includes(k.Verrechenbar))  // explizit, nicht positionsabhängig
       .reduce((s,k) => s + (h.num(k.BetragFinal) ?? h.num(k.BetragBerechnet) ?? 0), 0);
     p.totalBetrag     = p.totalEinsaetze + p.totalKonzeption;
     p.einsaetzeCount  = p.einsaetze.length;
@@ -1101,7 +1101,7 @@
                 <div class="tm-field">
                   <label>Km zum Kunden</label>
                   <input type="number" name="kmZumKunden" value="${cn("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1">
-                  <span class="tm-hint">bbz SG → Kundendomizil (App rechnet ×2)</span>
+                  <span class="tm-hint">Hin &amp; Zurück total (wird 1× mit CHF/km multipliziert)</span>
                 </div>
                 <div class="tm-field" style="justify-content:flex-end">
                   <label>&nbsp;</label>
@@ -1298,12 +1298,13 @@
     },
 
     // ── Einsatz-Formular ──────────────────────────────────────────────────
-    openEinsatzForm(id, projektId = null) {
+    openEinsatzForm(id, projektId = null, preselectKat = null) {
       const e          = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
       const prefProjId = projektId || (e?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
       const kats       = h.kategorien(selProjekt);
-      const selKat     = e?.kategorie || "";
+      // preselectKat: beim Duplizieren Kategorie vorwählen (wenn vorhanden)
+      const selKat     = e?.kategorie || (preselectKat && kats.includes(preselectKat) ? preselectKat : "");
       const defPerson  = h.defaultPerson();
       const selPerson  = e ? e.personLookupId : (defPerson?.id || null);
       const selCoPerson = e?.coPersonLookupId || null;
@@ -1574,7 +1575,7 @@
                           placeholder="km (einfach)"
                           oninput="ctrl.efCalcWegspesen(this.value)">
                       </div>
-                      <span style="font-size:12px;color:#8896a5">× 2 (Hin & Zurück)</span>
+                      <span style="font-size:12px;color:#8896a5">× CHF/km Ansatz</span>
                       <div id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#1a8a5e"></div>
                       <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="">
                     </div>
@@ -1661,7 +1662,7 @@
           if (wdetail) wdetail.style.display = "flex";
           const kmInp = document.getElementById("ef-km-input");
           if (kmInp && ansatz) {
-            const km = Math.round(e.spesenBerechnet / ansatz / 2);
+            const km = Math.round(e.spesenBerechnet / ansatz);  // KmZumKunden ist bereits Hin+Zurück
             kmInp.value = km;
           }
           const ber = document.getElementById("ef-spesen-ber");
@@ -1775,22 +1776,11 @@
       }
       btn.classList.add("on");
       detail.style.display = "flex";
-      if (show) {
-        // Km aus Projektstammdaten vorausfüllen und direkt berechnen
-        const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-        const kmInp = document.getElementById("ef-km-input");
-        if (kmInp && !kmInp.value && proj?.kmZumKunden) {
-          kmInp.value = proj.kmZumKunden;
-          ctrl.efCalcWegspesen(proj.kmZumKunden);
-        }
-      } else {
-        const km = document.getElementById("ef-km-input");
-        if (km) km.value = "";
-        const ber = document.getElementById("ef-spesen-ber");
-        if (ber) ber.value = "";
-        const tot = document.getElementById("ef-wegspesen-total");
-        if (tot) tot.textContent = "";
+      // Km aus Projektstammdaten vorausfüllen und direkt berechnen
+      const kmInp = document.getElementById("ef-km-input");
+      if (kmInp && !kmInp.value && proj?.kmZumKunden) {
+        kmInp.value = proj.kmZumKunden;
+        ctrl.efCalcWegspesen(proj.kmZumKunden);
       }
     },
 
@@ -1799,7 +1789,7 @@
       const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
       const ansatz = proj?.ansatzKmSpesen;
       const kmNum = parseFloat(km) || 0;
-      const total = ansatz ? kmNum * 2 * ansatz : 0;
+      const total = ansatz ? kmNum * ansatz : 0;  // KmZumKunden ist bereits Hin+Zurück
       const tot = document.getElementById("ef-wegspesen-total");
       if (tot) tot.textContent = total > 0 ? "= CHF " + h.chf(total) : "";
       const ber = document.getElementById("ef-spesen-ber");
@@ -1827,13 +1817,11 @@
       const p    = state.enriched.projekte.find(p => p.id === Number(sel.value));
       const kats = h.kategorien(p);
       const grp  = document.getElementById("kat-grp");
-      if (grp) grp.innerHTML = kats.map(k => `<div class="tm-radio-btn"
-        onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</div>`).join("");
+      if (grp) grp.innerHTML = kats.map(k => `<button type="button" class="ef-kat-btn"
+        onclick="document.querySelectorAll('.ef-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</button>`).join("");
       const hid = document.getElementById("kat-hid");
       if (hid) hid.value = "";
       // Dauer-Felder zurücksetzen
-      const dtHid = document.getElementById("dt-hid");
-      if (dtHid) dtHid.value = "1";
       const dStd = document.querySelector("[name='dauerStunden']");
       if (dStd) dStd.value = "";
       const dStk = document.querySelector("[name='anzahlStueck']");
@@ -1885,6 +1873,8 @@
         }
         if (!projId) throw new Error("Bitte Projekt wählen.");
         if (!kat)    throw new Error("Bitte Kategorie wählen.");
+        const personIdCheck = h.num(fd.get("personLookupId"));
+        if (!personIdCheck) throw new Error("Bitte Lead-Person wählen.");
 
         const p            = state.enriched.projekte.find(p => p.id === projId);
         const dauerTage    = h.num(fd.get("dauerTage"));
@@ -1983,102 +1973,12 @@
     },
 
     copyEinsatz(id) {
+      // Einsatz duplizieren: neues Formular öffnen mit Projekt und Kategorie vorbelegt,
+      // Datum leer damit der User bewusst ein neues Datum wählt.
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
-      // Formular öffnen mit vorausgefüllten Werten (Datum leer, Beträge zurückgesetzt)
-      const prefProjId  = e.projektLookupId;
-      const selProjekt  = state.enriched.projekte.find(p => p.id === prefProjId);
-      const kats        = h.kategorien(selProjekt);
-      const selKat      = e.kategorie;
-      const defPerson   = h.defaultPerson();
-      const selPerson   = e.personLookupId || (defPerson?.id || null);
-
-      const projektOpts = state.enriched.projekte
-        .filter(p => !p.archiviert)
-        .map(p => `<option value="${p.id}" ${prefProjId === p.id ? "selected" : ""}>${h.esc(p.title)}${p.projektNr ? ` (#${p.projektNr})` : ""}</option>`)
-        .join("");
-
-      ui.renderModal(`<div class="tm-modal">
-        <div class="tm-modal-header">
-          <span class="tm-modal-title">Einsatz duplizieren</span>
-          <button class="tm-modal-close" data-close-modal>✕</button>
-        </div>
-        <div class="tm-modal-body">
-          <form id="einsatz-form" class="tm-form-grid" autocomplete="off">
-            <input type="hidden" name="itemId" value="">
-            <input type="hidden" name="mode"   value="create">
-            <div class="tm-field">
-              <label>Datum <span class="req">*</span></label>
-              <input type="date" name="datum" value="" required>
-            </div>
-            <div class="tm-field">
-              <label>Projekt <span class="req">*</span></label>
-              <select name="projektLookupId" required onchange="ctrl.onProjChange(this)">
-                <option value="">— wählen —</option>
-                ${projektOpts}
-              </select>
-            </div>
-            <div class="tm-field tm-form-full">
-              <label>Beschreibung</label>
-              <input type="text" name="titel" value="${h.esc(e.title)}" placeholder="z.B. Kick-off Workshop…">
-            </div>
-            <div class="tm-field tm-form-full">
-              <label>Kategorie <span class="req">*</span></label>
-              <div class="tm-radio-group" id="kat-grp">
-                ${kats.map(k => `<div class="tm-radio-btn${selKat===k?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</div>`).join("")}
-              </div>
-              <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
-            </div>
-            <div class="tm-field" id="fd-tage" style="${["Stunde","Stück","Pauschale"].includes(selKat)?"display:none":""}"><!-- Tag/Halbtag wird durch Kategorie bestimmt -->
-              <label>Dauer</label>
-              <div class="tm-radio-group">
-                <div class="tm-radio-btn${(e.dauerTage||1)===1?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('dt-hid').value='1'">Ganztag (1.0)</div>
-                <div class="tm-radio-btn${e.dauerTage===0.5?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('dt-hid').value='0.5'">Halbtag (0.5)</div>
-              </div>
-              <input type="hidden" id="dt-hid" name="dauerTage" value="${e.dauerTage || 1}">
-            </div>
-            <div class="tm-field" id="fd-std" style="${selKat==="Stunde"?"":"display:none"}">
-              <label>Stunden</label>
-              <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e.dauerStunden||""}">
-            </div>
-            <div class="tm-field" id="fd-stk" style="${selKat==="Stück"?"":"display:none"}">
-              <label>Anzahl Stück</label>
-              <input type="number" name="anzahlStueck" min="1" step="1" value="${e.anzahlStueck||""}">
-            </div>
-            <div class="tm-field">
-              <label>Ort</label>
-              <input type="text" name="ort" value="${h.esc(e.ort||"")}">
-            </div>
-            <div class="tm-field">
-              <label>Person (Lead)</label>
-              ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
-            </div>
-            <div class="tm-field tm-form-full">
-              <label>Bemerkungen</label>
-              <textarea name="bemerkungen">${h.esc(e.bemerkungen||"")}</textarea>
-            </div>
-            <div class="tm-section-divider">Status</div>
-            <div class="tm-field">
-              <label>Abrechnung <span class="req">*</span></label>
-              <select name="abrechnung">
-                ${["offen","zur Abrechnung","abgerechnet"].map(s => `<option value="${s}" ${"offen"===s?"selected":""}>${s}</option>`).join("")}
-              </select>
-            </div>
-            <div class="tm-field">
-              <label>Status</label>
-              <select name="status"><option value="">—</option></select>
-            </div>
-            <div class="tm-form-actions tm-form-full">
-              <button type="button" class="tm-btn" data-close-modal>Abbrechen</button>
-              <button type="submit" class="tm-btn tm-btn-primary">Speichern</button>
-            </div>
-          </form>
-        </div>
-      </div>`);
-    },
+      ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
+    },,
 
     // ── Konzeption-Formular ────────────────────────────────────────────────
     openKonzeptionForm(id, projektId = null) {
@@ -2200,14 +2100,6 @@
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
         if (bf !== null) fields.BetragFinal = bf;
-        // Co-Betrag: nur wenn Co-Lead gesetzt
-        const coPersonId2 = h.num(fd.get("coPersonLookupId"));
-        if (coPersonId2) {
-          const coBetragBer = h.berechneCoBetrag(p, kat);
-          if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
-          const cbf = h.num(fd.get("coBetragFinal"));
-          if (cbf !== null) fields.CoBetragFinal = cbf;
-        }
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
 
