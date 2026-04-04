@@ -1552,6 +1552,7 @@
                 <button type="button" id="ef-spesen-toggle"
                   class="ef-sp${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? " on" : ""}"
                   onclick="ctrl.efToggleSpesen(this)"
+                  data-open="${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? '1' : '0'}"
                   style="font-size:13px;padding:7px 16px">
                   ${e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal ? "Spesen verrechenbar ✓" : "Spesen verrechenbar?"}
                 </button>
@@ -1563,6 +1564,7 @@
                     <button type="button" id="ef-wegspesen-toggle"
                       class="ef-sp${e?.spesenBerechnet ? " on" : ""}"
                       onclick="ctrl.efToggleWegspesen(this)"
+                      data-open="${e?.spesenBerechnet ? '1' : '0'}"
                       style="font-size:12px;padding:5px 12px">
                       Wegspesen
                     </button>
@@ -1698,16 +1700,18 @@
     efToggleSpesen(btn) {
       const detail = document.getElementById("ef-spesen-detail");
       if (!detail) return;
-      const isOpen = getComputedStyle(detail).display !== "none";
+      // State via data-Attribut — unabhängig von CSS
+      const isOpen = btn.dataset.open === "1";
       if (isOpen) {
-        // Deaktivieren — alles zurücksetzen
+        // Deaktivieren
+        btn.dataset.open = "0";
         detail.style.display = "none";
         btn.classList.remove("on");
         btn.textContent = "Spesen verrechenbar?";
         const weg = document.getElementById("ef-wegspesen-detail");
         if (weg) weg.style.display = "none";
         const wt = document.getElementById("ef-wegspesen-toggle");
-        if (wt) wt.classList.remove("on");
+        if (wt) { wt.classList.remove("on"); wt.dataset.open = "0"; }
         const km = document.getElementById("ef-km-input");
         if (km) km.value = "";
         const ber = document.getElementById("ef-spesen-ber");
@@ -1720,6 +1724,7 @@
         if (sf) sf.value = "";
       } else {
         // Aktivieren
+        btn.dataset.open = "1";
         detail.style.display = "flex";
         btn.classList.add("on");
         btn.textContent = "Spesen verrechenbar \u2713";
@@ -1729,7 +1734,7 @@
     efToggleWegspesen(btn) {
       const detail = document.getElementById("ef-wegspesen-detail");
       if (!detail) return;
-      const show = getComputedStyle(detail).display === "none";
+      const show = btn.dataset.open !== "1";
       // Prüfen ob Km-Ansatz vorhanden
       const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
       const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
@@ -1737,6 +1742,7 @@
         ui.setMsg("Kein Km-Ansatz im Projekt hinterlegt. Bitte zuerst in den Projektsettings erfassen.", "error");
         return;
       }
+      btn.dataset.open = show ? "1" : "0";
       detail.style.display = show ? "flex" : "none";
       btn.classList.toggle("on", show);
       if (show) {
