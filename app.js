@@ -206,9 +206,11 @@
     },
     taSelect(item) {
       const w = item.closest(".tm-typeahead");
-      w.querySelector(".tm-ta-val").value = item.dataset.id;
+      const val = w.querySelector(".tm-ta-val");
+      val.value = item.dataset.id;
       w.querySelector(".tm-ta-input").value = item.textContent.trim();
       w.querySelector(".tm-ta-dd").style.display="none";
+      val.dispatchEvent(new Event("change", {bubbles:true}));
     },
 
     // Verfügbare Einsatz-Kategorien aus Projekt-Ansätzen
@@ -416,7 +418,7 @@
         state.data.einsaetze  = einsaetze;
         state.data.konzeption = konzeption;
         state.data.firms      = firms.map(f=>({id:Number(f.id),title:f.Title||""}));
-        state.data.contacts   = contacts.map(c=>({id:Number(c.id),nachname:c.Title||"",vorname:c.Vorname||""}));
+        state.data.contacts   = contacts.map(c=>({id:Number(c.id),nachname:c.Title||"",vorname:c.Vorname||"",FirmaLookupId:Number(c.FirmaLookupId||0)||null}));
         enrichAll();
       } finally {
         ui.setLoading(false);
@@ -736,11 +738,20 @@
     // ── Projekt-Formular ─────────────────────────────────────────────────
     openProjektForm(id) {
       const p = id ? state.enriched.projekte.find(p=>p.id===id) : null;
-      const firmaItems    = state.data.firms.sort((a,b)=>a.title.localeCompare(b.title,"de")).map(f=>({id:String(f.id),label:f.title}));
-      const contactItems  = state.data.contacts.sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de")).map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
+      const firmaItems = state.data.firms
+        .sort((a,b)=>a.title.localeCompare(b.title,"de"))
+        .map(f=>({id:String(f.id),label:f.title}));
+      const prefFirmaId = p?.firmaLookupId || null;
+      const allContactItems = () => fId => state.data.contacts
+        .filter(c => !fId || Number(c.FirmaLookupId||c.firmaLookupId||0) === fId)
+        .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"))
+        .map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
+      const contactItems = state.data.contacts
+        .filter(c => !prefFirmaId || Number(c.FirmaLookupId||c.firmaLookupId||0) === prefFirmaId)
+        .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"))
+        .map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
       const v = (k,fb="") => p?(p[k]??fb):fb;
       const chfv = k => p&&p[k]!==null&&p[k]!==undefined?p[k]:"";
-
       state.filters.route="projekt-form";
       ui.render(`
         <div style="max-width:700px;margin:0 auto">
@@ -757,11 +768,16 @@
                 <div class="tm-field tm-form-full"><label>Projektname <span class="req">*</span></label><input type="text" name="title" value="${h.esc(v("title"))}" required></div>
                 <div class="tm-field"><label>Projekt-Nr.</label><input type="text" name="projektNr" value="${h.esc(v("projektNr"))}"></div>
                 <div class="tm-field"><label>Konto-Nr. Honorar</label><input type="text" name="kontoNr" value="${h.esc(v("kontoNr"))}" placeholder="z.B. 4210"></div>
-                <div class="tm-field"><label>Firma <span class="req">*</span></label>${h.typeaheadHtml("firmaLookupId",firmaItems,p?String(p.firmaLookupId||""):"","Firma suchen…",true)}</div>
-                <div class="tm-field"><label>Ansprechpartner <span class="req">*</span></label>${h.typeaheadHtml("ansprechpartnerLookupId",contactItems,p?String(p.ansprechpartnerLookupId||""):"","Person suchen…",true)}</div>
+                <div class="tm-field"><label>Firma <span class="req">*</span></label>
+                  ${h.typeaheadHtml("firmaLookupId",firmaItems,p?String(p.firmaLookupId||""):"","Firma suchen…")}
+                  <span class="tm-hint">Nach Auswahl werden Ansprechpartner gefiltert</span>
+                </div>
+                <div class="tm-field"><label>Ansprechpartner <span class="req">*</span></label>
+                  <div id="ap-wrap">${h.typeaheadHtml("ansprechpartnerLookupId",contactItems,p?String(p.ansprechpartnerLookupId||""):"","Person suchen…")}</div>
+                </div>
                 <div class="tm-field"><label>Status <span class="req">*</span></label><select name="status" required>${["geplant","aktiv","abgeschlossen"].map(s=>`<option value="${s}" ${v("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}</select></div>
                 <div class="tm-field"><label>Km zum Kunden</label><input type="number" name="kmZumKunden" value="${chfv("kmZumKunden")}" placeholder="z.B. 28"><span class="tm-hint">bbz SG → Kundendomizil (App rechnet ×2)</span></div>
-                <div class="tm-field" style="justify-content:flex-end"><label>&nbsp;</label><label class="tm-checkbox-row"><input type="checkbox" name="archiviert" ${v("archiviert")?'checked':""}> Archiviert</label></div>
+                <div class="tm-field" style="justify-content:flex-end"><label>&nbsp;</label><label class="tm-checkbox-row"><input type="checkbox" name="archiviert" ${v("archiviert")?"checked":""}> Archiviert</label></div>
               </div>
             </div>
             <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
@@ -776,8 +792,8 @@
                   ${[["Einsatz (Tag)","ansatzEinsatz","ansatzCoEinsatz"],["Einsatz (Halbtag)","ansatzHalbtag","ansatzCoHalbtag"]].map(([lbl,mk,ck])=>`
                   <tr>
                     <td style="font-size:13px;padding:8px 16px 8px 0;border-bottom:1px solid var(--tm-blue-pale)">${lbl}</td>
-                    <td style="padding:6px 12px;border-bottom:1px solid var(--tm-blue-pale)"><div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px"><span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span><input type="number" name="${mk}" value="${chfv(mk)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit;color:var(--tm-text)"></div></td>
-                    <td style="padding:6px 0 6px 12px;border-bottom:1px solid var(--tm-blue-pale)"><div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px"><span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span><input type="number" name="${ck}" value="${chfv(ck)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit;color:var(--tm-text)"></div></td>
+                    <td style="padding:6px 12px;border-bottom:1px solid var(--tm-blue-pale)"><div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px"><span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span><input type="number" name="${mk}" value="${chfv(mk)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit"></div></td>
+                    <td style="padding:6px 0 6px 12px;border-bottom:1px solid var(--tm-blue-pale)"><div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px"><span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span><input type="number" name="${ck}" value="${chfv(ck)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit"></div></td>
                   </tr>`).join("")}
                 </tbody>
               </table>
@@ -786,7 +802,7 @@
                 <div class="tm-field"><label>${lbl}</label>
                   <div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden">
                     <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span>
-                    <input type="number" name="${key}" value="${chfv(key)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit;color:var(--tm-text)">
+                    <input type="number" name="${key}" value="${chfv(key)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit">
                   </div><span class="tm-hint">${hint}</span></div>`).join("")}
                 <div class="tm-field"><label>Spesen Konto-Nr.</label><input type="text" name="spesenKontoNr" value="${h.esc(v("spesenKontoNr"))}" placeholder="z.B. 6500"></div>
               </div>
@@ -796,8 +812,8 @@
               <div class="tm-form-grid" style="margin-top:14px">
                 <div class="tm-field"><label>Vereinbarte Tage</label>
                   <input type="number" name="konzeptionsrahmenTage" value="${chfv("konzeptionsrahmenTage")}" placeholder="z.B. 2" min="0" step="0.5"
-                    oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">
-                  <span class="tm-hint">App rechnet × 8 = Stunden-Budget</span>
+                    oninput="document.getElementById(\'kh\').textContent=(parseFloat(this.value)||0)*8">
+                  <span class="tm-hint">× 8 = Stunden-Budget</span>
                 </div>
                 <div class="tm-field" style="justify-content:flex-end"><label>&nbsp;</label>
                   <div style="padding:10px 14px;background:var(--tm-blue-pale);border-radius:6px;font-size:13px;color:#6B7280">= <span id="kh" style="font-weight:600;color:var(--tm-text)">${(v("konzeptionsrahmenTage",0)||0)*8}</span> Stunden Budget</div>
@@ -810,6 +826,19 @@
             </div>
           </form>
         </div>`);
+      // Firma-Wechsel → Ansprechpartner filtern
+      const taFirma = document.querySelector(".tm-typeahead[data-name=\'firmaLookupId\'] .tm-ta-val");
+      if (taFirma) {
+        taFirma.addEventListener("change", () => {
+          const fId = Number(taFirma.value)||null;
+          const filtered = state.data.contacts
+            .filter(c => !fId || Number(c.FirmaLookupId||c.firmaLookupId||0) === fId)
+            .sort((a,b)=>(a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"))
+            .map(c=>({id:String(c.id),label:[c.nachname,c.vorname].filter(Boolean).join(", ")}));
+          const wrap = document.getElementById("ap-wrap");
+          if (wrap) wrap.innerHTML = h.typeaheadHtml("ansprechpartnerLookupId", filtered, "", "Person suchen…");
+        });
+      }
     },
 
     async saveProjekt(fd) {
