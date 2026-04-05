@@ -1277,6 +1277,29 @@
     setTab(route, tab) { state.filters.activeTab[route] = tab; this.render(); },
     closeModal() { ui.closeModal(); },
 
+    async resetEinsatzAbrechnung(id) {
+      const e = state.enriched.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      if (!confirm(
+        `Abrechnung zurücksetzen für: «${e.title || e.datumFmt}»\n\n` +
+        `Dieser Einsatz ist als «abgerechnet» markiert, hat aber keine verknüpfte Abrechnung mehr — ` +
+        `vermutlich weil die Abrechnung direkt in SharePoint gelöscht wurde.\n\n` +
+        `Der Status wird auf «offen» zurückgesetzt, damit der Einsatz erneut abgerechnet werden kann.\n\n` +
+        `Fortfahren?`
+      )) return;
+      try {
+        ui.setMsg("Wird zurückgesetzt…", "info");
+        await api.patch(CONFIG.lists.einsaetze, id, { Abrechnung: "offen" });
+        ui.closeModal();
+        ui.setMsg(`Einsatz «${e.title || e.datumFmt}» zurückgesetzt — Status ist wieder «offen».`, "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (err) {
+        debug.err("resetEinsatzAbrechnung", err);
+        ui.setMsg("Fehler beim Zurücksetzen: " + err.message, "error");
+      }
+    },
+
     async abrSetStatus(id, newStatus) {
       try {
         await api.patch(CONFIG.lists.abrechnungen, id, { Status: newStatus });
@@ -1960,7 +1983,18 @@
           </form><!-- /ef-bd -->
 
         <div class="ef-ft">
-          ${id && e?.abrechnung ? `<div class="ef-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(e.abrechnung)}</div>` : `<div></div>`}
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            ${id && e?.abrechnung ? `<div class="ef-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(e.abrechnung)}</div>` : ""}
+            ${id && e?.abrechnung === "abgerechnet" && !e?.abrechnungLookupId ? `
+              <button type="button" style="
+                font-family:inherit;font-size:11px;font-weight:600;
+                padding:4px 10px;border-radius:6px;cursor:pointer;
+                background:#fff3cd;border:1.5px solid #e59c2e;color:#7a5000;
+                display:flex;align-items:center;gap:5px;
+              " onclick="ctrl.resetEinsatzAbrechnung(${id})" title="Nur verwenden wenn die verknüpfte Abrechnung direkt in SharePoint gelöscht wurde — nicht über die App.">
+                ⚠ Abrechnung zurücksetzen
+              </button>` : ""}
+          </div>
           <div style="display:flex;gap:8px">
             <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
