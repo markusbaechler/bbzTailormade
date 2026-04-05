@@ -17,11 +17,12 @@
       sitePath: "/sites/CRM"
     },
     lists: {
-      projekte:   "ProjekteTM",
-      einsaetze:  "EinsaetzeTM",
-      konzeption: "KonzeptionTM",
-      firms:      "CRMFirms",
-      contacts:   "CRMContacts"
+      projekte:     "ProjekteTM",
+      einsaetze:    "EinsaetzeTM",
+      konzeption:   "KonzeptionTM",
+      abrechnungen: "AbrechnungenTM",
+      firms:        "CRMFirms",
+      contacts:     "CRMContacts"
     }
   };
 
@@ -54,7 +55,17 @@
     konz_person_r:     "PersonLookupIdLookupId",
     // KonzeptionTM — Schreiben
     konz_projekt_w:    "ProjektLookupId",
-    konz_person_w:     "PersonLookupId"
+    konz_person_w:     "PersonLookupId",
+
+    // AbrechnungenTM — Lesen
+    abr_projekt_r:     "ProjektLookupIdLookupId",
+    // AbrechnungenTM — Schreiben
+    abr_projekt_w:     "ProjektLookupId",
+
+    // EinsaetzeTM / KonzeptionTM → AbrechnungenTM — Lesen
+    abrechnung_r:      "AbrechnungLookupIdLookupId",
+    // Schreiben
+    abrechnung_w:      "AbrechnungLookupId"
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -97,11 +108,12 @@
       siteId: null
     },
     data: {
-      projekte:   [],   // raw SP items
-      einsaetze:  [],
-      konzeption: [],
-      firms:      [],   // [{id, title}]
-      contacts:   []    // [{id, nachname, vorname, firmaLookupId}]
+      projekte:     [],
+      einsaetze:    [],
+      konzeption:   [],
+      abrechnungen: [],
+      firms:        [],
+      contacts:     []
     },
     choices: {
       // Dynamisch aus SP geladen via getChoices() — nie hier hardcodieren.
@@ -113,9 +125,10 @@
       konzAbrechnung:     []
     },
     enriched: {
-      projekte:   [],
-      einsaetze:  [],
-      konzeption: []
+      projekte:     [],
+      einsaetze:    [],
+      konzeption:   [],
+      abrechnungen: []
     },
     filters: {
       route:      "projekte",
@@ -397,23 +410,24 @@
     };
     p.firmaName       = h.firmName(p.firmaLookupId);
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
-    p.einsaetze       = state.data.einsaetze.filter(e => h.rdLookup(e, F.projekt_r) === p.id);
-    p.konzeintraege   = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
-    // Einsätze: abgesagt ❌, abgesagt mit Kostenfolge ✅
-    p.totalEinsaetze  = p.einsaetze
-      .filter(e => { const s = h.einsatzStatus(e); return s !== "abgesagt"; })  // berechnet, nicht raw
+    // Verweise auf enriched — werden nach enrichAll korrekt gesetzt
+    // Temporär aus raw für Totals (enrichAll setzt p.einsaetze nachträglich)
+    const rawEinsaetze   = state.data.einsaetze.filter(e => h.rdLookup(e, F.projekt_r) === p.id);
+    const rawKonzeintraege = state.data.konzeption.filter(k => h.rdLookup(k, F.konz_projekt_r) === p.id);
+    // Totals aus raw berechnen (Feldnamen gross, SP-raw)
+    p.totalEinsaetze  = rawEinsaetze
+      .filter(e => { const s = h.einsatzStatus(e); return s !== "abgesagt"; })
       .reduce((s,e) => {
         const lead = h.num(e.BetragFinal) ?? h.num(e.BetragBerechnet) ?? 0;
         const co   = h.num(e.CoBetragFinal) ?? h.num(e.CoBetragBerechnet) ?? 0;
         return s + lead + co;
       }, 0);
-    // Konzeption: nur "zur Abrechnung" und "abgerechnet"
-    p.totalKonzeption = p.konzeintraege
-      .filter(k => ["zur Abrechnung","abgerechnet"].includes(k.Verrechenbar))  // explizit, nicht positionsabhängig
+    p.totalKonzeption = rawKonzeintraege
+      .filter(k => k.Verrechenbar === "verrechenbar")
       .reduce((s,k) => s + (h.num(k.BetragFinal) ?? h.num(k.BetragBerechnet) ?? 0), 0);
     p.totalBetrag     = p.totalEinsaetze + p.totalKonzeption;
-    p.einsaetzeCount  = p.einsaetze.length;
-    p.konzStunden     = p.konzeintraege.reduce((s,k) => s + (h.num(k.AufwandStunden) || 0), 0);
+    p.einsaetzeCount  = rawEinsaetze.length;
+    p.konzStunden     = rawKonzeintraege.reduce((s,k) => s + (h.num(k.AufwandStunden) || 0), 0);
     p.konzBudgetH     = p.konzeptionsrahmenTage ? p.konzeptionsrahmenTage * 8 : null;
     return p;
   }
@@ -440,7 +454,8 @@
       spesenBerechnet: h.num(raw.SpesenBerechnet),
       spesenFinal:     h.num(raw.SpesenFinal),
       status:          raw.Status || "",
-      abrechnung:      raw.Abrechnung || "offen"
+      abrechnung:      raw.Abrechnung || "offen",
+      abrechnungLookupId: h.rdLookup(raw, F.abrechnung_r)
     };
     e.datumFmt      = h.fmtDate(e.datum);
     e.einsatzStatus = h.einsatzStatus(e);
@@ -467,6 +482,7 @@
       coBetragFinal:     h.num(raw.CoBetragFinal),
       verrechenbar:    raw.Verrechenbar || "",
       abrechnung:      raw.Abrechnung || "offen",
+      abrechnungLookupId: h.rdLookup(raw, F.abrechnung_r),
       bemerkungen:     raw.Bemerkungen || ""
     };
     k.datumFmt      = h.fmtDate(k.datum);
@@ -476,14 +492,36 @@
     return k;
   }
 
+  function enrichAbrechnung(raw) {
+    const a = {
+      id:                  Number(raw.id),
+      title:               raw.Title || "",
+      projektLookupId:     h.rdLookup(raw, F.abr_projekt_r),
+      datum:               raw.Datum,
+      spesenZusatzBetrag:  h.num(raw.SpesenZusatzBetrag),
+      spesenZusatzBemerkung: raw.SpesenZusatzBemerkung || "",
+      status:              raw.Status || "erstellt"
+    };
+    a.datumFmt    = h.fmtDate(a.datum);
+    a.projektTitle = state.data.projekte.find(p => Number(p.id) === a.projektLookupId)?.Title || "";
+    return a;
+  }
+
   function enrichAll() {
-    state.enriched.projekte   = state.data.projekte.map(enrichProjekt);
-    state.enriched.einsaetze  = state.data.einsaetze.map(enrichEinsatz);
-    state.enriched.konzeption = state.data.konzeption.map(enrichKonzeption);
+    state.enriched.abrechnungen = state.data.abrechnungen.map(enrichAbrechnung);
+    state.enriched.einsaetze    = state.data.einsaetze.map(enrichEinsatz);
+    state.enriched.konzeption   = state.data.konzeption.map(enrichKonzeption);
+    state.enriched.projekte     = state.data.projekte.map(enrichProjekt);
+    // Nachträgliche Zuweisung: enriched items pro Projekt
+    state.enriched.projekte.forEach(p => {
+      p.einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === p.id);
+      p.konzeintraege = state.enriched.konzeption.filter(k => k.projektLookupId === p.id);
+    });
     debug.log("enrichAll", {
-      projekte: state.enriched.projekte.map(p => ({ id: p.id, firma: p.firmaName, ap: p.ansprechpartner })),
-      einsaetze: state.enriched.einsaetze.length,
-      konzeption: state.enriched.konzeption.length
+      projekte:     state.enriched.projekte.map(p => ({ id: p.id, firma: p.firmaName })),
+      einsaetze:    state.enriched.einsaetze.length,
+      konzeption:   state.enriched.konzeption.length,
+      abrechnungen: state.enriched.abrechnungen.length
     });
   }
 
@@ -638,17 +676,19 @@
       ui.setMsg("Daten werden geladen…", "info");
       try {
         // Choices einmalig laden (parallel zu Daten)
-        const [projekte, einsaetze, konzeption, firms, contacts] = await Promise.all([
+        const [projekte, einsaetze, konzeption, abrechnungen, firms, contacts] = await Promise.all([
           api.getItems(CONFIG.lists.projekte),
           api.getItems(CONFIG.lists.einsaetze),
           api.getItems(CONFIG.lists.konzeption),
+          api.getItems(CONFIG.lists.abrechnungen),
           api.getItems(CONFIG.lists.firms),
           api.getItems(CONFIG.lists.contacts)
         ]);
         await api.loadChoices();
-        state.data.projekte   = projekte;
-        state.data.einsaetze  = einsaetze;
-        state.data.konzeption = konzeption;
+        state.data.projekte     = projekte;
+        state.data.einsaetze    = einsaetze;
+        state.data.konzeption   = konzeption;
+        state.data.abrechnungen = abrechnungen;
         state.data.firms      = firms.map(f => ({ id: Number(f.id), title: f.Title || "" }));
         state.data.contacts   = contacts.map(c => ({
           id:            Number(c.id),
@@ -700,7 +740,7 @@
         if (a("[data-action='new-konzeption']"))   { ctrl.openKonzeptionForm(null, +a("[data-action='new-konzeption']").dataset.projektId || null); return; }
         if (a("[data-action='edit-einsatz']"))     { ctrl.openEinsatzForm(+a("[data-action='edit-einsatz']").dataset.id); return; }
         if (a("[data-action='edit-konzeption']"))  { ctrl.openKonzeptionForm(+a("[data-action='edit-konzeption']").dataset.id); return; }
-        if (a("[data-action='copy-einsatz']"))     { ctrl.copyEinsatz(+a("[data-action='copy-einsatz']").dataset.id); return; }
+        if (a("[data-action='open-abrechnung']"))  { ctrl.openAbrechnungDialog(+a("[data-action='open-abrechnung']").dataset.projektId); return; }
         if (a("[data-action='delete-einsatz']"))  { ctrl.deleteEinsatz(+a("[data-action='delete-einsatz']").dataset.id); return; }
         if (a("[data-action='new-projekt']"))      { ctrl.openProjektForm(null); return; }
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
@@ -822,7 +862,7 @@
       const pct = p.konzBudgetH ? Math.round(p.konzStunden / p.konzBudgetH * 100) : null;
 
       const tabEinsaetze = () => {
-        const list = p.einsaetze.map(enrichEinsatz).sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+        const list = [...p.einsaetze].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
         if (!list.length) return ui.empty("Noch keine Einsätze erfasst.");
         return `<div class="tm-table-wrap"><table class="tm-table">
           <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Lead / Co-Lead</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
@@ -843,10 +883,10 @@
       };
 
       const tabKonzeption = () => {
-        const list = p.konzeintraege.map(enrichKonzeption).sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+        const list = [...p.konzeintraege].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
         if (!list.length) return ui.empty("Noch keine Konzeptionsaufwände erfasst.");
         return `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th><th>Stunden</th><th>Betrag</th><th>Verrechenbar</th><th></th></tr></thead>
+          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th><th>Stunden</th><th>Betrag</th><th>Verrechenbar</th><th>Abrechnung</th><th></th></tr></thead>
           <tbody>${list.map(k => `<tr>
             <td class="tm-nowrap">${h.esc(k.datumFmt)}</td>
             <td style="font-weight:500">${h.esc(k.title)}</td>
@@ -855,6 +895,7 @@
             <td class="tm-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) : "—"}</td>
             <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
             <td>${h.verrBadge(k.verrechenbar)}</td>
+            <td>${h.abrBadge(k.abrechnung)}</td>
             <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button></div></td>
           </tr>`).join("")}</tbody></table></div>`;
       };
@@ -889,6 +930,7 @@
             <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
             <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
             <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
+            <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" style="background:var(--tm-green,#1D9E75);color:#fff;border-color:transparent">Abrechnung</button>
           </div>
         </div>
         <div class="tm-kpi-row">
@@ -1661,9 +1703,11 @@
                   </div>
                 </div>
                 <div class="ef-st-btns">
-                  ${state.choices.einsatzStatus.map(s => `<button type="button"
-                    class="ef-st-btn${e?.status === s ? " on" : ""}"
-                    onclick="ctrl.efToggleStatus(this, '${h.esc(s)}')">${h.esc(s)}</button>`).join("")}
+                  ${state.choices.einsatzStatus.length
+                    ? state.choices.einsatzStatus.map(s => `<button type="button"
+                        class="ef-st-btn${e?.status === s ? " on" : ""}"
+                        onclick="ctrl.efToggleStatus(this, '${h.esc(s)}')">${h.esc(s)}</button>`).join("")
+                    : `<span style="font-size:12px;color:#950e13">⚠ Choices werden geladen…</span>`}
                 </div>
               </div>
 
@@ -1976,7 +2020,305 @@
       ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
     },
 
-    // ── Konzeption-Formular (v2) ──────────────────────────────────────────
+    // ── Abrechnungsdialog ─────────────────────────────────────────────────
+    openAbrechnungDialog(projektId) {
+      const p = state.enriched.projekte.find(p => p.id === projektId);
+      if (!p) return;
+
+      // Einsätze: offen oder zur Abrechnung, nicht «abgesagt» (aber abgesagt-chf ja)
+      const einsaetze = state.enriched.einsaetze
+        .filter(e => e.projektLookupId === projektId)
+        .filter(e => e.einsatzStatus !== "abgesagt")
+        .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung))
+        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
+
+      // Konzeption: verrechenbar + offen/zur Abrechnung
+      const konzeption = state.enriched.konzeption
+        .filter(k => k.projektLookupId === projektId)
+        .filter(k => k.verrechenbar === "verrechenbar")
+        .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung))
+        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
+
+      // Konzeption Klärung nötig — zur Beurteilung
+      const konzKlaerung = state.enriched.konzeption
+        .filter(k => k.projektLookupId === projektId)
+        .filter(k => k.verrechenbar === "Klärung nötig")
+        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
+
+      // Wegspesen-Aufstellung: Einsätze mit spesenBerechnet > 0
+      const spesenEinsaetze = einsaetze.filter(e => e.spesenBerechnet > 0);
+      const spesenTotal = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
+
+      // Konzeption-Totals (alle, unabhängig vom Filter)
+      const konzAlle = state.enriched.konzeption.filter(k => k.projektLookupId === projektId);
+      const konzTotalBetrag = konzAlle.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const konzVerrBetrag  = konzAlle.filter(k => k.verrechenbar === "verrechenbar").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const konzKlaerBetrag = konzAlle.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const konzInklBetrag  = konzAlle.filter(k => k.verrechenbar === "Inklusive (ohne Verrechnung)").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const konzTotalStd    = konzAlle.reduce((s,k) => s + (k.aufwandStunden || 0), 0);
+      const konzVerrStd     = konzAlle.filter(k => k.verrechenbar === "verrechenbar").reduce((s,k) => s + (k.aufwandStunden || 0), 0);
+      const konzKlaerStd    = konzAlle.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k) => s + (k.aufwandStunden || 0), 0);
+
+      ui.renderModal(`<style>
+        .ad-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:860px;max-height:92vh;display:flex;flex-direction:column;animation:adUp .25s cubic-bezier(.16,1,.3,1)}
+        @keyframes adUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        .ad-hd{background:#004078;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:20px 20px 0 0}
+        .ad-hd-t{color:#fff;font-size:15px;font-weight:700}
+        .ad-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .ad-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .ad-cl:hover{background:rgba(255,255,255,.2)}
+        .ad-bd{overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:22px}
+        .ad-sec-t{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+        .ad-sec-t span{font-size:13px;font-weight:700;color:#1a2332;text-transform:none;letter-spacing:0}
+        .ad-table{width:100%;border-collapse:collapse;font-size:13px}
+        .ad-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;padding:0 8px 8px;border-bottom:1px solid #dde4ec;text-align:left}
+        .ad-table th.r{text-align:right}
+        .ad-table td{padding:8px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
+        .ad-table td.r{text-align:right;font-weight:600;color:#1a2332}
+        .ad-table td.muted{color:#8896a5}
+        .ad-table tr.cancelled td{text-decoration:line-through;color:#8896a5}
+        .ad-table tr:last-child td{border-bottom:none}
+        .ad-cb{width:15px;height:15px;cursor:pointer;accent-color:#004078}
+        .ad-total{display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:10px 8px 0;border-top:1.5px solid #dde4ec;margin-top:4px}
+        .ad-total-lbl{font-size:12px;color:#8896a5}
+        .ad-total-val{font-size:16px;font-weight:700;color:#004078}
+        /* Spesen */
+        .ad-spesen-list{background:#f4f7fb;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+        .ad-spesen-row{display:flex;justify-content:space-between;font-size:13px}
+        .ad-spesen-row .lbl{color:#4a5568}
+        .ad-spesen-row .val{font-weight:600;color:#1a2332}
+        .ad-spesen-total{display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-top:6px;border-top:1px solid #dde4ec;color:#004078}
+        .ad-spesen-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+        .ad-spesen-zusatz input{padding:6px 10px;font-size:13px;background:#fff;border:1.5px solid #dde4ec;border-radius:7px;font-family:inherit;outline:none}
+        .ad-spesen-zusatz input:focus{border-color:#0a5a9e}
+        .ad-spesen-zusatz input.wide{flex:1;min-width:180px}
+        /* Konzeption */
+        .ad-konz-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+        .ad-konz-card{background:#f4f7fb;border-radius:8px;padding:10px 12px}
+        .ad-konz-card-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:4px}
+        .ad-konz-card-val{font-size:15px;font-weight:700;color:#1a2332}
+        .ad-konz-card-sub{font-size:11px;color:#8896a5;margin-top:1px}
+        .ad-konz-card.verr .ad-konz-card-val{color:#1a8a5e}
+        .ad-konz-card.klaer .ad-konz-card-val{color:#b45309}
+        /* Klärung-Entscheid */
+        .ad-klaer-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s}
+        .ad-klaer-btn:hover{border-color:#0a5a9e;color:#0a5a9e}
+        .ad-klaer-btn.verr{border-color:rgba(26,138,94,.4);color:#1a8a5e}
+        .ad-klaer-btn.inkl{border-color:rgba(107,114,128,.4);color:#6b7280}
+        /* Footer */
+        .ad-ft{padding:14px 22px 18px;border-top:1px solid #dde4ec;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:12px}
+        .ad-ft-sum{font-size:13px;color:#8896a5}
+        .ad-ft-sum strong{color:#004078;font-size:15px}
+        .ad-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .ad-btn-s{padding:8px 24px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(29,158,117,.3)}
+        .ad-btn-s:hover{background:#0F6E56}
+        .ad-btn-s:disabled{background:#dde4ec;color:#8896a5;cursor:not-allowed;box-shadow:none}
+        .ad-empty{font-size:13px;color:#8896a5;padding:12px 0;text-align:center}
+        .ad-check-all{display:flex;align-items:center;gap:6px;font-size:12px;color:#8896a5;cursor:pointer}
+      </style>
+      <div class="ad-m">
+        <div class="ad-hd">
+          <div>
+            <div class="ad-hd-t">Abrechnung · ${h.esc(p.title)}</div>
+            <div class="ad-hd-s">${h.esc(p.firmaName)} · ${new Date().toLocaleDateString("de-CH",{month:"long",year:"numeric"})}</div>
+          </div>
+          <button type="button" class="ad-cl" data-close-modal>✕</button>
+        </div>
+
+        <div class="ad-bd">
+
+          <!-- SEKTION 1: Einsätze -->
+          <div>
+            <div class="ad-sec-t">
+              Einsätze
+              ${einsaetze.length ? `<label class="ad-check-all"><input type="checkbox" id="ad-check-all" onchange="document.querySelectorAll('.ad-e-cb').forEach(cb=>cb.checked=this.checked);adUpdateTotal()"> Alle</label>` : ""}
+            </div>
+            ${einsaetze.length ? `
+            <table class="ad-table">
+              <thead><tr>
+                <th style="width:28px"></th>
+                <th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th>
+                <th class="r">Betrag</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                ${einsaetze.map(e => `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
+                  <td><input type="checkbox" class="ad-cb ad-e-cb" data-id="${e.id}"
+                    data-betrag="${(h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet) ?? 0)}"
+                    onchange="adUpdateTotal()"></td>
+                  <td class="muted">${h.esc(e.datumFmt)}</td>
+                  <td style="font-weight:500">${h.esc(e.title)}</td>
+                  <td class="muted">${h.esc(e.kategorie)}</td>
+                  <td class="muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName!=="—"?`<br><span style="font-size:11px">Co: ${h.esc(e.coPersonName)}</span>`:""}</td>
+                  <td class="r">${h.chf(h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0)}${e.coAnzeigeBetrag?`<br><span style="font-size:11px;color:#8896a5">Co: ${h.chf(e.coAnzeigeBetrag)}</span>`:""}</td>
+                  <td>${h.statusBadge(e)}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+            <div class="ad-total">
+              <span class="ad-total-lbl">Gewählt:</span>
+              <span class="ad-total-val" id="ad-einsatz-total">CHF 0.00</span>
+            </div>` : `<div class="ad-empty">Keine offenen Einsätze</div>`}
+          </div>
+
+          <!-- SEKTION 2: Spesen -->
+          <div>
+            <div class="ad-sec-t">Spesen <span>${spesenTotal > 0 ? "CHF " + h.chf(spesenTotal) : "—"}</span></div>
+            ${spesenEinsaetze.length ? `
+            <div class="ad-spesen-list">
+              ${spesenEinsaetze.map(e => `
+              <div class="ad-spesen-row">
+                <span class="lbl">${h.esc(e.datumFmt)} · ${h.esc(e.title || e.kategorie)} — ${h.esc(p.firmaName)}</span>
+                <span class="val">CHF ${h.chf(e.spesenBerechnet)}</span>
+              </div>`).join("")}
+              <div class="ad-spesen-total">
+                <span>Total Wegspesen</span>
+                <span>CHF ${h.chf(spesenTotal)}</span>
+              </div>
+            </div>` : `<div class="ad-empty" style="margin-bottom:8px">Keine Wegspesen</div>`}
+            <div class="ad-spesen-zusatz">
+              <span style="font-size:12px;color:#8896a5;white-space:nowrap">Zusatzspesen CHF</span>
+              <input type="number" id="ad-spesen-zusatz-betrag" step="0.01" min="0" placeholder="0.00" style="width:100px">
+              <input type="text" id="ad-spesen-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)">
+            </div>
+          </div>
+
+          <!-- SEKTION 3: Konzeption -->
+          <div>
+            <div class="ad-sec-t">Konzeption</div>
+            <div class="ad-konz-summary">
+              <div class="ad-konz-card">
+                <div class="ad-konz-card-lbl">Total</div>
+                <div class="ad-konz-card-val">CHF ${h.chf(konzTotalBetrag)}</div>
+                <div class="ad-konz-card-sub">${konzTotalStd.toFixed(1)} h</div>
+              </div>
+              <div class="ad-konz-card verr">
+                <div class="ad-konz-card-lbl">Verrechenbar</div>
+                <div class="ad-konz-card-val">CHF ${h.chf(konzVerrBetrag)}</div>
+                <div class="ad-konz-card-sub">${konzVerrStd.toFixed(1)} h · kommt auf Rechnung</div>
+              </div>
+              <div class="ad-konz-card klaer">
+                <div class="ad-konz-card-lbl">Klärung nötig</div>
+                <div class="ad-konz-card-val">CHF ${h.chf(konzKlaerBetrag)}</div>
+                <div class="ad-konz-card-sub">${konzKlaerStd.toFixed(1)} h · Entscheid ausstehend</div>
+              </div>
+            </div>
+            ${konzKlaerung.length ? `
+            <table class="ad-table">
+              <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag</th><th>Entscheid</th></tr></thead>
+              <tbody>
+                ${konzKlaerung.map(k => `<tr>
+                  <td class="muted">${h.esc(k.datumFmt)}</td>
+                  <td style="font-weight:500">${h.esc(k.title)}</td>
+                  <td class="r muted">${k.aufwandStunden || "—"} h</td>
+                  <td class="r">CHF ${h.chf(k.anzeigeBetrag)}</td>
+                  <td>
+                    <div style="display:flex;gap:5px">
+                      <button type="button" class="ad-klaer-btn verr" onclick="ctrl.klaerungEntscheid(${k.id},'verrechenbar',this)">verrechenbar</button>
+                      <button type="button" class="ad-klaer-btn inkl" onclick="ctrl.klaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this)">inklusive</button>
+                    </div>
+                  </td>
+                </tr>`).join("")}
+              </tbody>
+            </table>` : ""}
+          </div>
+
+        </div><!-- /ad-bd -->
+
+        <div class="ad-ft">
+          <div class="ad-ft-sum">
+            Einsätze: <strong id="ad-ft-einsatz">CHF 0.00</strong>
+            ${spesenTotal > 0 || true ? ` · Wegspesen: <strong>CHF ${h.chf(spesenTotal)}</strong>` : ""}
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" class="ad-btn-c" data-close-modal>Abbrechen</button>
+            <button type="button" class="ad-btn-s" id="ad-btn-abrechnen"
+              onclick="ctrl.abrechnenSpeichern(${projektId})"
+              disabled>Gewählte abrechnen</button>
+          </div>
+        </div>
+      </div>`);
+    },
+
+    // Konzeption Klärung-Entscheid: direkt in SP schreiben
+    async klaerungEntscheid(konzId, neuerWert, btn) {
+      try {
+        btn.disabled = true;
+        // Projekt-ID aus State holen bevor Modal geschlossen wird
+        const k = state.enriched.konzeption.find(k => k.id === konzId);
+        const projektId = k?.projektLookupId;
+        await api.patch(CONFIG.lists.konzeption, konzId, { Verrechenbar: neuerWert });
+        const row = btn.closest("tr");
+        if (row) row.style.opacity = "0.4";
+        await api.loadAll();
+        ui.setMsg(`Klärung gesetzt: ${neuerWert}`, "success");
+        // Dialog mit aktualisierten Daten neu öffnen
+        if (projektId) ctrl.openAbrechnungDialog(projektId);
+      } catch(e) {
+        debug.err("klaerungEntscheid", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+        btn.disabled = false;
+      }
+    },
+
+    // Abrechnen: gewählte Einsätze + verrechenbare Konzeption → abgerechnet
+    async abrechnenSpeichern(projektId) {
+      const btn = document.getElementById("ad-btn-abrechnen");
+      if (btn) btn.disabled = true;
+
+      try {
+        ui.setMsg("Wird gespeichert…", "info");
+        const p = state.enriched.projekte.find(p => p.id === projektId);
+
+        // 1. Neue Abrechnung in AbrechnungenTM anlegen
+        const datum    = new Date().toISOString().split("T")[0];
+        const titel    = `Abrechnung · ${p?.title || projektId} · ${new Date().toLocaleDateString("de-CH",{month:"2-digit",year:"numeric"})}`;
+        const zusatzBetrag = h.num(document.getElementById("ad-spesen-zusatz-betrag")?.value);
+        const zusatzBem    = (document.getElementById("ad-spesen-zusatz-bem")?.value || "").trim();
+
+        const abrCr = await api.post(CONFIG.lists.abrechnungen, titel);
+        const abrId = Number(abrCr?.id || abrCr?.fields?.id);
+        if (!abrId) throw new Error("Abrechnung-ID fehlt.");
+
+        // Abrechnung-Felder setzen
+        const abrFields = { Datum: datum + "T12:00:00Z", Status: "erstellt" };
+        if (zusatzBetrag !== null) abrFields.SpesenZusatzBetrag = zusatzBetrag;
+        if (zusatzBem)             abrFields.SpesenZusatzBemerkung = zusatzBem;
+        await api.patch(CONFIG.lists.abrechnungen, abrId, abrFields);
+        await api.patchLookups(CONFIG.lists.abrechnungen, abrId, { [F.abr_projekt_w]: projektId });
+
+        // 2. Gewählte Einsätze abrechnen — allSettled für Teilfehler-Tracking
+        const checkedIds = [...document.querySelectorAll(".ad-e-cb:checked")].map(cb => Number(cb.dataset.id));
+        const einsatzResults = await Promise.allSettled(checkedIds.map(async eid => {
+          await api.patch(CONFIG.lists.einsaetze, eid, { Abrechnung: "abgerechnet" });
+          await api.patchLookups(CONFIG.lists.einsaetze, eid, { [F.abrechnung_w]: abrId });
+        }));
+        const einsatzFehler = einsatzResults.filter(r => r.status === "rejected").length;
+
+        // 3. Verrechenbare Konzeption abrechnen
+        const konzVerrIds = state.enriched.konzeption
+          .filter(k => k.projektLookupId === projektId)
+          .filter(k => k.verrechenbar === "verrechenbar")
+          .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung))
+          .map(k => k.id);
+        const konzResults = await Promise.allSettled(konzVerrIds.map(async kid => {
+          await api.patch(CONFIG.lists.konzeption, kid, { Abrechnung: "abgerechnet" });
+          await api.patchLookups(CONFIG.lists.konzeption, kid, { [F.abrechnung_w]: abrId });
+        }));
+        const konzFehler = konzResults.filter(r => r.status === "rejected").length;
+
+        ui.closeModal();
+        const fehlerMsg = (einsatzFehler + konzFehler) > 0
+          ? ` ⚠ ${einsatzFehler + konzFehler} Fehler — betroffene Einträge manuell prüfen.`
+          : "";
+        ui.setMsg(`Abrechnung erstellt — ${checkedIds.length - einsatzFehler} Einsätze, ${konzVerrIds.length - konzFehler} Konzeptionsaufwände.${fehlerMsg}`, fehlerMsg ? "warning" : "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch(e) {
+        debug.err("abrechnenSpeichern", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+        if (btn) btn.disabled = false;
+      }
+    },
     // Analog Einsatz-Modal: gleiche Struktur, alle Choices dynamisch aus SP
     openKonzeptionForm(id, projektId = null) {
       const k          = id ? state.enriched.konzeption.find(k => k.id === id) : null;
@@ -2204,10 +2546,12 @@
               <div class="kf-s">
                 <div class="kf-l">Verrechenbar</div>
                 <div class="kf-verr">
-                  ${state.choices.konzVerrechenbar.map(v => `<button type="button"
-                    class="kf-verr-btn${(k?.verrechenbar || "") === v ? " on" : ""}"
-                    onclick="document.querySelectorAll('.kf-verr-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('kf-verr-hid').value='${h.esc(v)}'"
-                    >${h.esc(v)}</button>`).join("")}
+                  ${state.choices.konzVerrechenbar.length
+                    ? state.choices.konzVerrechenbar.map(v => `<button type="button"
+                        class="kf-verr-btn${(k?.verrechenbar || "") === v ? " on" : ""}"
+                        onclick="document.querySelectorAll('.kf-verr-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('kf-verr-hid').value='${h.esc(v)}'"
+                        >${h.esc(v)}</button>`).join("")
+                    : `<span style="font-size:12px;color:#950e13">⚠ Choices werden geladen…</span>`}
                 </div>
               </div>
 
@@ -2398,6 +2742,21 @@
   window.state = state;
   window.h     = h;
   window.debug = debug;
+
+  // Abrechnungsdialog: Total berechnen (global, weil inline onchange)
+  window.adUpdateTotal = function() {
+    let total = 0;
+    document.querySelectorAll(".ad-e-cb:checked").forEach(cb => {
+      total += parseFloat(cb.dataset.betrag) || 0;
+    });
+    const fmt = total.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const el1 = document.getElementById("ad-einsatz-total");
+    const el2 = document.getElementById("ad-ft-einsatz");
+    if (el1) el1.textContent = "CHF " + fmt;
+    if (el2) el2.textContent = "CHF " + fmt;
+    const btn = document.getElementById("ad-btn-abrechnen");
+    if (btn) btn.disabled = total === 0;
+  };
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
