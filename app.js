@@ -145,7 +145,7 @@
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "" },
       konzeption:   { search: "", verrechenbar: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
-      firmen:       { search: "", klassifizierung: "", vip: "" },
+      firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
@@ -1112,13 +1112,412 @@
 
     firmen() {
       const f = state.filters.firmen;
-      const klassifizierungen = [...new Set(state.data.firms.map(f => f.klassifizierung).filter(Boolean))].sort();
+      const klassifizierungen = [...new Set(state.data.firms.map(fi => fi.klassifizierung).filter(Boolean))].sort();
+
+      // Intelligente Suche: Firma-Name, Ort, Klassifizierung, Kontaktname
+      const matchFirma = (fi, q) => {
+        if (!q) return true;
+        if (h.inc(fi.title, q) || h.inc(fi.ort, q) || h.inc(fi.klassifizierung, q)) return true;
+        return state.data.contacts.some(c =>
+          c.firmaLookupId === fi.id &&
+          (h.inc([c.vorname, c.nachname].join(" "), q) || h.inc(c.funktion, q))
+        );
+      };
 
       let list = [...state.data.firms];
-      if (f.search)          list = list.filter(fi => h.inc(fi.title, f.search) || h.inc(fi.ort, f.search));
+      if (f.search)          list = list.filter(fi => matchFirma(fi, f.search));
       if (f.klassifizierung) list = list.filter(fi => fi.klassifizierung === f.klassifizierung);
       if (f.vip === "ja")    list = list.filter(fi => fi.vip);
-      list.sort((a,b) => a.title.localeCompare(b.title, "de"));
+
+      // Firmen mit Projekten zuerst, dann alphabetisch
+      const hatProjekt = fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && !p.archiviert);
+      list.sort((a,b) => {
+        const pa = hatProjekt(a), pb = hatProjekt(b);
+        if (pa && !pb) return -1;
+        if (!pa && pb) return 1;
+        return a.title.localeCompare(b.title, "de");
+      });
+
+      const mitProjekt  = list.filter(fi => hatProjekt(fi));
+      const ohneProjekt = list.filter(fi => !hatProjekt(fi));
+      const showOhne    = f.showOhne || !!f.search;
+
+      ui.render(`
+        <style>
+          .fi-card{background:#fff;border-radius:12px;border:1.5px solid #dde4ec;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;gap:6px}
+          .fi-card:hover{box-shadow:0 4px 16px rgba(0,64,120,.1);border-color:#b8cde0}
+          .fi-card.has-proj{border-left:3px solid #004078}
+          .fi-name{font-size:14px;font-weight:700;color:#1a2332}
+          .fi-meta{font-size:12px;color:#8896a5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .fi-badge-vip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000}
+          .fi-badge-kl{font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078}
+          .fi-stats{display:flex;gap:12px;margin-top:4px}
+          .fi-stat{font-size:11px;color:#8896a5}
+          .fi-stat strong{font-size:13px;font-weight:700;color:#004078;display:block}
+          .fi-grid{display:grid;grid-template-columns:1fr;gap:10px}
+          @media(min-width:600px){.fi-grid{grid-template-columns:1fr 1fr}}
+          @media(min-width:1000px){.fi-grid{grid-template-columns:1fr 1fr 1fr}}
+          .fi-section-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5;margin:16px 0 8px}
+          .fi-toggle{font-size:12px;color:#0a5a9e;cursor:pointer;font-weight:600;padding:8px 0;display:inline-flex;align-items:center;gap:5px}
+          .fi-toggle:hover{text-decoration:underline}
+        </style>
+
+        <div class="tm-page-header">
+          <div>
+            <div class="tm-page-title">Firmen</div>
+            <div class="tm-page-meta">${mitProjekt.length} mit Projekten · ${ohneProjekt.length} ohne</div>
+          </div>
+        </div>
+
+        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
+          <input type="search" placeholder="Suche Firma, Ort, Kontakt…" value="${h.esc(f.search)}"
+            oninput="state.filters.firmen.search=this.value;ctrl.render()" style="flex:1;min-width:200px">
+          <select onchange="state.filters.firmen.klassifizierung=this.value;ctrl.render()">
+            <option value="">Klassifizierung: alle</option>
+            ${klassifizierungen.map(k => `<option value="${h.esc(k)}" ${f.klassifizierung===k?"selected":""}>${h.esc(k)}</option>`).join("")}
+          </select>
+          <select onchange="state.filters.firmen.vip=this.value;ctrl.render()">
+            <option value="">VIP: alle</option>
+            <option value="ja" ${f.vip==="ja"?"selected":""}>Nur VIP</option>
+          </select>
+          ${(f.search||f.klassifizierung||f.vip) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.firmen={search:'',klassifizierung:'',vip:'',showOhne:false};ctrl.render()">✕ Filter</button>` : ""}
+        </div>
+
+        ${mitProjekt.length ? `
+          ${!f.search ? `<div class="fi-section-lbl">Mit Projekten (${mitProjekt.length})</div>` : ""}
+          <div class="fi-grid">
+            ${mitProjekt.map(fi => {
+              const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
+              const aktiv    = projekte.filter(p => p.status === "aktiv").length;
+              const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
+              const naechster = state.enriched.einsaetze
+                .filter(e => { const p = state.enriched.projekte.find(p => p.id === e.projektLookupId); return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf"; })
+                .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
+              return `<div class="fi-card has-proj" onclick="ctrl.openFirma(${fi.id})">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                  <div class="fi-name">${h.esc(fi.title)}</div>
+                  ${fi.vip ? `<span class="fi-badge-vip">VIP</span>` : ""}
+                </div>
+                <div class="fi-meta">
+                  ${fi.klassifizierung ? `<span class="fi-badge-kl">${h.esc(fi.klassifizierung)}</span>` : ""}
+                  ${fi.ort ? `<span>${h.esc(fi.ort)}</span>` : ""}
+                </div>
+                <div class="fi-stats">
+                  <div class="fi-stat"><strong>${projekte.length}</strong>Projekte</div>
+                  ${aktiv > 0 ? `<div class="fi-stat"><strong style="color:#1a6e40">${aktiv}</strong>aktiv</div>` : ""}
+                  <div class="fi-stat"><strong>${kontakte}</strong>Kontakte</div>
+                </div>
+                ${naechster ? `<div style="font-size:11px;color:#004078;font-weight:600;margin-top:2px;border-top:1px solid #f0f4f8;padding-top:6px">▶ ${h.esc(naechster.datumFmt)} · ${h.esc(naechster.title||naechster.kategorie)}</div>` : ""}
+              </div>`;
+            }).join("")}
+          </div>` : ""}
+
+        ${ohneProjekt.length && !f.search ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px">
+            <div class="fi-section-lbl" style="margin:0">Ohne Projekte (${ohneProjekt.length})</div>
+            <span class="fi-toggle" onclick="state.filters.firmen.showOhne=!state.filters.firmen.showOhne;ctrl.render()">
+              ${showOhne ? "▲ Ausblenden" : "▼ Einblenden"}
+            </span>
+          </div>
+          ${showOhne ? `<div class="fi-grid" style="margin-top:8px">
+            ${ohneProjekt.map(fi => {
+              const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
+              return `<div class="fi-card" onclick="ctrl.openFirma(${fi.id})">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                  <div class="fi-name">${h.esc(fi.title)}</div>
+                  ${fi.vip ? `<span class="fi-badge-vip">VIP</span>` : ""}
+                </div>
+                <div class="fi-meta">
+                  ${fi.klassifizierung ? `<span class="fi-badge-kl">${h.esc(fi.klassifizierung)}</span>` : ""}
+                  ${fi.ort ? `<span>${h.esc(fi.ort)}</span>` : ""}
+                </div>
+                <div class="fi-stats"><div class="fi-stat"><strong>${kontakte}</strong>Kontakte</div></div>
+              </div>`;
+            }).join("")}
+          </div>` : ""}` : ""}
+
+        ${!mitProjekt.length && (!ohneProjekt.length || f.search) ? ui.empty("Keine Firmen gefunden.") : ""}
+      `);
+    },
+
+    firmaDetail(id) {
+      const fi = state.data.firms.find(f => f.id === id);
+      if (!fi) { ui.render(`<p class="tm-muted">Firma nicht gefunden.</p>`); return; }
+
+      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert);
+      const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === id && !p.archiviert);
+      const kontaktIds = new Set(kontakte.map(c => c.id));
+      const heute      = h.todayStart();
+
+      const history = state.data.history
+        .filter(h2 => kontaktIds.has(h2.kontaktId))
+        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
+        .slice(0, 50);
+
+      const tasks = state.data.tasks
+        .filter(t => kontaktIds.has(t.kontaktId) && t.status !== "erledigt")
+        .sort((a,b) => (a.deadline||"9999") > (b.deadline||"9999") ? 1 : -1);
+
+      const naechsteEinsaetze = state.enriched.einsaetze
+        .filter(e => {
+          const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+          return p?.firmaLookupId === id && h.toDate(e.datum) >= heute && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
+        })
+        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))
+        .slice(0, 8);
+
+      const abrechnungen = state.enriched.abrechnungen
+        .filter(a => { const p = state.enriched.projekte.find(p => p.id === a.projektLookupId); return p?.firmaLookupId === id; })
+        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
+        .slice(0, 10);
+
+      const abrStatusBadge = (v) => {
+        const m = { "erstellt":["tm-badge tm-badge-planned","erstellt"], "versendet":["tm-badge tm-badge-billing","versendet"], "bezahlt":["tm-badge tm-badge-billed","bezahlt"] };
+        const [c,l] = m[v] || ["tm-badge", v||"—"];
+        return h.badge(c, l);
+      };
+
+      const crmUrl = `https://markusbaechler.github.io/crm-spa/#firms`;
+
+      ui.render(`
+        <style>
+          .fd-layout{display:grid;grid-template-columns:1fr;gap:16px}
+          @media(min-width:900px){.fd-layout{grid-template-columns:1fr 1fr;align-items:start}}
+          .fd-sec{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden}
+          .fd-sec-hd{padding:10px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between;gap:8px}
+          .fd-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5}
+          .fd-sec-right{display:flex;align-items:center;gap:8px}
+          .fd-sec-count{font-size:11px;font-weight:600;color:#004078}
+          .fd-sec-btn{font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid #dde4ec;background:#fff;color:#004078;cursor:pointer;font-family:inherit;white-space:nowrap}
+          .fd-sec-btn:hover{background:#e8f1f9}
+          .fd-sec-bd{padding:12px 16px;display:flex;flex-direction:column;gap:0}
+          .fd-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0;border-bottom:1px solid #f0f4f8}
+          .fd-row:last-child{border:none}
+          .fd-lbl{color:#8896a5}
+          .fd-val{font-weight:500;color:#1a2332;text-align:right}
+          .fd-kontakt{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f4f8}
+          .fd-kontakt:last-child{border:none}
+          .fd-av{width:30px;height:30px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+          .fd-kname{font-size:13px;font-weight:600;color:#1a2332}
+          .fd-kfunk{font-size:11px;color:#8896a5;margin-top:1px}
+          .fd-proj{padding:8px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
+          .fd-proj:hover .fd-proj-name{color:#0a5a9e;text-decoration:underline}
+          .fd-proj:last-child{border:none}
+          .fd-proj-name{font-size:13px;font-weight:600;color:#004078}
+          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+          .fd-act{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
+          .fd-act:hover .fd-act-title{color:#0a5a9e;text-decoration:underline}
+          .fd-act:last-child{border:none}
+          .fd-act-dot{width:7px;height:7px;border-radius:50%;background:#8896a5;flex-shrink:0;margin-top:4px}
+          .fd-act-main{flex:1;min-width:0}
+          .fd-act-title{font-weight:500;color:#1a2332;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .fd-act-meta{font-size:11px;color:#8896a5;margin-top:1px}
+          .fd-task{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8}
+          .fd-task:last-child{border:none}
+          .fd-task-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
+          .fd-task-overdue{background:#950e13}
+          .fd-task-soon{background:#e59c2e}
+          .fd-task-ok{background:#1a6e40}
+          .fd-task-main{flex:1;min-width:0}
+          .fd-task-actions{display:flex;gap:5px;margin-top:4px}
+          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:6px 0}
+          .fd-einsatz{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
+          .fd-einsatz:hover .fd-einsatz-title{color:#0a5a9e;text-decoration:underline}
+          .fd-einsatz:last-child{border:none}
+          .fd-einsatz-date{font-size:12px;font-weight:700;color:#004078;white-space:nowrap;min-width:72px}
+          .fd-einsatz-title{font-size:13px;font-weight:500;color:#1a2332}
+        </style>
+
+        <div class="tm-page-header">
+          <div>
+            <button class="tm-btn tm-btn-sm" onclick="ctrl.navigate('firmen')" style="margin-bottom:8px">← Firmen</button>
+            <div class="tm-page-title">${h.esc(fi.title)}</div>
+            <div class="tm-page-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              ${fi.klassifizierung ? `<span class="fi-badge-kl" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078">${h.esc(fi.klassifizierung)}</span>` : ""}
+              ${fi.vip ? `<span class="fi-badge-vip" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000">VIP</span>` : ""}
+              ${fi.ort ? `<span style="font-size:13px;color:#8896a5">${h.esc(fi.ort)}</span>` : ""}
+              ${fi.hauptnummer ? `<a href="tel:${h.esc(fi.hauptnummer)}" style="font-size:13px;color:#0a5a9e">${h.esc(fi.hauptnummer)}</a>` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div class="fd-layout">
+
+          <!-- LINKE SPALTE -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Stammdaten -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd"><span class="fd-sec-title">Stammdaten</span></div>
+              <div class="fd-sec-bd">
+                ${[["Adresse",fi.adresse],["PLZ / Ort",[fi.plz,fi.ort].filter(Boolean).join(" ")],["Land",fi.land],["Telefon",fi.hauptnummer]]
+                  .filter(([,v])=>v)
+                  .map(([l,v])=>`<div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")}
+                ${!fi.adresse&&!fi.hauptnummer?`<div class="fd-empty">Keine Stammdaten hinterlegt.</div>`:""}
+              </div>
+            </div>
+
+            <!-- Kontakte -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Kontakte</span>
+                <div class="fd-sec-right">
+                  <span class="fd-sec-count">${kontakte.length}</span>
+                  <a href="${crmUrl}" target="_blank" class="fd-sec-btn">+ Kontakt (CRM)</a>
+                </div>
+              </div>
+              <div class="fd-sec-bd">
+                ${kontakte.length ? kontakte.map(c => {
+                  const ini = [c.vorname?.[0],c.nachname?.[0]].filter(Boolean).join("").toUpperCase()||"?";
+                  return `<div class="fd-kontakt">
+                    <div class="fd-av">${ini}</div>
+                    <div style="flex:1;min-width:0">
+                      <div class="fd-kname">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
+                      <div class="fd-kfunk">${h.esc(c.funktion||"")}${c.email1?` · <a href="mailto:${h.esc(c.email1)}" style="color:#0a5a9e">${h.esc(c.email1)}</a>`:""}${c.direktwahl?` · ${h.esc(c.direktwahl)}`:""}</div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Kontakte.</div>`}
+              </div>
+            </div>
+
+            <!-- Aktivitäten -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Aktivitäten</span>
+                <div class="fd-sec-right">
+                  <span class="fd-sec-count">${history.length}${history.length===50?"+":" "}</span>
+                  <button class="fd-sec-btn" onclick="ctrl.openAktivitaetForm(null,${id})">+ Neu</button>
+                </div>
+              </div>
+              <div class="fd-sec-bd">
+                ${history.length ? history.map(a => {
+                  const kont = state.data.contacts.find(c => c.id === a.kontaktId);
+                  const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
+                  return `<div class="fd-act" onclick="ctrl.openAktivitaetForm(${a.id},${id})">
+                    <div class="fd-act-dot"></div>
+                    <div class="fd-act-main">
+                      <div class="fd-act-title">${h.esc(a.title)}</div>
+                      <div class="fd-act-meta">${h.esc(h.fmtDate(a.datum))}${a.typ?" · "+h.esc(a.typ):""} · ${h.esc(kName)}</div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Aktivitäten.</div>`}
+              </div>
+            </div>
+
+            <!-- Aufgaben -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Offene Aufgaben</span>
+                <div class="fd-sec-right">
+                  <span class="fd-sec-count">${tasks.length}</span>
+                  <button class="fd-sec-btn" onclick="ctrl.openAufgabeForm(null,${id})">+ Neu</button>
+                </div>
+              </div>
+              <div class="fd-sec-bd">
+                ${tasks.length ? tasks.map(t => {
+                  const kont = state.data.contacts.find(c => c.id === t.kontaktId);
+                  const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
+                  const dl = h.toDate(t.deadline);
+                  const overdue = dl && dl < heute;
+                  const soon    = dl && !overdue && dl <= new Date(heute.getTime()+7*24*60*60*1000);
+                  const dotCls  = overdue?"fd-task-overdue":soon?"fd-task-soon":"fd-task-ok";
+                  return `<div class="fd-task">
+                    <div class="fd-task-dot ${dotCls}"></div>
+                    <div class="fd-task-main">
+                      <div style="font-size:13px;font-weight:500;color:#1a2332">${h.esc(t.title)}</div>
+                      <div style="font-size:11px;color:#8896a5">${dl?h.fmtDate(t.deadline):"Kein Datum"} · ${h.esc(kName)}</div>
+                      <div class="fd-task-actions">
+                        <button class="fd-sec-btn" onclick="ctrl.openAufgabeForm(${t.id},${id})">✎ Bearbeiten</button>
+                        <button class="fd-sec-btn" style="color:#1a6e40;border-color:#1a6e40" onclick="ctrl.aufgabeErledigen(${t.id},${id})">✓ Erledigt</button>
+                      </div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine offenen Aufgaben.</div>`}
+              </div>
+            </div>
+
+          </div><!-- /linke Spalte -->
+
+          <!-- RECHTE SPALTE -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- TM-Projekte -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">TM-Projekte</span>
+                <span class="fd-sec-count">${projekte.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${projekte.length ? projekte
+                  .sort((a,b) => {
+                    const ord = {aktiv:0,geplant:1,abgeschlossen:2};
+                    return (ord[a.status]??9)-(ord[b.status]??9);
+                  })
+                  .map(p => `
+                  <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
+                    <div class="fd-proj-name">${h.esc(p.title)}</div>
+                    <div class="fd-proj-meta">
+                      ${h.projStatusBadge(p.status)}
+                      ${p.projektNr?`<span>#${h.esc(p.projektNr)}</span>`:""}
+                      <span>CHF ${h.chf(p.totalBetrag)}</span>
+                      <span>${p.einsaetzeCount} Einsätze</span>
+                    </div>
+                  </div>`).join("") : `<div class="fd-empty">Keine Projekte.</div>`}
+              </div>
+            </div>
+
+            <!-- Nächste Einsätze -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Nächste Einsätze</span>
+                <span class="fd-sec-count">${naechsteEinsaetze.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
+                  const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                  return `<div class="fd-einsatz" onclick="ctrl.openEinsatzForm(${e.id})">
+                    <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
+                    <div style="flex:1;min-width:0">
+                      <div class="fd-einsatz-title">${h.esc(e.title||e.kategorie)}</div>
+                      <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
+                    </div>
+                    ${h.abrBadge(e.abrechnung)}
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine bevorstehenden Einsätze.</div>`}
+              </div>
+            </div>
+
+            <!-- Abrechnungen -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Abrechnungen</span>
+                <span class="fd-sec-count">${abrechnungen.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${abrechnungen.length ? abrechnungen.map(a => {
+                  const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+                  const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
+                  const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
+                  const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+                  const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+                  const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
+                  return `<div class="fd-row">
+                    <div>
+                      <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
+                      <div style="margin-top:2px">${abrStatusBadge(a.status)}</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Abrechnungen.</div>`}
+              </div>
+            </div>
+
+          </div><!-- /rechte Spalte -->
+        </div><!-- /fd-layout -->
+      `);
+    },
+
+    abrechnungen() {
 
       ui.render(`
         <style>
@@ -1182,437 +1581,6 @@
       `);
     },
 
-    firmaDetail(id) {
-      const fi = state.data.firms.find(f => f.id === id);
-      if (!fi) { ui.render(`<p class="tm-muted">Firma nicht gefunden.</p>`); return; }
-
-      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert);
-      const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === id && !p.archiviert);
-      const aktivProj  = projekte.filter(p => p.status === "aktiv");
-
-      // History + Tasks via Kontakt-IDs dieser Firma
-      const kontaktIds = new Set(kontakte.map(c => c.id));
-      const history    = state.data.history
-        .filter(h2 => kontaktIds.has(h2.kontaktId))
-        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 30);
-      const tasks = state.data.tasks
-        .filter(t => kontaktIds.has(t.kontaktId) && t.status !== "erledigt")
-        .sort((a,b) => (a.deadline||"") > (b.deadline||"") ? 1 : -1);
-
-      // Nächste Einsätze über alle Projekte dieser Firma
-      const heute = h.todayStart();
-      const naechsteEinsaetze = state.enriched.einsaetze
-        .filter(e => {
-          const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-          return proj?.firmaLookupId === id && h.toDate(e.datum) >= heute && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
-        })
-        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))
-        .slice(0, 5);
-
-      // Abrechnungen über alle Projekte dieser Firma
-      const abrechnungen = state.enriched.abrechnungen
-        .filter(a => {
-          const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-          return proj?.firmaLookupId === id;
-        })
-        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 10);
-
-      const abrStatusBadge = (v) => {
-        const m = { "erstellt":["tm-badge tm-badge-planned","erstellt"], "versendet":["tm-badge tm-badge-billing","versendet"], "bezahlt":["tm-badge tm-badge-billed","bezahlt"] };
-        const [c,l] = m[v] || ["tm-badge", v||"—"];
-        return h.badge(c, l);
-      };
-
-      ui.render(`
-        <style>
-          .fd-layout{display:grid;grid-template-columns:1fr;gap:16px}
-          @media(min-width:900px){.fd-layout{grid-template-columns:1fr 1fr;align-items:start}}
-          .fd-sec{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden}
-          .fd-sec-hd{padding:12px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between}
-          .fd-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5}
-          .fd-sec-count{font-size:11px;font-weight:600;color:#004078}
-          .fd-sec-bd{padding:12px 16px;display:flex;flex-direction:column;gap:8px}
-          .fd-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #f0f4f8}
-          .fd-row:last-child{border:none}
-          .fd-lbl{color:#8896a5}
-          .fd-val{font-weight:500;color:#1a2332;text-align:right}
-          .fd-kontakt{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f4f8}
-          .fd-kontakt:last-child{border:none}
-          .fd-av{width:30px;height:30px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
-          .fd-kname{font-size:13px;font-weight:600;color:#1a2332}
-          .fd-kfunk{font-size:11px;color:#8896a5}
-          .fd-proj{padding:8px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
-          .fd-proj:hover .fd-proj-name{color:#0a5a9e;text-decoration:underline}
-          .fd-proj:last-child{border:none}
-          .fd-proj-name{font-size:13px;font-weight:600;color:#004078}
-          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:2px;display:flex;gap:8px;align-items:center}
-          .fd-act{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
-          .fd-act:last-child{border:none}
-          .fd-act-dot{width:7px;height:7px;border-radius:50%;background:#8896a5;flex-shrink:0}
-          .fd-act-main{flex:1;min-width:0}
-          .fd-act-title{font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .fd-act-meta{font-size:11px;color:#8896a5}
-          .fd-task{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
-          .fd-task:last-child{border:none}
-          .fd-task-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}
-          .fd-task-overdue{background:#950e13}
-          .fd-task-soon{background:#e59c2e}
-          .fd-task-ok{background:#1a6e40}
-          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:4px 0}
-          .fd-einsatz{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
-          .fd-einsatz:last-child{border:none}
-          .fd-einsatz-date{font-size:12px;font-weight:700;color:#004078;white-space:nowrap;min-width:70px}
-        </style>
-
-        <div class="tm-page-header">
-          <div>
-            <button class="tm-btn tm-btn-sm" onclick="ctrl.navigate('firmen')" style="margin-bottom:8px">← Firmen</button>
-            <div class="tm-page-title">${h.esc(fi.title)}</div>
-            <div class="tm-page-meta">
-              ${fi.klassifizierung ? `<span class="fi-badge-kl" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078">${h.esc(fi.klassifizierung)}</span>` : ""}
-              ${fi.vip ? `<span class="fi-badge-vip" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000">VIP</span>` : ""}
-              ${fi.ort ? `<span style="font-size:13px;color:#8896a5">${h.esc(fi.ort)}</span>` : ""}
-            </div>
-          </div>
-        </div>
-
-        <div class="fd-layout">
-
-          <!-- LINKE SPALTE: CRM -->
-          <div style="display:flex;flex-direction:column;gap:16px">
-
-            <!-- Stammdaten -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd"><span class="fd-sec-title">Stammdaten</span></div>
-              <div class="fd-sec-bd">
-                ${[
-                  ["Adresse", fi.adresse],
-                  ["PLZ / Ort", [fi.plz, fi.ort].filter(Boolean).join(" ")],
-                  ["Land", fi.land],
-                  ["Telefon", fi.hauptnummer]
-                ].filter(([,v]) => v).map(([l,v]) => `
-                  <div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")}
-                ${!fi.adresse && !fi.hauptnummer ? `<div class="fd-empty">Keine Stammdaten hinterlegt.</div>` : ""}
-              </div>
-            </div>
-
-            <!-- Kontakte -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Kontakte</span>
-                <span class="fd-sec-count">${kontakte.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${kontakte.length ? kontakte.map(c => {
-                  const initials = [c.vorname?.[0], c.nachname?.[0]].filter(Boolean).join("").toUpperCase() || "?";
-                  return `<div class="fd-kontakt">
-                    <div class="fd-av">${initials}</div>
-                    <div>
-                      <div class="fd-kname">${h.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</div>
-                      <div class="fd-kfunk">${h.esc(c.funktion || "—")}${c.email1 ? ` · ${h.esc(c.email1)}` : ""}${c.direktwahl ? ` · ${h.esc(c.direktwahl)}` : ""}</div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Kontakte.</div>`}
-              </div>
-            </div>
-
-            <!-- Aktivitäten -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Aktivitäten</span>
-                <span class="fd-sec-count">${history.length}${history.length === 30 ? "+" : ""}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${history.length ? history.map(a => {
-                  const kont = state.data.contacts.find(c => c.id === a.kontaktId);
-                  const kontName = kont ? [kont.vorname, kont.nachname].filter(Boolean).join(" ") : "—";
-                  return `<div class="fd-act">
-                    <div class="fd-act-dot"></div>
-                    <div class="fd-act-main">
-                      <div class="fd-act-title">${h.esc(a.title)}</div>
-                      <div class="fd-act-meta">${h.esc(h.fmtDate(a.datum))}${a.typ ? " · " + h.esc(a.typ) : ""} · ${h.esc(kontName)}</div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Aktivitäten.</div>`}
-              </div>
-            </div>
-
-            <!-- Aufgaben -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Offene Aufgaben</span>
-                <span class="fd-sec-count">${tasks.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${tasks.length ? tasks.map(t => {
-                  const kont = state.data.contacts.find(c => c.id === t.kontaktId);
-                  const kontName = kont ? [kont.vorname, kont.nachname].filter(Boolean).join(" ") : "—";
-                  const dl = h.toDate(t.deadline);
-                  const overdue = dl && dl < heute;
-                  const soon    = dl && !overdue && dl <= new Date(heute.getTime() + 7*24*60*60*1000);
-                  const dotCls  = overdue ? "fd-task-overdue" : soon ? "fd-task-soon" : "fd-task-ok";
-                  return `<div class="fd-task">
-                    <div class="fd-task-dot ${dotCls}"></div>
-                    <div>
-                      <div style="font-size:13px;font-weight:500;color:#1a2332">${h.esc(t.title)}</div>
-                      <div style="font-size:11px;color:#8896a5">${dl ? h.fmtDate(t.deadline) : "Kein Datum"} · ${h.esc(kontName)}</div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine offenen Aufgaben.</div>`}
-              </div>
-            </div>
-
-          </div><!-- /linke Spalte -->
-
-          <!-- RECHTE SPALTE: TM -->
-          <div style="display:flex;flex-direction:column;gap:16px">
-
-            <!-- Projekte -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">TM-Projekte</span>
-                <span class="fd-sec-count">${projekte.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${projekte.length ? projekte.map(p => `
-                  <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
-                    <div class="fd-proj-name">${h.esc(p.title)}</div>
-                    <div class="fd-proj-meta">
-                      ${h.projStatusBadge(p.status)}
-                      ${p.projektNr ? `<span>#${h.esc(p.projektNr)}</span>` : ""}
-                      <span>CHF ${h.chf(p.totalBetrag)}</span>
-                      <span>${p.einsaetzeCount} Einsätze</span>
-                    </div>
-                  </div>`).join("") : `<div class="fd-empty">Keine Projekte.</div>`}
-              </div>
-            </div>
-
-            <!-- Nächste Einsätze -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Nächste Einsätze</span>
-                <span class="fd-sec-count">${naechsteEinsaetze.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
-                  const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-                  return `<div class="fd-einsatz">
-                    <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
-                    <div style="flex:1;min-width:0">
-                      <div style="font-size:13px;font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.esc(e.title || e.kategorie)}</div>
-                      <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
-                    </div>
-                    ${h.abrBadge(e.abrechnung)}
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine bevorstehenden Einsätze.</div>`}
-              </div>
-            </div>
-
-            <!-- Abrechnungen -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Abrechnungen</span>
-                <span class="fd-sec-count">${abrechnungen.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${abrechnungen.length ? abrechnungen.map(a => {
-                  const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-                  const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
-                  const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-                  const eSum = eins.reduce((s,e) => s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
-                  const kSum = konz.reduce((s,k) => s+(k.anzeigeBetrag||0),0);
-                  const sSum = (a.spesenZusatzBetrag||0) + eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
-                  return `<div class="fd-row" style="align-items:center">
-                    <div>
-                      <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
-                      <div style="font-size:11px;color:#8896a5;margin-top:2px">${abrStatusBadge(a.status)}</div>
-                    </div>
-                    <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Abrechnungen.</div>`}
-              </div>
-            </div>
-
-          </div><!-- /rechte Spalte -->
-
-        </div><!-- /fd-layout -->
-      `);
-    },
-
-    abrechnungen() {
-      const f = state.filters.abrechnungen;
-
-      // Verfügbare Jahre
-      const jahre = [...new Set(
-        state.enriched.abrechnungen
-          .map(a => h.toDate(a.datum)?.getFullYear())
-          .filter(Boolean)
-      )].sort((a,b) => b - a);
-
-      // Projektliste für Filter (nur Projekte mit Abrechnungen)
-      const projMitAbr = [...new Map(
-        state.enriched.abrechnungen.map(a => [a.projektLookupId, state.enriched.projekte.find(p=>p.id===a.projektLookupId)])
-      ).values()].filter(Boolean).sort((a,b) => a.title.localeCompare(b.title,"de"));
-
-      // Filter anwenden
-      let list = [...state.enriched.abrechnungen];
-      if (f.search)  list = list.filter(a => {
-        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
-        const firma = proj ? h.firmName(proj.firmaLookupId) : "";
-        return h.inc(a.title,f.search) || h.inc(a.projektTitle,f.search) || h.inc(firma,f.search);
-      });
-      if (f.status)  list = list.filter(a => a.status === f.status);
-      if (f.projekt) list = list.filter(a => String(a.projektLookupId) === f.projekt);
-      if (f.jahr)    list = list.filter(a => { const d = h.toDate(a.datum); return d && String(d.getFullYear()) === f.jahr; });
-      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-
-      // Betrag pro Abrechnung berechnen
-      const abrBetrag = (a) => {
-        const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
-        const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-        const eSum = einsaetze.reduce((t,e) => t + (e.anzeigeBetrag||0) + (e.coAnzeigeBetrag||0), 0);
-        const kSum = konz.reduce((t,k) => t + (k.anzeigeBetrag||0), 0);
-        const wSum = einsaetze.reduce((t,e) => t + (e.spesenBerechnet||0), 0);
-        const sSum = (a.spesenZusatzBetrag||0) + wSum;
-        return { eSum, kSum, sSum, total: eSum+kSum+sSum, einsaetze, konz };
-      };
-
-      // KPIs über gefilterte Liste
-      const totalBetrag = list.reduce((s,a) => s + abrBetrag(a).total, 0);
-      const byStatus    = (s) => list.filter(a => a.status === s).length;
-
-      // Status-Badge
-      const abrStatusBadge = (v) => {
-        const m = {
-          "erstellt":  ["tm-badge tm-badge-planned","erstellt"],
-          "versendet": ["tm-badge tm-badge-billing","versendet"],
-          "bezahlt":   ["tm-badge tm-badge-billed", "bezahlt"]
-        };
-        const [c,l] = m[v] || ["tm-badge", v||"—"];
-        return h.badge(c, l);
-      };
-
-      ui.render(`
-        <style>
-          .abr-card{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden;transition:box-shadow .15s,border-color .15s}
-          .abr-card:hover{box-shadow:0 4px 20px rgba(0,64,120,.1);border-color:#b8cde0}
-          .abr-card-hd{padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
-          .abr-card-main{flex:1;min-width:0}
-          .abr-card-title{font-size:14px;font-weight:700;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .abr-card-meta{font-size:12px;color:#8896a5;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-          .abr-card-right{text-align:right;flex-shrink:0}
-          .abr-card-total{font-size:17px;font-weight:800;color:#004078;white-space:nowrap}
-          .abr-card-sub{font-size:11px;color:#8896a5;margin-top:2px}
-          .abr-card-ft{padding:12px 18px 14px;background:#f9fbfd;border-top:1px solid #dde4ec;display:none;flex-direction:column;gap:12px}
-          .abr-card-ft.open{display:flex}
-          .abr-detail-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eef1f6}
-          .abr-detail-row:last-child{border:none}
-          .abr-detail-lbl{color:#4a5568}
-          .abr-detail-val{font-weight:600;color:#1a2332}
-          .abr-detail-val.muted{font-weight:400;color:#8896a5;font-size:12px}
-          .abr-flow{display:flex;gap:6px;flex-wrap:wrap}
-          .abr-flow-btn{padding:5px 14px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;color:#4a5568;cursor:pointer;font-family:inherit;transition:all .15s}
-          .abr-flow-btn:hover:not(.active-e):not(.active-v):not(.active-b){border-color:#0a5a9e;background:#e8f0f8}
-          .abr-flow-btn.active-e{background:#004078;border-color:#004078;color:#fff}
-          .abr-flow-btn.active-v{background:#e59c2e;border-color:#e59c2e;color:#fff}
-          .abr-flow-btn.active-b{background:#1a6e40;border-color:#1a6e40;color:#fff}
-          .abr-act{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
-          .abr-grid{display:grid;grid-template-columns:1fr;gap:10px}
-          @media(min-width:700px){.abr-grid{grid-template-columns:1fr 1fr}}
-          @media(min-width:1100px){.abr-grid{grid-template-columns:1fr 1fr 1fr}}
-        </style>
-
-        <div class="tm-page-header">
-          <div>
-            <div class="tm-page-title">Abrechnungen</div>
-            <div class="tm-page-meta">${list.length} Einträge${f.jahr ? " · " + f.jahr : ""}${f.status ? " · " + f.status : ""}</div>
-          </div>
-        </div>
-
-        <div class="tm-kpi-row" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
-          <div class="tm-kpi"><div class="tm-kpi-label">Total (gefiltert)</div><div class="tm-kpi-value tm-chf" style="font-size:15px">CHF ${h.chf(totalBetrag)}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">erstellt</div><div class="tm-kpi-value" style="color:var(--tm-blue)">${byStatus("erstellt")}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">versendet</div><div class="tm-kpi-value" style="color:#e59c2e">${byStatus("versendet")}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">bezahlt</div><div class="tm-kpi-value" style="color:#1a6e40">${byStatus("bezahlt")}</div></div>
-        </div>
-
-        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
-          <input type="search" placeholder="Suche Abrechnung, Projekt, Firma…" value="${h.esc(f.search)}"
-            oninput="state.filters.abrechnungen.search=this.value;ctrl.render()" style="flex:1;min-width:180px">
-          <select onchange="state.filters.abrechnungen.status=this.value;ctrl.render()">
-            <option value="">Status: alle</option>
-            ${state.choices.abrStatus.map(s => `<option value="${h.esc(s)}" ${f.status===s?"selected":""}>${h.esc(s)}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.abrechnungen.projekt=this.value;ctrl.render()">
-            <option value="">Projekt: alle</option>
-            ${projMitAbr.map(p => `<option value="${p.id}" ${f.projekt===String(p.id)?"selected":""}>${h.esc(p.title)}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.abrechnungen.jahr=this.value;ctrl.render()">
-            <option value="">Jahr: alle</option>
-            ${jahre.map(y => `<option value="${y}" ${f.jahr===String(y)?"selected":""}>${y}</option>`).join("")}
-          </select>
-          ${(f.search||f.status||f.projekt||f.jahr) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.abrechnungen={search:'',status:'',projekt:'',jahr:''};ctrl.render()">✕ Filter</button>` : ""}
-        </div>
-
-        ${list.length ? `<div class="abr-grid">
-          ${list.map(a => {
-            const { eSum, kSum, sSum, total, einsaetze, konz } = abrBetrag(a);
-            const proj  = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-            const firma = proj ? h.firmName(proj.firmaLookupId) : "—";
-            const ftId  = "abr-ft-" + a.id;
-            const aStat = a.status || "erstellt";
-            return `
-            <div class="abr-card">
-              <div class="abr-card-hd" onclick="document.getElementById('${ftId}').classList.toggle('open')">
-                <div class="abr-card-main">
-                  <div class="abr-card-title" title="${h.esc(a.title)}">${h.esc(a.title || a.datumFmt)}</div>
-                  <div class="abr-card-meta">
-                    ${abrStatusBadge(aStat)}
-                    <span style="font-weight:600;color:#1a2332">${h.esc(firma)}</span>
-                    <span style="color:#8896a5">·</span>
-                    <span style="font-weight:500;color:#4a5568">${h.esc(proj?.title||"—")}</span>
-                    <span style="color:#8896a5">·</span>
-                    <span>${h.esc(a.datumFmt)}</span>
-                  </div>
-                </div>
-                <div class="abr-card-right">
-                  <div class="abr-card-total">CHF ${h.chf(total)}</div>
-                  <div class="abr-card-sub">${einsaetze.length} Einsatz${einsaetze.length!==1?"ätze":""}${konz.length?" · "+konz.length+" Konz.":""}</div>
-                </div>
-              </div>
-              <div class="abr-card-ft" id="${ftId}">
-                <div>
-                  ${eSum>0 ? `<div class="abr-detail-row"><span class="abr-detail-lbl">Einsätze (${einsaetze.length})</span><span class="abr-detail-val">CHF ${h.chf(eSum)}</span></div>` : ""}
-                  ${kSum>0 ? `<div class="abr-detail-row"><span class="abr-detail-lbl">Konzeption (${konz.length})</span><span class="abr-detail-val">CHF ${h.chf(kSum)}</span></div>` : ""}
-                  ${sSum>0 ? `<div class="abr-detail-row"><span class="abr-detail-lbl">Spesen</span><span class="abr-detail-val">CHF ${h.chf(sSum)}</span></div>` : ""}
-                  ${a.spesenZusatzBemerkung ? `<div class="abr-detail-row"><span class="abr-detail-lbl">Zusatzspesen-Notiz</span><span class="abr-detail-val muted">${h.esc(a.spesenZusatzBemerkung)}</span></div>` : ""}
-                  <div class="abr-detail-row" style="border-top:1.5px solid #dde4ec;margin-top:4px;padding-top:6px">
-                    <span class="abr-detail-lbl" style="font-weight:700;color:#1a2332">Total</span>
-                    <span class="abr-detail-val" style="color:#004078">CHF ${h.chf(total)}</span>
-                  </div>
-                </div>
-                <div>
-                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5;margin-bottom:7px">Status</div>
-                  <div class="abr-flow">
-                    ${["erstellt","versendet","bezahlt"].map(s => {
-                      const cls = aStat===s ? (s==="erstellt"?" active-e":s==="versendet"?" active-v":" active-b") : "";
-                      return `<button class="abr-flow-btn${cls}" onclick="ctrl.abrSetStatus(${a.id},'${h.esc(s)}')">${h.esc(s)}</button>`;
-                    }).join("")}
-                  </div>
-                </div>
-                <div class="abr-act">
-                  <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
-                  ${proj ? `<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>` : ""}
-                  <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑 Löschen & zurücksetzen</button>
-                </div>
-              </div>
-            </div>`;
-          }).join("")}
-        </div>` : ui.empty("Keine Abrechnungen gefunden.")}
-      `);
-    }
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1649,6 +1617,218 @@
       state.filters.route = "firma-detail";
       this.render();
       window.scrollTo(0, 0);
+    },
+
+    openAktivitaetForm(id, firmaId) {
+      const a = id ? state.data.history.find(h2 => h2.id === id) : null;
+      const fi = state.data.firms.find(f => f.id === firmaId);
+      const kontakte = state.data.contacts
+        .filter(c => c.firmaLookupId === firmaId && !c.archiviert)
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
+
+      ui.renderModal(`<style>
+        .af-m{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,64,120,.18);width:100%;max-width:480px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:kfUp .2s cubic-bezier(.16,1,.3,1)}
+        .af-hd{background:#004078;padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
+        .af-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .af-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .af-cl{width:26px;height:26px;background:rgba(255,255,255,.1);border:none;border-radius:6px;color:rgba(255,255,255,.8);font-size:13px;cursor:pointer}
+        .af-bd{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+        .af-s{display:flex;flex-direction:column;gap:5px}
+        .af-l{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5}
+        .af-iw input,.af-iw select,.af-iw textarea{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s;-webkit-appearance:none;box-sizing:border-box}
+        .af-iw input:focus,.af-iw select:focus,.af-iw textarea:focus{border-color:#0a5a9e;background:#fff}
+        .af-iw textarea{resize:vertical;min-height:70px}
+        .af-ft{padding:10px 18px 14px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dde4ec}
+        .af-btn-c{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .af-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer}
+      </style>
+      <div class="af-m">
+        <div class="af-hd">
+          <div>
+            <div class="af-hd-t">${id ? "Aktivität bearbeiten" : "Neue Aktivität"}</div>
+            <div class="af-hd-s">${h.esc(fi?.title||"")}</div>
+          </div>
+          <button class="af-cl" data-close-modal>✕</button>
+        </div>
+        <div class="af-bd">
+          <input type="hidden" id="af-id" value="${id||""}">
+          <input type="hidden" id="af-firma-id" value="${firmaId||""}">
+          <div class="af-s"><div class="af-l">Titel *</div>
+            <div class="af-iw"><input type="text" id="af-title" value="${h.esc(a?.title||"")}" placeholder="z.B. Telefonat, Meeting…"></div>
+          </div>
+          <div class="af-s"><div class="af-l">Datum *</div>
+            <div class="af-iw"><input type="date" id="af-datum" value="${h.esc(a ? h.toDateInput(a.datum) : h.toDateInput(new Date().toISOString()))}"></div>
+          </div>
+          <div class="af-s"><div class="af-l">Kontakt</div>
+            <div class="af-iw"><select id="af-kontakt">
+              <option value="">— Kontakt wählen —</option>
+              ${kontakte.map(c => `<option value="${c.id}" ${a?.kontaktId===c.id?"selected":""}>${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
+            </select></div>
+          </div>
+          <div class="af-s"><div class="af-l">Typ</div>
+            <div class="af-iw"><input type="text" id="af-typ" value="${h.esc(a?.typ||"")}" placeholder="z.B. Telefon, E-Mail, Meeting…"></div>
+          </div>
+          <div class="af-s"><div class="af-l">Notizen</div>
+            <div class="af-iw"><textarea id="af-notizen">${h.esc(a?.notizen||"")}</textarea></div>
+          </div>
+        </div>
+        <div class="af-ft">
+          <button class="af-btn-c" data-close-modal>Abbrechen</button>
+          <button class="af-btn-s" onclick="ctrl.saveAktivitaet()">✓ Speichern</button>
+        </div>
+      </div>`);
+    },
+
+    async saveAktivitaet() {
+      const id      = document.getElementById("af-id")?.value;
+      const firmaId = Number(document.getElementById("af-firma-id")?.value)||null;
+      const title   = document.getElementById("af-title")?.value.trim();
+      const datum   = document.getElementById("af-datum")?.value;
+      const kontaktId = Number(document.getElementById("af-kontakt")?.value)||null;
+      const typ     = document.getElementById("af-typ")?.value.trim();
+      const notizen = document.getElementById("af-notizen")?.value.trim();
+
+      if (!title) { ui.setMsg("Titel ist Pflichtfeld.", "error"); return; }
+      if (!datum) { ui.setMsg("Datum ist Pflichtfeld.", "error"); return; }
+
+      ui.setMsg("Wird gespeichert…", "info");
+      try {
+        const fields = { Datum: datum+"T12:00:00Z" };
+        if (typ)    fields.Kontaktart = typ;
+        if (notizen) fields.Notizen   = notizen;
+
+        if (id) {
+          fields.Title = title;
+          await api.patch(CONFIG.lists.history, Number(id), fields);
+          if (kontaktId) await api.patchLookups(CONFIG.lists.history, Number(id), { NachnameLookupId: kontaktId });
+        } else {
+          const cr  = await api.post(CONFIG.lists.history, title);
+          const nid = Number(cr?.id || cr?.fields?.id);
+          if (!nid) throw new Error("ID fehlt.");
+          await api.patch(CONFIG.lists.history, nid, fields);
+          if (kontaktId) await api.patchLookups(CONFIG.lists.history, nid, { NachnameLookupId: kontaktId });
+        }
+
+        ui.closeModal();
+        ui.setMsg("Aktivität gespeichert.", "success");
+        await api.loadAll();
+        if (firmaId) ctrl.openFirma(firmaId); else ctrl.render();
+      } catch(e) {
+        debug.err("saveAktivitaet", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+      }
+    },
+
+    openAufgabeForm(id, firmaId) {
+      const t = id ? state.data.tasks.find(t => t.id === id) : null;
+      const fi = state.data.firms.find(f => f.id === firmaId);
+      const kontakte = state.data.contacts
+        .filter(c => c.firmaLookupId === firmaId && !c.archiviert)
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
+      const statusOpts = ["offen","in Bearbeitung","erledigt"];
+
+      ui.renderModal(`<style>
+        .af-m{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,64,120,.18);width:100%;max-width:480px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:kfUp .2s cubic-bezier(.16,1,.3,1)}
+        .af-hd{background:#004078;padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
+        .af-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .af-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .af-cl{width:26px;height:26px;background:rgba(255,255,255,.1);border:none;border-radius:6px;color:rgba(255,255,255,.8);font-size:13px;cursor:pointer}
+        .af-bd{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+        .af-s{display:flex;flex-direction:column;gap:5px}
+        .af-l{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5}
+        .af-iw input,.af-iw select{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s;-webkit-appearance:none;box-sizing:border-box}
+        .af-iw input:focus,.af-iw select:focus{border-color:#0a5a9e;background:#fff}
+        .af-ft{padding:10px 18px 14px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dde4ec}
+        .af-btn-c{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .af-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer}
+      </style>
+      <div class="af-m">
+        <div class="af-hd">
+          <div>
+            <div class="af-hd-t">${id ? "Aufgabe bearbeiten" : "Neue Aufgabe"}</div>
+            <div class="af-hd-s">${h.esc(fi?.title||"")}</div>
+          </div>
+          <button class="af-cl" data-close-modal>✕</button>
+        </div>
+        <div class="af-bd">
+          <input type="hidden" id="tf-id" value="${id||""}">
+          <input type="hidden" id="tf-firma-id" value="${firmaId||""}">
+          <div class="af-s"><div class="af-l">Titel *</div>
+            <div class="af-iw"><input type="text" id="tf-title" value="${h.esc(t?.title||"")}" placeholder="z.B. Offerte senden…"></div>
+          </div>
+          <div class="af-s"><div class="af-l">Deadline</div>
+            <div class="af-iw"><input type="date" id="tf-deadline" value="${h.esc(t ? h.toDateInput(t.deadline) : "")}"></div>
+          </div>
+          <div class="af-s"><div class="af-l">Kontakt</div>
+            <div class="af-iw"><select id="tf-kontakt">
+              <option value="">— Kontakt wählen —</option>
+              ${kontakte.map(c => `<option value="${c.id}" ${t?.kontaktId===c.id?"selected":""}>${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
+            </select></div>
+          </div>
+          <div class="af-s"><div class="af-l">Status</div>
+            <div class="af-iw"><select id="tf-status">
+              ${statusOpts.map(s => `<option value="${s}" ${(t?.status||"offen")===s?"selected":""}>${h.esc(s)}</option>`).join("")}
+            </select></div>
+          </div>
+        </div>
+        <div class="af-ft">
+          <button class="af-btn-c" data-close-modal>Abbrechen</button>
+          <button class="af-btn-s" onclick="ctrl.saveAufgabe()">✓ Speichern</button>
+        </div>
+      </div>`);
+    },
+
+    async saveAufgabe() {
+      const id      = document.getElementById("tf-id")?.value;
+      const firmaId = Number(document.getElementById("tf-firma-id")?.value)||null;
+      const title   = document.getElementById("tf-title")?.value.trim();
+      const deadline = document.getElementById("tf-deadline")?.value;
+      const kontaktId = Number(document.getElementById("tf-kontakt")?.value)||null;
+      const status  = document.getElementById("tf-status")?.value;
+
+      if (!title) { ui.setMsg("Titel ist Pflichtfeld.", "error"); return; }
+
+      ui.setMsg("Wird gespeichert…", "info");
+      try {
+        const fields = { Status: status||"offen" };
+        if (deadline) fields.Deadline = deadline+"T12:00:00Z";
+
+        if (id) {
+          fields.Title = title;
+          await api.patch(CONFIG.lists.tasks, Number(id), fields);
+          if (kontaktId) await api.patchLookups(CONFIG.lists.tasks, Number(id), { NameLookupId: kontaktId });
+        } else {
+          const cr  = await api.post(CONFIG.lists.tasks, title);
+          const nid = Number(cr?.id || cr?.fields?.id);
+          if (!nid) throw new Error("ID fehlt.");
+          await api.patch(CONFIG.lists.tasks, nid, fields);
+          if (kontaktId) await api.patchLookups(CONFIG.lists.tasks, nid, { NameLookupId: kontaktId });
+        }
+
+        ui.closeModal();
+        ui.setMsg("Aufgabe gespeichert.", "success");
+        await api.loadAll();
+        if (firmaId) ctrl.openFirma(firmaId); else ctrl.render();
+      } catch(e) {
+        debug.err("saveAufgabe", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+      }
+    },
+
+    async aufgabeErledigen(id, firmaId) {
+      const t = state.data.tasks.find(t => t.id === id);
+      if (!t) return;
+      if (!confirm(`Aufgabe «${t.title}» als erledigt markieren?`)) return;
+      try {
+        ui.setMsg("Wird gespeichert…", "info");
+        await api.patch(CONFIG.lists.tasks, id, { Status: "erledigt" });
+        ui.setMsg("Aufgabe erledigt.", "success");
+        await api.loadAll();
+        ctrl.openFirma(firmaId);
+      } catch(e) {
+        debug.err("aufgabeErledigen", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+      }
     },
 
     openProjekt(id) {
