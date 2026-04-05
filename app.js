@@ -668,6 +668,16 @@
       return res.json();
     },
 
+    // DELETE: Graph API
+    async deleteItem(list, itemId) {
+      const sid = await api.siteId();
+      const tok = await api.token();
+      const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(list)}/items/${itemId}`;
+      debug.log(`delete:${list}:${itemId}`, {});
+      const res = await fetch(url, { method: "DELETE", headers: { Authorization: "Bearer " + tok } });
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+    },
+
     // PATCH: Graph API für normale Felder
     async patch(list, itemId, fields) {
       const sid = await api.siteId();
@@ -749,6 +759,9 @@
         if (a("[data-action='edit-konzeption']"))  { ctrl.openKonzeptionForm(+a("[data-action='edit-konzeption']").dataset.id); return; }
         if (a("[data-action='open-abrechnung']"))  { ctrl.openAbrechnungDialog(+a("[data-action='open-abrechnung']").dataset.projektId); return; }
         if (a("[data-action='delete-einsatz']"))  { ctrl.deleteEinsatz(+a("[data-action='delete-einsatz']").dataset.id); return; }
+        if (a("[data-action='delete-konzeption']")) { ctrl.deleteKonzeption(+a("[data-action='delete-konzeption']").dataset.id); return; }
+        if (a("[data-action='delete-abrechnung']")) { ctrl.deleteAbrechnung(+a("[data-action='delete-abrechnung']").dataset.id); return; }
+        if (a("[data-action='delete-projekt']"))   { ctrl.deleteProjekt(+a("[data-action='delete-projekt']").dataset.id); return; }
         if (a("[data-action='new-projekt']"))      { ctrl.openProjektForm(null); return; }
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
@@ -903,7 +916,7 @@
             <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
             <td>${h.verrBadge(k.verrechenbar)}</td>
             <td>${h.abrBadge(k.abrechnung)}</td>
-            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button></div></td>
+            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button><button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" title="Löschen" style="color:var(--tm-red)">🗑</button></div></td>
           </tr>`).join("")}</tbody></table></div>`;
       };
 
@@ -935,6 +948,7 @@
           </div>
           <div class="tm-page-actions">
             <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
+            <button class="tm-btn tm-btn-sm" data-action="delete-projekt" data-id="${p.id}" style="color:var(--tm-red)">Löschen</button>
             <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
             <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
             <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" style="background:var(--tm-green,#1D9E75);color:#fff;border-color:transparent">Abrechnung</button>
@@ -1048,7 +1062,7 @@
             <td class="tm-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
             <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
             <td>${h.verrBadge(k.verrechenbar)}</td>
-            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button></div></td>
+            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button><button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" title="Löschen" style="color:var(--tm-red)">🗑</button></div></td>
           </tr>`).join("")}</tbody></table></div>` : ui.empty("Keine Konzeptionsaufwände gefunden.")}
       `);
     }
@@ -2005,16 +2019,91 @@
       const label = e.title || e.datumFmt || `Einsatz #${id}`;
       if (!confirm(`Einsatz "${label}" wirklich löschen?`)) return;
       try {
-        const sid = await api.siteId();
-        const tok = await api.token();
-        const url = `https://graph.microsoft.com/v1.0/sites/${sid}/lists/${encodeURIComponent(CONFIG.lists.einsaetze)}/items/${id}`;
-        const res = await fetch(url, { method: "DELETE", headers: { Authorization: "Bearer " + tok } });
-        if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+        await api.deleteItem(CONFIG.lists.einsaetze, id);
         ui.setMsg("Einsatz gelöscht.", "success");
         await api.loadAll();
         ctrl.render();
       } catch (e) {
         debug.err("deleteEinsatz", e);
+        ui.setMsg("Fehler beim Löschen: " + e.message, "error");
+      }
+    },
+
+    async deleteKonzeption(id) {
+      const k = state.enriched.konzeption.find(k => k.id === id);
+      if (!k) return;
+      const label = k.title || k.datumFmt || `Konzeption #${id}`;
+      if (!confirm(`Konzeptionsaufwand "${label}" wirklich löschen?`)) return;
+      try {
+        await api.deleteItem(CONFIG.lists.konzeption, id);
+        ui.setMsg("Konzeptionsaufwand gelöscht.", "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (e) {
+        debug.err("deleteKonzeption", e);
+        ui.setMsg("Fehler beim Löschen: " + e.message, "error");
+      }
+    },
+
+    async deleteAbrechnung(id) {
+      const a = state.enriched.abrechnungen.find(a => a.id === id);
+      if (!a) return;
+      if (!confirm(`Abrechnung "${a.title}" löschen?\n\nVerknüpfte Einsätze und Konzeptionsaufwände werden auf «offen» zurückgesetzt.`)) return;
+      try {
+        ui.setMsg("Wird bereinigt…", "info");
+
+        // 1. Verknüpfte Einsätze: Abrechnung auf «offen» + Lookup leeren
+        const verknEinsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === id);
+        await Promise.allSettled(verknEinsaetze.map(async e => {
+          await api.patch(CONFIG.lists.einsaetze, e.id, { Abrechnung: "offen" });
+          await api.patchLookups(CONFIG.lists.einsaetze, e.id, { [F.abrechnung_w]: 0 });
+        }));
+
+        // 2. Verknüpfte Konzeptionen: Abrechnung auf «offen» + Lookup leeren
+        const verknKonz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === id);
+        await Promise.allSettled(verknKonz.map(async k => {
+          await api.patch(CONFIG.lists.konzeption, k.id, { Abrechnung: "offen" });
+          await api.patchLookups(CONFIG.lists.konzeption, k.id, { [F.konz_abrechnung_w]: 0 });
+        }));
+
+        // 3. Abrechnung löschen
+        await api.deleteItem(CONFIG.lists.abrechnungen, id);
+        ui.setMsg(`Abrechnung gelöscht — ${verknEinsaetze.length} Einsätze, ${verknKonz.length} Konzeptionsaufwände zurückgesetzt.`, "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (e) {
+        debug.err("deleteAbrechnung", e);
+        ui.setMsg("Fehler beim Löschen: " + e.message, "error");
+      }
+    },
+
+    async deleteProjekt(id) {
+      const p = state.enriched.projekte.find(p => p.id === id);
+      if (!p) return;
+      const einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === id);
+      const konzeption   = state.enriched.konzeption.filter(k => k.projektLookupId === id);
+      const abrechnungen = state.enriched.abrechnungen.filter(a => a.projektLookupId === id);
+      const total = einsaetze.length + konzeption.length + abrechnungen.length;
+
+      const msg = total > 0
+        ? `Projekt "${p.title}" löschen?\n\nFolgende Einträge werden ebenfalls gelöscht:\n• ${einsaetze.length} Einsätze\n• ${konzeption.length} Konzeptionsaufwände\n• ${abrechnungen.length} Abrechnungen\n\nDiese Aktion kann nicht rückgängig gemacht werden.`
+        : `Projekt "${p.title}" wirklich löschen?`;
+      if (!confirm(msg)) return;
+
+      try {
+        ui.setMsg("Projekt wird gelöscht…", "info");
+
+        // Kaskadierend löschen: erst Abhängige, dann Projekt
+        await Promise.allSettled(einsaetze.map(e => api.deleteItem(CONFIG.lists.einsaetze, e.id)));
+        await Promise.allSettled(konzeption.map(k => api.deleteItem(CONFIG.lists.konzeption, k.id)));
+        await Promise.allSettled(abrechnungen.map(a => api.deleteItem(CONFIG.lists.abrechnungen, a.id)));
+        await api.deleteItem(CONFIG.lists.projekte, id);
+
+        ui.setMsg(`Projekt "${p.title}" und alle abhängigen Einträge gelöscht.`, "success");
+        await api.loadAll();
+        ctrl.navigate("projekte");
+      } catch (e) {
+        debug.err("deleteProjekt", e);
         ui.setMsg("Fehler beim Löschen: " + e.message, "error");
       }
     },
