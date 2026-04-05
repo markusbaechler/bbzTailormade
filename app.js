@@ -22,7 +22,9 @@
       konzeption:   "KonzeptionTM",
       abrechnungen: "AbrechnungenTM",
       firms:        "CRMFirms",
-      contacts:     "CRMContacts"
+      contacts:     "CRMContacts",
+      history:      "CRMHistory",
+      tasks:        "CRMTasks"
     }
   };
 
@@ -117,7 +119,9 @@
       konzeption:   [],
       abrechnungen: [],
       firms:        [],
-      contacts:     []
+      contacts:     [],
+      history:      [],
+      tasks:        []
     },
     choices: {
       // Dynamisch aus SP geladen via getChoices() — nie hier hardcodieren.
@@ -141,9 +145,10 @@
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "" },
       konzeption:   { search: "", verrechenbar: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
+      firmen:       { search: "", klassifizierung: "", vip: "" },
       activeTab:    {}
     },
-    selection: { projektId: null },
+    selection: { projektId: null, firmaId: null },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -693,26 +698,62 @@
       ui.setLoading(true);
       ui.setMsg("Daten werden geladen…", "info");
       try {
-        // Choices einmalig laden (parallel zu Daten)
-        const [projekte, einsaetze, konzeption, abrechnungen, firms, contacts] = await Promise.all([
+        const [projekte, einsaetze, konzeption, abrechnungen, firms, contacts, history, tasks] = await Promise.all([
           api.getItems(CONFIG.lists.projekte),
           api.getItems(CONFIG.lists.einsaetze),
           api.getItems(CONFIG.lists.konzeption),
           api.getItems(CONFIG.lists.abrechnungen),
           api.getItems(CONFIG.lists.firms),
-          api.getItems(CONFIG.lists.contacts)
+          api.getItems(CONFIG.lists.contacts),
+          api.getItems(CONFIG.lists.history),
+          api.getItems(CONFIG.lists.tasks)
         ]);
         await api.loadChoices();
         state.data.projekte     = projekte;
         state.data.einsaetze    = einsaetze;
         state.data.konzeption   = konzeption;
         state.data.abrechnungen = abrechnungen;
-        state.data.firms      = firms.map(f => ({ id: Number(f.id), title: f.Title || "" }));
-        state.data.contacts   = contacts.map(c => ({
+        state.data.history      = history;
+        state.data.tasks        = tasks;
+        state.data.firms = firms.map(f => ({
+          id:               Number(f.id),
+          title:            f.Title || "",
+          adresse:          f.Adresse || "",
+          plz:              f.PLZ || "",
+          ort:              f.Ort || "",
+          land:             f.Land || "",
+          hauptnummer:      f.Hauptnummer || "",
+          klassifizierung:  f.Klassifizierung || "",
+          vip:              f.VIP === true || f.VIP === 1 || String(f.VIP).toLowerCase() === "true"
+        }));
+        state.data.contacts = contacts.map(c => ({
           id:            Number(c.id),
           nachname:      c.Title || "",
           vorname:       c.Vorname || "",
-          firmaLookupId: Number(c.FirmaLookupIdLookupId || c.FirmaLookupId || 0) || null
+          funktion:      c.Funktion || "",
+          email1:        c.Email1 || "",
+          direktwahl:    c.Direktwahl || "",
+          mobile:        c.Mobile || "",
+          firmaLookupId: Number(c.FirmaLookupIdLookupId || c.FirmaLookupId || 0) || null,
+          archiviert:    c.Archiviert === true || c.Archiviert === 1
+        }));
+        // History: NachnameLookupId → Kontakt → Firma
+        state.data.history = history.map(h2 => ({
+          id:            Number(h2.id),
+          title:         h2.Title || "",
+          datum:         h2.Datum,
+          typ:           h2.Kontaktart || "",
+          notizen:       h2.Notizen || "",
+          leadbbz:       h2.Leadbbz || "",
+          kontaktId:     Number(h2.NachnameLookupIdLookupId || h2.NachnameLookupId || 0) || null
+        }));
+        state.data.tasks = tasks.map(t => ({
+          id:            Number(t.id),
+          title:         t.Title || "",
+          deadline:      t.Deadline,
+          status:        t.Status || "",
+          leadbbz:       t.Leadbbz || "",
+          kontaktId:     Number(t.NameLookupIdLookupId || t.NameLookupId || 0) || null
         }));
         enrichAll();
         ui.setMsg("", "");
@@ -1069,6 +1110,337 @@
       `);
     },
 
+    firmen() {
+      const f = state.filters.firmen;
+      const klassifizierungen = [...new Set(state.data.firms.map(f => f.klassifizierung).filter(Boolean))].sort();
+
+      let list = [...state.data.firms];
+      if (f.search)          list = list.filter(fi => h.inc(fi.title, f.search) || h.inc(fi.ort, f.search));
+      if (f.klassifizierung) list = list.filter(fi => fi.klassifizierung === f.klassifizierung);
+      if (f.vip === "ja")    list = list.filter(fi => fi.vip);
+      list.sort((a,b) => a.title.localeCompare(b.title, "de"));
+
+      ui.render(`
+        <style>
+          .fi-card{background:#fff;border-radius:12px;border:1.5px solid #dde4ec;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;gap:6px}
+          .fi-card:hover{box-shadow:0 4px 16px rgba(0,64,120,.1);border-color:#b8cde0}
+          .fi-name{font-size:14px;font-weight:700;color:#1a2332}
+          .fi-meta{font-size:12px;color:#8896a5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .fi-badge-vip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000}
+          .fi-badge-kl{font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078}
+          .fi-stats{display:flex;gap:12px;margin-top:4px}
+          .fi-stat{font-size:11px;color:#8896a5}
+          .fi-stat strong{font-size:13px;font-weight:700;color:#004078;display:block}
+          .fi-grid{display:grid;grid-template-columns:1fr;gap:10px}
+          @media(min-width:600px){.fi-grid{grid-template-columns:1fr 1fr}}
+          @media(min-width:1000px){.fi-grid{grid-template-columns:1fr 1fr 1fr}}
+        </style>
+
+        <div class="tm-page-header">
+          <div>
+            <div class="tm-page-title">Firmen</div>
+            <div class="tm-page-meta">${list.length} Firmen</div>
+          </div>
+        </div>
+
+        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
+          <input type="search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search)}"
+            oninput="state.filters.firmen.search=this.value;ctrl.render()" style="flex:1;min-width:180px">
+          <select onchange="state.filters.firmen.klassifizierung=this.value;ctrl.render()">
+            <option value="">Klassifizierung: alle</option>
+            ${klassifizierungen.map(k => `<option value="${h.esc(k)}" ${f.klassifizierung===k?"selected":""}>${h.esc(k)}</option>`).join("")}
+          </select>
+          <select onchange="state.filters.firmen.vip=this.value;ctrl.render()">
+            <option value="">VIP: alle</option>
+            <option value="ja" ${f.vip==="ja"?"selected":""}>Nur VIP</option>
+          </select>
+          ${(f.search||f.klassifizierung||f.vip) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.firmen={search:'',klassifizierung:'',vip:''};ctrl.render()">✕ Filter</button>` : ""}
+        </div>
+
+        ${list.length ? `<div class="fi-grid">
+          ${list.map(fi => {
+            const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
+            const aktiv    = projekte.filter(p => p.status === "aktiv").length;
+            const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
+            return `<div class="fi-card" onclick="ctrl.openFirma(${fi.id})">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+                <div class="fi-name">${h.esc(fi.title)}</div>
+                ${fi.vip ? `<span class="fi-badge-vip">VIP</span>` : ""}
+              </div>
+              <div class="fi-meta">
+                ${fi.klassifizierung ? `<span class="fi-badge-kl">${h.esc(fi.klassifizierung)}</span>` : ""}
+                ${fi.ort ? `<span>${h.esc(fi.ort)}</span>` : ""}
+              </div>
+              <div class="fi-stats">
+                <div class="fi-stat"><strong>${projekte.length}</strong>Projekte</div>
+                ${aktiv > 0 ? `<div class="fi-stat"><strong style="color:#1a6e40">${aktiv}</strong>aktiv</div>` : ""}
+                <div class="fi-stat"><strong>${kontakte}</strong>Kontakte</div>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>` : ui.empty("Keine Firmen gefunden.")}
+      `);
+    },
+
+    firmaDetail(id) {
+      const fi = state.data.firms.find(f => f.id === id);
+      if (!fi) { ui.render(`<p class="tm-muted">Firma nicht gefunden.</p>`); return; }
+
+      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert);
+      const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === id && !p.archiviert);
+      const aktivProj  = projekte.filter(p => p.status === "aktiv");
+
+      // History + Tasks via Kontakt-IDs dieser Firma
+      const kontaktIds = new Set(kontakte.map(c => c.id));
+      const history    = state.data.history
+        .filter(h2 => kontaktIds.has(h2.kontaktId))
+        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
+        .slice(0, 30);
+      const tasks = state.data.tasks
+        .filter(t => kontaktIds.has(t.kontaktId) && t.status !== "erledigt")
+        .sort((a,b) => (a.deadline||"") > (b.deadline||"") ? 1 : -1);
+
+      // Nächste Einsätze über alle Projekte dieser Firma
+      const heute = h.todayStart();
+      const naechsteEinsaetze = state.enriched.einsaetze
+        .filter(e => {
+          const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+          return proj?.firmaLookupId === id && h.toDate(e.datum) >= heute && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
+        })
+        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))
+        .slice(0, 5);
+
+      // Abrechnungen über alle Projekte dieser Firma
+      const abrechnungen = state.enriched.abrechnungen
+        .filter(a => {
+          const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+          return proj?.firmaLookupId === id;
+        })
+        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
+        .slice(0, 10);
+
+      const abrStatusBadge = (v) => {
+        const m = { "erstellt":["tm-badge tm-badge-planned","erstellt"], "versendet":["tm-badge tm-badge-billing","versendet"], "bezahlt":["tm-badge tm-badge-billed","bezahlt"] };
+        const [c,l] = m[v] || ["tm-badge", v||"—"];
+        return h.badge(c, l);
+      };
+
+      ui.render(`
+        <style>
+          .fd-layout{display:grid;grid-template-columns:1fr;gap:16px}
+          @media(min-width:900px){.fd-layout{grid-template-columns:1fr 1fr;align-items:start}}
+          .fd-sec{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden}
+          .fd-sec-hd{padding:12px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between}
+          .fd-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5}
+          .fd-sec-count{font-size:11px;font-weight:600;color:#004078}
+          .fd-sec-bd{padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+          .fd-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #f0f4f8}
+          .fd-row:last-child{border:none}
+          .fd-lbl{color:#8896a5}
+          .fd-val{font-weight:500;color:#1a2332;text-align:right}
+          .fd-kontakt{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f4f8}
+          .fd-kontakt:last-child{border:none}
+          .fd-av{width:30px;height:30px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+          .fd-kname{font-size:13px;font-weight:600;color:#1a2332}
+          .fd-kfunk{font-size:11px;color:#8896a5}
+          .fd-proj{padding:8px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
+          .fd-proj:hover .fd-proj-name{color:#0a5a9e;text-decoration:underline}
+          .fd-proj:last-child{border:none}
+          .fd-proj-name{font-size:13px;font-weight:600;color:#004078}
+          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:2px;display:flex;gap:8px;align-items:center}
+          .fd-act{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
+          .fd-act:last-child{border:none}
+          .fd-act-dot{width:7px;height:7px;border-radius:50%;background:#8896a5;flex-shrink:0}
+          .fd-act-main{flex:1;min-width:0}
+          .fd-act-title{font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .fd-act-meta{font-size:11px;color:#8896a5}
+          .fd-task{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
+          .fd-task:last-child{border:none}
+          .fd-task-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}
+          .fd-task-overdue{background:#950e13}
+          .fd-task-soon{background:#e59c2e}
+          .fd-task-ok{background:#1a6e40}
+          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:4px 0}
+          .fd-einsatz{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
+          .fd-einsatz:last-child{border:none}
+          .fd-einsatz-date{font-size:12px;font-weight:700;color:#004078;white-space:nowrap;min-width:70px}
+        </style>
+
+        <div class="tm-page-header">
+          <div>
+            <button class="tm-btn tm-btn-sm" onclick="ctrl.navigate('firmen')" style="margin-bottom:8px">← Firmen</button>
+            <div class="tm-page-title">${h.esc(fi.title)}</div>
+            <div class="tm-page-meta">
+              ${fi.klassifizierung ? `<span class="fi-badge-kl" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078">${h.esc(fi.klassifizierung)}</span>` : ""}
+              ${fi.vip ? `<span class="fi-badge-vip" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000">VIP</span>` : ""}
+              ${fi.ort ? `<span style="font-size:13px;color:#8896a5">${h.esc(fi.ort)}</span>` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div class="fd-layout">
+
+          <!-- LINKE SPALTE: CRM -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+
+            <!-- Stammdaten -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd"><span class="fd-sec-title">Stammdaten</span></div>
+              <div class="fd-sec-bd">
+                ${[
+                  ["Adresse", fi.adresse],
+                  ["PLZ / Ort", [fi.plz, fi.ort].filter(Boolean).join(" ")],
+                  ["Land", fi.land],
+                  ["Telefon", fi.hauptnummer]
+                ].filter(([,v]) => v).map(([l,v]) => `
+                  <div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")}
+                ${!fi.adresse && !fi.hauptnummer ? `<div class="fd-empty">Keine Stammdaten hinterlegt.</div>` : ""}
+              </div>
+            </div>
+
+            <!-- Kontakte -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Kontakte</span>
+                <span class="fd-sec-count">${kontakte.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${kontakte.length ? kontakte.map(c => {
+                  const initials = [c.vorname?.[0], c.nachname?.[0]].filter(Boolean).join("").toUpperCase() || "?";
+                  return `<div class="fd-kontakt">
+                    <div class="fd-av">${initials}</div>
+                    <div>
+                      <div class="fd-kname">${h.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</div>
+                      <div class="fd-kfunk">${h.esc(c.funktion || "—")}${c.email1 ? ` · ${h.esc(c.email1)}` : ""}${c.direktwahl ? ` · ${h.esc(c.direktwahl)}` : ""}</div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Kontakte.</div>`}
+              </div>
+            </div>
+
+            <!-- Aktivitäten -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Aktivitäten</span>
+                <span class="fd-sec-count">${history.length}${history.length === 30 ? "+" : ""}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${history.length ? history.map(a => {
+                  const kont = state.data.contacts.find(c => c.id === a.kontaktId);
+                  const kontName = kont ? [kont.vorname, kont.nachname].filter(Boolean).join(" ") : "—";
+                  return `<div class="fd-act">
+                    <div class="fd-act-dot"></div>
+                    <div class="fd-act-main">
+                      <div class="fd-act-title">${h.esc(a.title)}</div>
+                      <div class="fd-act-meta">${h.esc(h.fmtDate(a.datum))}${a.typ ? " · " + h.esc(a.typ) : ""} · ${h.esc(kontName)}</div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Aktivitäten.</div>`}
+              </div>
+            </div>
+
+            <!-- Aufgaben -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Offene Aufgaben</span>
+                <span class="fd-sec-count">${tasks.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${tasks.length ? tasks.map(t => {
+                  const kont = state.data.contacts.find(c => c.id === t.kontaktId);
+                  const kontName = kont ? [kont.vorname, kont.nachname].filter(Boolean).join(" ") : "—";
+                  const dl = h.toDate(t.deadline);
+                  const overdue = dl && dl < heute;
+                  const soon    = dl && !overdue && dl <= new Date(heute.getTime() + 7*24*60*60*1000);
+                  const dotCls  = overdue ? "fd-task-overdue" : soon ? "fd-task-soon" : "fd-task-ok";
+                  return `<div class="fd-task">
+                    <div class="fd-task-dot ${dotCls}"></div>
+                    <div>
+                      <div style="font-size:13px;font-weight:500;color:#1a2332">${h.esc(t.title)}</div>
+                      <div style="font-size:11px;color:#8896a5">${dl ? h.fmtDate(t.deadline) : "Kein Datum"} · ${h.esc(kontName)}</div>
+                    </div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine offenen Aufgaben.</div>`}
+              </div>
+            </div>
+
+          </div><!-- /linke Spalte -->
+
+          <!-- RECHTE SPALTE: TM -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+
+            <!-- Projekte -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">TM-Projekte</span>
+                <span class="fd-sec-count">${projekte.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${projekte.length ? projekte.map(p => `
+                  <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
+                    <div class="fd-proj-name">${h.esc(p.title)}</div>
+                    <div class="fd-proj-meta">
+                      ${h.projStatusBadge(p.status)}
+                      ${p.projektNr ? `<span>#${h.esc(p.projektNr)}</span>` : ""}
+                      <span>CHF ${h.chf(p.totalBetrag)}</span>
+                      <span>${p.einsaetzeCount} Einsätze</span>
+                    </div>
+                  </div>`).join("") : `<div class="fd-empty">Keine Projekte.</div>`}
+              </div>
+            </div>
+
+            <!-- Nächste Einsätze -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Nächste Einsätze</span>
+                <span class="fd-sec-count">${naechsteEinsaetze.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
+                  const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                  return `<div class="fd-einsatz">
+                    <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.esc(e.title || e.kategorie)}</div>
+                      <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
+                    </div>
+                    ${h.abrBadge(e.abrechnung)}
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine bevorstehenden Einsätze.</div>`}
+              </div>
+            </div>
+
+            <!-- Abrechnungen -->
+            <div class="fd-sec">
+              <div class="fd-sec-hd">
+                <span class="fd-sec-title">Abrechnungen</span>
+                <span class="fd-sec-count">${abrechnungen.length}</span>
+              </div>
+              <div class="fd-sec-bd">
+                ${abrechnungen.length ? abrechnungen.map(a => {
+                  const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+                  const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
+                  const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
+                  const eSum = eins.reduce((s,e) => s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+                  const kSum = konz.reduce((s,k) => s+(k.anzeigeBetrag||0),0);
+                  const sSum = (a.spesenZusatzBetrag||0) + eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
+                  return `<div class="fd-row" style="align-items:center">
+                    <div>
+                      <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
+                      <div style="font-size:11px;color:#8896a5;margin-top:2px">${abrStatusBadge(a.status)}</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
+                  </div>`;
+                }).join("") : `<div class="fd-empty">Keine Abrechnungen.</div>`}
+              </div>
+            </div>
+
+          </div><!-- /rechte Spalte -->
+
+        </div><!-- /fd-layout -->
+      `);
+    },
+
     abrechnungen() {
       const f = state.filters.abrechnungen;
 
@@ -1198,9 +1570,11 @@
                   <div class="abr-card-title" title="${h.esc(a.title)}">${h.esc(a.title || a.datumFmt)}</div>
                   <div class="abr-card-meta">
                     ${abrStatusBadge(aStat)}
+                    <span style="font-weight:600;color:#1a2332">${h.esc(firma)}</span>
+                    <span style="color:#8896a5">·</span>
+                    <span style="font-weight:500;color:#4a5568">${h.esc(proj?.title||"—")}</span>
+                    <span style="color:#8896a5">·</span>
                     <span>${h.esc(a.datumFmt)}</span>
-                    <span style="font-weight:500;color:#2c3e50">${h.esc(proj?.title||"—")}</span>
-                    <span>${h.esc(firma)}</span>
                   </div>
                 </div>
                 <div class="abr-card-right">
@@ -1249,19 +1623,30 @@
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
       if (state.form) return;
       const r = state.filters.route;
-      ui.setNav(["projekte","einsaetze","konzeption","abrechnungen"].includes(r) ? r : "projekte");
+      ui.setNav(["projekte","einsaetze","konzeption","abrechnungen","firmen"].includes(r) ? r : "projekte");
       ui.setMsg("", "");
       if (r === "projekte")       { views.projekte(); return; }
       if (r === "projekt-detail") { views.projektDetail(state.selection.projektId); return; }
       if (r === "einsaetze")      { views.einsaetze(); return; }
       if (r === "konzeption")     { views.konzeption(); return; }
       if (r === "abrechnungen")   { views.abrechnungen(); return; }
+      if (r === "firmen")         { views.firmen(); return; }
+      if (r === "firma-detail")   { views.firmaDetail(state.selection.firmaId); return; }
     },
 
     navigate(route) {
-      state.form = null;   // Formular-Lock aufheben
+      state.form = null;
       state.filters.route = route;
       if (route !== "projekt-detail") state.selection.projektId = null;
+      if (route !== "firma-detail")   state.selection.firmaId   = null;
+      this.render();
+      window.scrollTo(0, 0);
+    },
+
+    openFirma(id) {
+      state.form = null;
+      state.selection.firmaId = id;
+      state.filters.route = "firma-detail";
       this.render();
       window.scrollTo(0, 0);
     },
