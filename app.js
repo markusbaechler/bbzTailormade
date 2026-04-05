@@ -2149,9 +2149,7 @@
                   const spesen = e.spesenBerechnet || 0;
                   return `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
                     <td><input type="checkbox" class="ad-cb ad-e-cb"
-                      data-id="${e.id}"
-                      data-betrag="${betrag}"
-                      data-spesen="${spesen}"
+                      data-id="${e.id}" data-betrag="${betrag}" data-spesen="${spesen}"
                       onchange="adUpdateTotal()"></td>
                     <td class="muted">${h.esc(e.datumFmt)}</td>
                     <td style="font-weight:500">${h.esc(e.title)}</td>
@@ -2172,31 +2170,39 @@
 
           <div class="ad-divider"></div>
 
-          <!-- SEKTION 2: Spesen -->
-          <div>
-            <div class="ad-sec-hd">
-              <span class="ad-sec-lbl">Spesen</span>
-              <span class="ad-sec-total" id="ad-spesen-total-hd">${h.chf(0)}</span>
-            </div>
-            <div class="ad-spesen-info" id="ad-spesen-info">
-              <div class="ad-spesen-info-note">Wegspesen der gewählten Einsätze — werden vollständig übertragen</div>
-              <div id="ad-spesen-rows"><div class="ad-empty" style="padding:4px 0">Keine Einsätze gewählt</div></div>
-            </div>
-            <div class="ad-zusatz">
-              <span class="ad-zusatz-lbl">Zusatzspesen</span>
-              <input type="number" id="ad-spesen-zusatz-betrag" step="0.01" min="0" placeholder="CHF" style="width:100px" value="${h.esc(String(savedZusatzBetrag))}">
-              <input type="text" id="ad-spesen-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)" value="${h.esc(savedZusatzBem)}">
-            </div>
+          <!-- SEKTION 2: Konzeption Klärung nötig -->
+          ${konzKlaer.length ? `
+          <div id="ad-klaer-section">
+            <div class="ad-sec-hd"><span class="ad-sec-lbl" style="color:#b45309">Konzeption — Klärung nötig</span></div>
+            <div style="font-size:12px;color:#8896a5;margin-bottom:8px;font-style:italic">Freigabe erforderlich bevor diese Positionen verrechnet werden können</div>
+            <table class="ad-table">
+              <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th><th>Freigabe</th></tr></thead>
+              <tbody class="ad-klaer-tbody">
+                ${konzKlaer.map(k => `<tr>
+                  <td class="muted">${h.esc(k.datumFmt)}</td>
+                  <td style="font-weight:500">${h.esc(k.title)}</td>
+                  <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+                  <td class="r">${h.chf(k.anzeigeBetrag)}</td>
+                  <td>
+                    <div style="display:flex;gap:5px">
+                      <button type="button" class="ad-kl-btn verr"
+                        onclick="ctrl.klaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
+                      <button type="button" class="ad-kl-btn inkl"
+                        onclick="ctrl.klaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this,${projektId})">→ inklusive</button>
+                    </div>
+                  </td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
           </div>
+          <div class="ad-divider"></div>` : ""}
 
-          <div class="ad-divider"></div>
-
-          <!-- SEKTION 3: Konzeption -->
+          <!-- SEKTION 3: Konzeption verrechenbar -->
           <div>
-            <div class="ad-sec-hd"><span class="ad-sec-lbl">Konzeption</span></div>
+            <div class="ad-sec-hd"><span class="ad-sec-lbl">Konzeption — verrechenbar</span></div>
             <div class="ad-konz-sum">
               <div class="ad-kc">
-                <div class="ad-kc-lbl">Total</div>
+                <div class="ad-kc-lbl">Total Aufwand</div>
                 <div class="ad-kc-val">CHF ${h.chf(konzTotalBetrag)}</div>
                 <div class="ad-kc-sub">${konzTotalStd.toFixed(1)} h</div>
               </div>
@@ -2211,12 +2217,8 @@
                 <div class="ad-kc-sub">${konzKlaerStd.toFixed(1)} h</div>
               </div>
             </div>
-
             ${konzVerr.length ? `
-            <div id="ad-verr-section" style="margin-bottom:10px">
-              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a8a5e;margin-bottom:6px">
-                Verrechenbar — zur Abrechnung auswählen
-              </div>
+            <div id="ad-verr-section">
               <table class="ad-table">
                 <thead><tr>
                   <th style="width:28px"></th>
@@ -2225,8 +2227,7 @@
                 <tbody class="ad-verr-tbody">
                   ${konzVerr.map(k => `<tr>
                     <td><input type="checkbox" class="ad-cb ad-k-cb"
-                      data-id="${k.id}"
-                      data-betrag="${k.anzeigeBetrag || 0}"
+                      data-id="${k.id}" data-betrag="${k.anzeigeBetrag || 0}"
                       onchange="adUpdateTotal()"></td>
                     <td class="muted">${h.esc(k.datumFmt)}</td>
                     <td style="font-weight:500">${h.esc(k.title)}</td>
@@ -2239,49 +2240,37 @@
                 <span class="ad-subtotal-lbl">Konzeption gewählt:</span>
                 <span class="ad-subtotal-val" id="ad-konz-total">CHF 0.00</span>
               </div>
-            </div>` : `<div id="ad-verr-section" style="display:none;margin-bottom:10px">
-              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a8a5e;margin-bottom:6px">
-                Verrechenbar — zur Abrechnung auswählen
-              </div>
+            </div>` : `
+            <div id="ad-verr-section" style="display:none">
               <table class="ad-table">
-                <thead><tr>
-                  <th style="width:28px"></th>
-                  <th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th>
-                </tr></thead>
+                <thead><tr><th style="width:28px"></th><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th></tr></thead>
                 <tbody class="ad-verr-tbody"></tbody>
               </table>
               <div class="ad-subtotal">
                 <span class="ad-subtotal-lbl">Konzeption gewählt:</span>
                 <span class="ad-subtotal-val" id="ad-konz-total">CHF 0.00</span>
               </div>
-            </div>`}
+            </div>
+            ${!konzVerr.length && !konzKlaer.length ? `<div class="ad-empty">Keine verrechenbaren Konzeptionsaufwände.</div>` : ""}`}
+          </div>
 
-            ${konzKlaer.length ? `
-            <div id="ad-klaer-section">
-              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#b45309;margin-bottom:6px">
-                Klärung nötig — Freigabe erforderlich
-              </div>
-              <table class="ad-table">
-                <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th><th>Freigabe</th></tr></thead>
-                <tbody class="ad-klaer-tbody">
-                  ${konzKlaer.map(k => `<tr>
-                    <td class="muted">${h.esc(k.datumFmt)}</td>
-                    <td style="font-weight:500">${h.esc(k.title)}</td>
-                    <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-                    <td class="r">${h.chf(k.anzeigeBetrag)}</td>
-                    <td>
-                      <div style="display:flex;gap:5px">
-                        <button type="button" class="ad-kl-btn verr"
-                          onclick="ctrl.klaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
-                        <button type="button" class="ad-kl-btn inkl"
-                          onclick="ctrl.klaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this,${projektId})">→ inklusive</button>
-                      </div>
-                    </td>
-                  </tr>`).join("")}
-                </tbody>
-              </table>
-            </div>` : ""}
+          <div class="ad-divider"></div>
 
+          <!-- SEKTION 4: Spesen -->
+          <div>
+            <div class="ad-sec-hd">
+              <span class="ad-sec-lbl">Spesen</span>
+              <span class="ad-sec-total" id="ad-spesen-total-hd">CHF 0.00</span>
+            </div>
+            <div class="ad-spesen-info">
+              <div class="ad-spesen-info-note">Wegspesen der gewählten Einsätze — werden vollständig übertragen</div>
+              <div id="ad-spesen-rows"><div class="ad-empty" style="padding:4px 0">Keine Einsätze mit Wegspesen gewählt</div></div>
+            </div>
+            <div class="ad-zusatz">
+              <span class="ad-zusatz-lbl">Zusatzspesen</span>
+              <input type="number" id="ad-spesen-zusatz-betrag" step="0.01" min="0" placeholder="CHF" style="width:100px" value="${h.esc(String(savedZusatzBetrag))}">
+              <input type="text" id="ad-spesen-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)" value="${h.esc(savedZusatzBem)}">
+            </div>
           </div>
 
         </div><!-- /ad-bd -->
@@ -2295,7 +2284,7 @@
           <div style="display:flex;gap:8px">
             <button type="button" class="ad-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="ad-btn-s" id="ad-btn-abrechnen"
-              onclick="ctrl.abrechnenSpeichern(${projektId})">Abrechnen</button>
+              onclick="ctrl.abrechnenVorbereiten(${projektId})">Abrechnen</button>
           </div>
         </div>
       </div>`);
@@ -2356,42 +2345,124 @@
       }
     },
 
-    // Abrechnen: gewählte Einsätze + verrechenbare Konzeption → abgerechnet
-    async abrechnenSpeichern(projektId) {
-      const btn = document.getElementById("ad-btn-abrechnen");
-      if (btn) btn.disabled = true;
+    // Schritt 1: Summary-Modal zeigen bevor gespeichert wird
+    abrechnenVorbereiten(projektId) {
+      const p = state.enriched.projekte.find(p => p.id === projektId);
 
+      // Aktuelle Auswahl aus DOM lesen
+      const checkedIds     = [...document.querySelectorAll(".ad-e-cb:checked")].map(cb => Number(cb.dataset.id));
+      const checkedKonzIds = [...document.querySelectorAll(".ad-k-cb:checked")].map(cb => Number(cb.dataset.id));
+      const zusatzBetrag   = h.num(document.getElementById("ad-spesen-zusatz-betrag")?.value);
+      const zusatzBem      = (document.getElementById("ad-spesen-zusatz-bem")?.value || "").trim();
+
+      const einsaetze  = state.enriched.einsaetze.filter(e => checkedIds.includes(e.id));
+      const konzeption = state.enriched.konzeption.filter(k => checkedKonzIds.includes(k.id));
+      const spesen     = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
+
+      const totalEinsatz = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
+      const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenBerechnet || 0), 0) + (zusatzBetrag || 0);
+      const totalKonz    = konzeption.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const grandTotal   = totalEinsatz + totalSpesen + totalKonz;
+
+      // Summary-Modal über das bestehende Modal legen
+      const summaryHtml = `<style>
+        .sm-bd{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;animation:efUp .2s cubic-bezier(.16,1,.3,1)}
+        .sm-hd{background:#004078;padding:14px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .sm-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .sm-body{overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+        .sm-sec{background:#f4f7fb;border-radius:8px;padding:10px 14px}
+        .sm-sec-t{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5;margin-bottom:8px}
+        .sm-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid #f0f4f8}
+        .sm-row:last-child{border-bottom:none}
+        .sm-row .lbl{color:#4a5568}
+        .sm-row .val{font-weight:600;color:#1a2332}
+        .sm-total{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:#004078;border-radius:8px}
+        .sm-total-lbl{color:rgba(255,255,255,.7);font-size:12px}
+        .sm-total-val{color:#fff;font-size:18px;font-weight:700}
+        .sm-ft{padding:12px 20px 16px;border-top:1px solid #dde4ec;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0}
+        .sm-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .sm-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(29,158,117,.3)}
+        .sm-btn-s:hover{background:#0F6E56}
+        .sm-empty{font-size:12px;color:#8896a5;font-style:italic}
+      </style>
+      <div class="sm-bd">
+        <div class="sm-hd">
+          <span class="sm-hd-t">Zusammenfassung Abrechnung</span>
+        </div>
+        <div class="sm-body">
+          <div class="sm-sec">
+            <div class="sm-sec-t">Konzeption (${konzeption.length} Position${konzeption.length !== 1 ? "en" : ""})</div>
+            ${konzeption.length ? konzeption.map(k => `
+              <div class="sm-row"><span class="lbl">${h.esc(k.datumFmt)} · ${h.esc(k.title)}</span><span class="val">CHF ${h.chf(k.anzeigeBetrag)}</span></div>`).join("") :
+              `<div class="sm-empty">Keine Konzeptionsaufwände gewählt</div>`}
+            ${konzeption.length ? `<div class="sm-row" style="font-weight:700"><span class="lbl">Total Konzeption</span><span class="val" style="color:#1a8a5e">CHF ${h.chf(totalKonz)}</span></div>` : ""}
+          </div>
+          <div class="sm-sec">
+            <div class="sm-sec-t">Einsätze (${einsaetze.length} Position${einsaetze.length !== 1 ? "en" : ""})</div>
+            ${einsaetze.length ? einsaetze.map(e => `
+              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · ${h.esc(e.title || e.kategorie)}</span><span class="val">CHF ${h.chf(h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0)}</span></div>`).join("") :
+              `<div class="sm-empty">Keine Einsätze gewählt</div>`}
+            ${einsaetze.length ? `<div class="sm-row" style="font-weight:700"><span class="lbl">Total Einsätze</span><span class="val" style="color:#004078">CHF ${h.chf(totalEinsatz)}</span></div>` : ""}
+          </div>
+          <div class="sm-sec">
+            <div class="sm-sec-t">Spesen</div>
+            ${spesen.length ? spesen.map(e => `
+              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · Wegspesen</span><span class="val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`).join("") : ""}
+            ${zusatzBetrag ? `<div class="sm-row"><span class="lbl">${h.esc(zusatzBem || "Zusatzspesen")}</span><span class="val">CHF ${h.chf(zusatzBetrag)}</span></div>` : ""}
+            ${!spesen.length && !zusatzBetrag ? `<div class="sm-empty">Keine Spesen</div>` : ""}
+            ${(spesen.length || zusatzBetrag) ? `<div class="sm-row" style="font-weight:700"><span class="lbl">Total Spesen</span><span class="val" style="color:#004078">CHF ${h.chf(totalSpesen)}</span></div>` : ""}
+          </div>
+          <div class="sm-total">
+            <span class="sm-total-lbl">Gesamttotal</span>
+            <span class="sm-total-val">CHF ${h.chf(grandTotal)}</span>
+          </div>
+        </div>
+        <div class="sm-ft">
+          <button type="button" class="sm-btn-c" onclick="document.getElementById('ad-summary-overlay').remove()">← Zurück</button>
+          <button type="button" class="sm-btn-s" onclick="document.getElementById('ad-summary-overlay').remove();ctrl.abrechnenSpeichern(${projektId},${JSON.stringify(checkedIds)},${JSON.stringify(checkedKonzIds)},${zusatzBetrag ?? "null"},'${h.esc(zusatzBem)}')">
+            ✓ Bestätigen &amp; herunterladen
+          </button>
+        </div>
+      </div>`;
+
+      // Summary als Overlay über dem Backdrop
+      let overlay = document.getElementById("ad-summary-overlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "ad-summary-overlay";
+        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px";
+        document.body.appendChild(overlay);
+      }
+      overlay.innerHTML = summaryHtml;
+    },
+
+    // Schritt 2: Speichern (wird aus Summary-Modal aufgerufen)
+    async abrechnenSpeichern(projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem) {
+      ui.setMsg("Wird gespeichert…", "info");
       try {
-        ui.setMsg("Wird gespeichert…", "info");
         const p = state.enriched.projekte.find(p => p.id === projektId);
 
-        // 1. Neue Abrechnung in AbrechnungenTM anlegen
-        const datum    = new Date().toISOString().split("T")[0];
-        const titel    = `Abrechnung · ${p?.title || projektId} · ${new Date().toLocaleDateString("de-CH",{month:"2-digit",year:"numeric"})}`;
-        const zusatzBetrag = h.num(document.getElementById("ad-spesen-zusatz-betrag")?.value);
-        const zusatzBem    = (document.getElementById("ad-spesen-zusatz-bem")?.value || "").trim();
-
-        const abrCr = await api.post(CONFIG.lists.abrechnungen, titel);
-        const abrId = Number(abrCr?.id || abrCr?.fields?.id);
+        // 1. Abrechnung anlegen
+        const datum  = new Date().toISOString().split("T")[0];
+        const titel  = `Abrechnung · ${p?.title || projektId} · ${new Date().toLocaleDateString("de-CH",{month:"2-digit",year:"numeric"})}`;
+        const abrCr  = await api.post(CONFIG.lists.abrechnungen, titel);
+        const abrId  = Number(abrCr?.id || abrCr?.fields?.id);
         if (!abrId) throw new Error("Abrechnung-ID fehlt.");
 
-        // Abrechnung-Felder setzen
         const abrFields = { Datum: datum + "T12:00:00Z", Status: "erstellt" };
-        if (zusatzBetrag !== null) abrFields.SpesenZusatzBetrag = zusatzBetrag;
-        if (zusatzBem)             abrFields.SpesenZusatzBemerkung = zusatzBem;
+        if (zusatzBetrag !== null && zusatzBetrag !== undefined) abrFields.SpesenZusatzBetrag = zusatzBetrag;
+        if (zusatzBem)  abrFields.SpesenZusatzBemerkung = zusatzBem;
         await api.patch(CONFIG.lists.abrechnungen, abrId, abrFields);
         await api.patchLookups(CONFIG.lists.abrechnungen, abrId, { [F.abr_projekt_w]: projektId });
 
-        // 2. Gewählte Einsätze abrechnen — allSettled für Teilfehler-Tracking
-        const checkedIds = [...document.querySelectorAll(".ad-e-cb:checked")].map(cb => Number(cb.dataset.id));
+        // 2. Einsätze abrechnen
         const einsatzResults = await Promise.allSettled(checkedIds.map(async eid => {
           await api.patch(CONFIG.lists.einsaetze, eid, { Abrechnung: "abgerechnet" });
           await api.patchLookups(CONFIG.lists.einsaetze, eid, { [F.abrechnung_w]: abrId });
         }));
         const einsatzFehler = einsatzResults.filter(r => r.status === "rejected").length;
 
-        // 3. Gewählte Konzeption abrechnen (nur gecheckte)
-        const checkedKonzIds = [...document.querySelectorAll(".ad-k-cb:checked")].map(cb => Number(cb.dataset.id));
+        // 3. Konzeption abrechnen
         const konzResults = await Promise.allSettled(checkedKonzIds.map(async kid => {
           await api.patch(CONFIG.lists.konzeption, kid, { Abrechnung: "abgerechnet" });
           await api.patchLookups(CONFIG.lists.konzeption, kid, { [F.abrechnung_w]: abrId });
@@ -2400,22 +2471,21 @@
 
         ui.closeModal();
         const fehlerMsg = (einsatzFehler + konzFehler) > 0
-          ? ` ⚠ ${einsatzFehler + konzFehler} Fehler — betroffene Einträge manuell prüfen.`
-          : "";
+          ? ` ⚠ ${einsatzFehler + konzFehler} Fehler — betroffene Einträge manuell prüfen.` : "";
         ui.setMsg(`Abrechnung erstellt — ${checkedIds.length - einsatzFehler} Einsätze, ${checkedKonzIds.length - konzFehler} Konzeptionsaufwände.${fehlerMsg}`, fehlerMsg ? "warning" : "success");
         await api.loadAll();
         ctrl.render();
-        // PDF generieren (nach loadAll damit enriched aktuell ist)
+
+        // PDF generieren
         try {
           await ctrl.generateAbrechnungPDF(projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem);
         } catch(pdfErr) {
           debug.err("generateAbrechnungPDF", pdfErr);
-          ui.setMsg("Abrechnung gespeichert — PDF-Generierung fehlgeschlagen: " + pdfErr.message, "warning");
+          ui.setMsg("Abrechnung gespeichert — PDF fehlgeschlagen: " + pdfErr.message, "warning");
         }
       } catch(e) {
         debug.err("abrechnenSpeichern", e);
         ui.setMsg("Fehler: " + e.message, "error");
-        if (btn) btn.disabled = false;
       }
     },
     // ── PDF-Generierung ──────────────────────────────────────────────────
@@ -2499,14 +2569,39 @@
 
       let y = 58;
 
-      // ── SEKTION: EINSÄTZE ────────────────────────────────────────────
+      // ── SEKTION 1: KONZEPTION ────────────────────────────────────────
+      if (konzeption.length) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(BLUE);
+        doc.text("Konzeption", ML, y);
+        y += 3;
+        doc.autoTable({
+          startY: y,
+          margin: { left: ML, right: MR },
+          headStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          alternateRowStyles: { fillColor: [245, 248, 251] },
+          columnStyles: { 2: { halign: "right" }, 3: { halign: "right" } },
+          head: [["Datum", "Beschreibung", "Stunden", "Betrag CHF"]],
+          body: konzeption.map(k => [
+            k.datumFmt, k.title || "—",
+            k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—",
+            h.chf(k.anzeigeBetrag)
+          ]),
+          foot: [["", "Total Konzeption", "", h.chf(konzTotal)]],
+          footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+
+      // ── SEKTION 2: EINSÄTZE ──────────────────────────────────────────
       if (einsaetze.length) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(BLUE);
-        doc.text("Einsätze", ML, y);
+        doc.text("Eins\u00e4tze", ML, y);
         y += 3;
-
         doc.autoTable({
           startY: y,
           margin: { left: ML, right: MR },
@@ -2516,36 +2611,32 @@
           columnStyles: { 4: { halign: "right" } },
           head: [["Datum", "Beschreibung", "Kategorie", "Person", "Betrag CHF"]],
           body: einsaetze.map(e => [
-            e.datumFmt,
-            e.title || "—",
-            e.kategorie,
+            e.datumFmt, e.title || "—", e.kategorie,
             e.personName + (e.coPersonName && e.coPersonName !== "—" ? "\nCo: " + e.coPersonName : ""),
             h.chf((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0))
           ]),
-          foot: [["", "", "", "Total Einsätze", h.chf(einsatzTotal)]],
+          foot: [["", "", "", "Total Eins\u00e4tze", h.chf(einsatzTotal)]],
           footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
         });
         y = doc.lastAutoTable.finalY + 8;
       }
 
-      // ── SEKTION: SPESEN ──────────────────────────────────────────────
+      // ── SEKTION 3: SPESEN ────────────────────────────────────────────
       if (spesenEinsaetze.length || spesenZusatzBetrag) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(BLUE);
         doc.text("Spesen", ML, y);
         y += 3;
-
         const spesenRows = spesenEinsaetze.map(e => [
           e.datumFmt,
-          (e.title || e.kategorie) + " — " + h.esc(p.firmaName),
+          (e.title || e.kategorie) + " \u2014 " + (p.firmaName || ""),
           "Wegspesen",
           h.chf(e.spesenBerechnet)
         ]);
         if (spesenZusatzBetrag) {
           spesenRows.push([datum, spesenZusatzBem || "Zusatzspesen", "Spesen", h.chf(spesenZusatzBetrag)]);
         }
-
         doc.autoTable({
           startY: y,
           margin: { left: ML, right: MR },
@@ -2556,34 +2647,6 @@
           head: [["Datum", "Beschreibung", "Art", "Betrag CHF"]],
           body: spesenRows,
           foot: [["", "", "Total Spesen", h.chf(spesenGes)]],
-          footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
-        });
-        y = doc.lastAutoTable.finalY + 8;
-      }
-
-      // ── SEKTION: KONZEPTION ──────────────────────────────────────────
-      if (konzeption.length) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(BLUE);
-        doc.text("Konzeption", ML, y);
-        y += 3;
-
-        doc.autoTable({
-          startY: y,
-          margin: { left: ML, right: MR },
-          headStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold" },
-          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
-          alternateRowStyles: { fillColor: [245, 248, 251] },
-          columnStyles: { 2: { halign: "right" }, 3: { halign: "right" } },
-          head: [["Datum", "Beschreibung", "Stunden", "Betrag CHF"]],
-          body: konzeption.map(k => [
-            k.datumFmt,
-            k.title || "—",
-            k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—",
-            h.chf(k.anzeigeBetrag)
-          ]),
-          foot: [["", "Total Konzeption", "", h.chf(konzTotal)]],
           footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
         });
         y = doc.lastAutoTable.finalY + 8;
