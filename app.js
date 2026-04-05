@@ -488,7 +488,7 @@
       coBetragFinal:     h.num(raw.CoBetragFinal),
       verrechenbar:    raw.Verrechenbar || "",
       abrechnung:      raw.Abrechnung || "offen",
-      abrechnungLookupId: h.rdLookup(raw, F.abrechnung_r),
+      abrechnungLookupId: h.rdLookup(raw, F.konz_abrechnung_r),
       bemerkungen:     raw.Bemerkungen || ""
     };
     k.datumFmt      = h.fmtDate(k.datum);
