@@ -2213,7 +2213,7 @@
             </div>
 
             ${konzVerr.length ? `
-            <div style="margin-bottom:10px">
+            <div id="ad-verr-section" style="margin-bottom:10px">
               <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a8a5e;margin-bottom:6px">
                 Verrechenbar — zur Abrechnung auswählen
               </div>
@@ -2222,7 +2222,7 @@
                   <th style="width:28px"></th>
                   <th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th>
                 </tr></thead>
-                <tbody>
+                <tbody class="ad-verr-tbody">
                   ${konzVerr.map(k => `<tr>
                     <td><input type="checkbox" class="ad-cb ad-k-cb"
                       data-id="${k.id}"
@@ -2239,16 +2239,31 @@
                 <span class="ad-subtotal-lbl">Konzeption gewählt:</span>
                 <span class="ad-subtotal-val" id="ad-konz-total">CHF 0.00</span>
               </div>
-            </div>` : ""}
+            </div>` : `<div id="ad-verr-section" style="display:none;margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a8a5e;margin-bottom:6px">
+                Verrechenbar — zur Abrechnung auswählen
+              </div>
+              <table class="ad-table">
+                <thead><tr>
+                  <th style="width:28px"></th>
+                  <th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th>
+                </tr></thead>
+                <tbody class="ad-verr-tbody"></tbody>
+              </table>
+              <div class="ad-subtotal">
+                <span class="ad-subtotal-lbl">Konzeption gewählt:</span>
+                <span class="ad-subtotal-val" id="ad-konz-total">CHF 0.00</span>
+              </div>
+            </div>`}
 
             ${konzKlaer.length ? `
-            <div>
+            <div id="ad-klaer-section">
               <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#b45309;margin-bottom:6px">
                 Klärung nötig — Freigabe erforderlich
               </div>
               <table class="ad-table">
                 <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th><th>Freigabe</th></tr></thead>
-                <tbody>
+                <tbody class="ad-klaer-tbody">
                   ${konzKlaer.map(k => `<tr>
                     <td class="muted">${h.esc(k.datumFmt)}</td>
                     <td style="font-weight:500">${h.esc(k.title)}</td>
@@ -2284,24 +2299,60 @@
           </div>
         </div>
       </div>`);
+      // Initial-Update: Spesen-Box befüllen (auch wenn noch nichts gewählt)
+      setTimeout(() => { if (window.adUpdateTotal) adUpdateTotal(); }, 0);
     },
-
-    // Konzeption Klärung-Entscheid: direkt in SP schreiben
+    // Konzeption Klärung-Entscheid: SP patchen + DOM lokal aktualisieren
+    // Kein Modal-Reload — gecheckte Checkboxen bleiben erhalten
     async klaerungEntscheid(konzId, neuerWert, btn, projektId) {
+      const row = btn.closest("tr");
       try {
         btn.disabled = true;
-        // Zusatzspesen-Werte vor Re-Render sichern
-        const zusatzBetrag = h.num(document.getElementById("ad-spesen-zusatz-betrag")?.value);
-        const zusatzBem    = (document.getElementById("ad-spesen-zusatz-bem")?.value || "").trim();
+        if (row) row.style.opacity = "0.5";
+
         await api.patch(CONFIG.lists.konzeption, konzId, { Verrechenbar: neuerWert });
-        await api.loadAll();
+
+        // State lokal updaten (kein loadAll nötig)
+        const k = state.enriched.konzeption.find(k => k.id === konzId);
+        if (k) k.verrechenbar = neuerWert;
+
+        // DOM: Zeile aus Klärung-Tabelle entfernen
+        if (row) row.remove();
+
+        // Falls verrechenbar: neue Zeile in Verrechenbar-Tabelle einfügen
+        if (neuerWert === "verrechenbar" && k) {
+          const verrTbody = document.querySelector(".ad-verr-tbody");
+          if (verrTbody) {
+            const newRow = document.createElement("tr");
+            newRow.innerHTML = `
+              <td><input type="checkbox" class="ad-cb ad-k-cb"
+                data-id="${k.id}" data-betrag="${k.anzeigeBetrag || 0}"
+                onchange="adUpdateTotal()"></td>
+              <td class="muted">${h.esc(k.datumFmt)}</td>
+              <td style="font-weight:500">${h.esc(k.title)}</td>
+              <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+              <td class="r">${h.chf(k.anzeigeBetrag)}</td>`;
+            verrTbody.appendChild(newRow);
+            // Verrechenbar-Tabelle einblenden falls vorher leer
+            const verrSection = document.getElementById("ad-verr-section");
+            if (verrSection) verrSection.style.display = "";
+          }
+        }
+
+        // Klärung-Sektion ausblenden wenn keine Zeilen mehr
+        const klaerTbody = document.querySelector(".ad-klaer-tbody");
+        if (klaerTbody && klaerTbody.querySelectorAll("tr").length === 0) {
+          const klaerSection = document.getElementById("ad-klaer-section");
+          if (klaerSection) klaerSection.style.display = "none";
+        }
+
+        adUpdateTotal();
         ui.setMsg(`Freigabe gesetzt: ${neuerWert}`, "success");
-        // Dialog mit gespeicherten Zusatzspesen-Werten neu öffnen
-        ctrl.openAbrechnungDialog(projektId, { zusatzBetrag, zusatzBem });
       } catch(e) {
         debug.err("klaerungEntscheid", e);
         ui.setMsg("Fehler: " + e.message, "error");
         btn.disabled = false;
+        if (row) row.style.opacity = "";
       }
     },
 
