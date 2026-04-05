@@ -2045,8 +2045,13 @@
         .filter(k => k.verrechenbar === "Klärung nötig")
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
-      // Wegspesen-Aufstellung: Einsätze mit spesenBerechnet > 0
-      const spesenEinsaetze = einsaetze.filter(e => e.spesenBerechnet > 0);
+      // Wegspesen-Aufstellung: ALLE offenen Einsätze des Projekts mit Wegspesen
+      // (unabhängig von Einsatz-Checkbox — Spesen kommen immer aufs Abrechnung)
+      const alleOffenenEinsaetze = state.enriched.einsaetze
+        .filter(e => e.projektLookupId === projektId)
+        .filter(e => e.einsatzStatus !== "abgesagt")
+        .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung));
+      const spesenEinsaetze = alleOffenenEinsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
       const spesenTotal = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
 
       // Konzeption-Totals (alle, unabhängig vom Filter)
@@ -2232,8 +2237,7 @@
           <div style="display:flex;gap:8px">
             <button type="button" class="ad-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="ad-btn-s" id="ad-btn-abrechnen"
-              onclick="ctrl.abrechnenSpeichern(${projektId})"
-              disabled>Gewählte abrechnen</button>
+              onclick="ctrl.abrechnenSpeichern(${projektId})">Abrechnen</button>
           </div>
         </div>
       </div>`);
@@ -2342,8 +2346,12 @@
         .filter(k => k.verrechenbar === "verrechenbar")
         .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung));
 
-      // Spesen
-      const spesenEinsaetze = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
+      // Spesen: alle offenen Einsätze des Projekts mit Wegspesen (unabhängig von Checkbox)
+      const alleOffenPDF = state.enriched.einsaetze
+        .filter(e => e.projektLookupId === projektId)
+        .filter(e => e.einsatzStatus !== "abgesagt")
+        .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung));
+      const spesenEinsaetze = alleOffenPDF.filter(e => (e.spesenBerechnet || 0) > 0);
       const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
 
       // Totals
@@ -2965,8 +2973,6 @@
     const el2 = document.getElementById("ad-ft-einsatz");
     if (el1) el1.textContent = "CHF " + fmt;
     if (el2) el2.textContent = "CHF " + fmt;
-    const btn = document.getElementById("ad-btn-abrechnen");
-    if (btn) btn.disabled = total === 0;
   };
 
   document.addEventListener("DOMContentLoaded", boot);
