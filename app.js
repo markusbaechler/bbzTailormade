@@ -142,7 +142,7 @@
     filters: {
       route:        "projekte",
       projekte:     { search: "", status: "" },
-      einsaetze:    { search: "", abrechnung: "", einsatzStatus: "" },
+      einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
       konzeption:   { search: "", verrechenbar: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
@@ -1045,48 +1045,125 @@
 
     einsaetze() {
       const f = state.filters.einsaetze;
-      let list = [...state.enriched.einsaetze];
-      if (f.search)        list = list.filter(e => h.inc(e.title, f.search) || h.inc(e.projektTitle, f.search));
-      if (f.abrechnung)    list = list.filter(e => e.abrechnung === f.abrechnung);
-      if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus === f.einsatzStatus);
+
+      // ── Build filter options from full dataset (before filtering) ──────────
+      const all = state.enriched.einsaetze;
+
+      const jahre = [...new Set(all.map(e => e.datum ? new Date(e.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
+      const projekte = [...new Map(all.map(e => [e.projektLookupId, e.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
+      const firmen  = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
+      const personen = [...new Set([
+        ...all.map(e=>e.personName).filter(n=>n&&n!=="—"),
+        ...all.map(e=>e.coPersonName).filter(n=>n&&n!=="—")
+      ])].sort();
+      const projNummern = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.projektNr||""; }).filter(Boolean))].sort();
+
+      // ── Apply filters ──────────────────────────────────────────────────────
+      let list = [...all];
+      if (f.search)        list = list.filter(e => h.inc(e.title,f.search)||h.inc(e.projektTitle,f.search)||h.inc(e.personName,f.search)||h.inc(e.coPersonName,f.search));
+      if (f.jahr)          list = list.filter(e => e.datum && new Date(e.datum).getFullYear() === +f.jahr);
+      if (f.projekt)       list = list.filter(e => e.projektLookupId === +f.projekt);
+      if (f.firma)         list = list.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.projektNr)     list = list.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.projektNr===f.projektNr; });
+      if (f.abrechnung)    list = list.filter(e => e.abrechnung===f.abrechnung);
+      if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus===f.einsatzStatus);
+      if (f.person)        list = list.filter(e => e.personName===f.person || e.coPersonName===f.person);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
 
+      const hasFilter = f.search||f.jahr||f.projekt||f.firma||f.projektNr||f.abrechnung||f.einsatzStatus||f.person;
+
+      // ── Chip helper ────────────────────────────────────────────────────────
+      const chips = (key, opts, allLabel) => opts.map(([val,lbl]) => {
+        const active = f[key] === String(val);
+        return `<button class="ef-chip${active?" ef-chip-active":""}" onclick="state.filters.einsaetze['${key}']=state.filters.einsaetze['${key}']===${JSON.stringify(String(val))}?'':${JSON.stringify(String(val))};ctrl.render()">${h.esc(lbl)}</button>`;
+      }).join("");
+
+      // ── Summaries ──────────────────────────────────────────────────────────
+      const totalBetrag = list.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>(s+(e.anzeigeBetrag||0)),0);
+
       ui.render(`
+        <style>
+          .ef-dataschnitt{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
+          .ef-ds-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+          .ef-ds-label{font-size:10px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;min-width:64px}
+          .ef-chip{font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);cursor:pointer;transition:all .15s;line-height:1.6;white-space:nowrap}
+          .ef-chip:hover{border-color:var(--tm-blue);color:var(--tm-blue)}
+          .ef-chip-active{background:var(--tm-blue)!important;color:#fff!important;border-color:var(--tm-blue)!important;font-weight:600}
+          .ef-reset{font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--tm-red);color:var(--tm-red);background:transparent;cursor:pointer;margin-left:auto;white-space:nowrap}
+          .ef-reset:hover{background:var(--tm-red);color:#fff}
+          .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:5px 10px;font-size:12px;background:var(--tm-bg);color:var(--tm-text);width:100%;max-width:280px;outline:none}
+          .ef-search:focus{border-color:var(--tm-blue)}
+          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
+          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:4px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1}
+          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s}
+          .ef-tbl tbody tr:hover{background:var(--tm-surface)}
+          .ef-tbl tbody tr.cancelled{opacity:.55}
+          .ef-tbl td{padding:3px 8px;vertical-align:middle;line-height:1.3}
+          .ef-td-date{white-space:nowrap;color:var(--tm-text-muted);font-size:11px;font-variant-numeric:tabular-nums;min-width:68px}
+          .ef-td-title{font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .ef-td-proj{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+          .ef-td-firma{color:var(--tm-text-muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+          .ef-td-nr{color:var(--tm-text-muted);font-size:10px;white-space:nowrap}
+          .ef-td-kat{color:var(--tm-text-muted);font-size:10px;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+          .ef-td-person{font-size:11px;white-space:nowrap}
+          .ef-td-chf{text-align:right;font-variant-numeric:tabular-nums;font-size:11px;white-space:nowrap;color:var(--tm-blue);font-weight:600}
+          .ef-td-actions{white-space:nowrap;text-align:right}
+          .ef-summary{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--tm-text-muted);padding:4px 2px}
+          .ef-summary strong{color:var(--tm-blue);font-variant-numeric:tabular-nums}
+        </style>
+
         <div class="tm-page-header">
-          <div><div class="tm-page-title">Alle Einsätze</div><div class="tm-page-meta">${list.length} Einträge</div></div>
+          <div><div class="tm-page-title">Alle Einsätze</div></div>
           <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button></div>
         </div>
-        <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
-          <select onchange="state.filters.einsaetze.abrechnung=this.value;ctrl.render()">
-            <option value="">Abrechnung: alle</option>
-            ${state.choices.einsatzAbrechnung.map(s => `<option value="${s}" ${f.abrechnung===s?"selected":""}>${s}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.einsaetze.einsatzStatus=this.value;ctrl.render()">
-            <option value="">Status: alle</option>
-            ${["geplant","durchgefuehrt","abgesagt","abgesagt-chf"].map(s => `<option value="${s}" ${f.einsatzStatus===s?"selected":""}>${{geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[s]}</option>`).join("")}
-          </select>
+
+        <div class="ef-dataschnitt">
+          <div class="ef-ds-row">
+            <span class="ef-ds-label">Suche</span>
+            <input class="ef-search" type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
+            ${hasFilter ? `<button class="ef-reset" onclick="state.filters.einsaetze={search:'',abrechnung:'',einsatzStatus:'',jahr:'',projekt:'',firma:'',projektNr:'',person:''};ctrl.render()">✕ Filter zurücksetzen</button>` : ""}
+          </div>
+          ${jahre.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Jahr</span>${chips("jahr", jahre.map(j=>[j,j]), "Alle")}</div>` : ""}
+          ${firmen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Firma</span>${chips("firma", firmen.map(n=>[n,n]), "Alle")}</div>` : ""}
+          ${projekte.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Projekt</span>${chips("projekt", projekte.map(([id,t])=>[id,t]), "Alle")}</div>` : ""}
+          ${projNummern.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Proj.-Nr.</span>${chips("projektNr", projNummern.map(n=>[n,"#"+n]), "Alle")}</div>` : ""}
+          <div class="ef-ds-row"><span class="ef-ds-label">Status</span>${chips("einsatzStatus",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]],"Alle")}</div>
+          <div class="ef-ds-row"><span class="ef-ds-label">Abrechnung</span>${chips("abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),"Alle")}</div>
+          ${personen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Person</span>${chips("person", personen.map(n=>[n,n.split(" ").pop()]), "Alle")}</div>` : ""}
         </div>
-        ${list.length ? `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Projekt / Firma</th><th>Kategorie</th><th>Person</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
+
+        <div class="ef-summary">
+          <span><strong>${list.length}</strong> Einsätze</span>
+          <span>·</span>
+          <span>Total <strong>CHF ${h.chf(totalBetrag)}</strong></span>
+        </div>
+
+        ${list.length ? `<div class="tm-table-wrap"><table class="ef-tbl">
+          <thead><tr>
+            <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th><th></th>
+          </tr></thead>
           <tbody>${list.map(e => {
             const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-            return `<tr class="${["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)?"cancelled":""}">
-              <td class="tm-nowrap">${h.esc(e.datumFmt)}</td>
-              <td style="font-weight:500">${h.esc(e.title)}</td>
-              <td><div style="font-weight:500">${h.esc(e.projektTitle)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(proj?.firmaName||"")}</div></td>
-              <td class="tm-muted">${h.esc(e.kategorie)}</td>
-              <td class="tm-muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName !== "—" ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.esc(e.coPersonName)}</div>` : ""}</td>
-              <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}${e.coAnzeigeBetrag !== null && e.coAnzeigeBetrag !== undefined ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.chf(e.coAnzeigeBetrag)}</div>` : ""}</td>
+            const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+            return `<tr class="${isCancelled?"cancelled":""}">
+              <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
+              <td class="ef-td-title" title="${h.esc(e.title)}">${h.esc(e.title)}</td>
+              <td class="ef-td-proj" title="${h.esc(e.projektTitle)}">${h.esc(e.projektTitle)}</td>
+              <td class="ef-td-firma" title="${h.esc(proj?.firmaName||"")}">${h.esc(proj?.firmaName||"—")}</td>
+              <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
+              <td class="ef-td-kat" title="${h.esc(e.kategorie)}">${h.esc(e.kategorie)}</td>
+              <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="color:var(--tm-text-muted);font-size:10px"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
+              <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
               <td>${h.statusBadge(e)}</td>
               <td>${h.abrBadge(e.abrechnung)}</td>
-              <td><div class="tm-actions">
-                <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎</button>
-                <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}">⧉</button>
+              <td class="ef-td-actions"><div class="tm-actions">
+                <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}" title="Bearbeiten">✎</button>
+                <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
                 <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" title="Löschen" style="color:var(--tm-red)">🗑</button>
               </div></td>
             </tr>`;
-          }).join("")}</tbody></table></div>` : ui.empty("Keine Einsätze gefunden.")}
+          }).join("")}</tbody>
+        </table></div>` : ui.empty("Keine Einsätze gefunden.")}
       `);
     },
 
