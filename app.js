@@ -2021,51 +2021,45 @@
     },
 
     // ── Abrechnungsdialog ─────────────────────────────────────────────────
-    openAbrechnungDialog(projektId) {
+    openAbrechnungDialog(projektId, opts = {}) {
       const p = state.enriched.projekte.find(p => p.id === projektId);
       if (!p) return;
 
-      // Einsätze: offen oder zur Abrechnung, nicht «abgesagt» (aber abgesagt-chf ja)
+      // Einsätze: offen, nicht abgesagt
       const einsaetze = state.enriched.einsaetze
         .filter(e => e.projektLookupId === projektId)
         .filter(e => e.einsatzStatus !== "abgesagt")
         .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung))
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
-      // Konzeption: verrechenbar + offen/zur Abrechnung
-      const konzeption = state.enriched.konzeption
+      // Konzeption verrechenbar — Checkboxen
+      const konzVerr = state.enriched.konzeption
         .filter(k => k.projektLookupId === projektId)
         .filter(k => k.verrechenbar === "verrechenbar")
         .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung))
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
-      // Konzeption Klärung nötig — zur Beurteilung
-      const konzKlaerung = state.enriched.konzeption
+      // Konzeption Klärung nötig — Freigabe-Buttons
+      const konzKlaer = state.enriched.konzeption
         .filter(k => k.projektLookupId === projektId)
         .filter(k => k.verrechenbar === "Klärung nötig")
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
-      // Wegspesen-Aufstellung: ALLE offenen Einsätze des Projekts mit Wegspesen
-      // (unabhängig von Einsatz-Checkbox — Spesen kommen immer aufs Abrechnung)
-      const alleOffenenEinsaetze = state.enriched.einsaetze
-        .filter(e => e.projektLookupId === projektId)
-        .filter(e => e.einsatzStatus !== "abgesagt")
-        .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung));
-      const spesenEinsaetze = alleOffenenEinsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
-      const spesenTotal = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
-
-      // Konzeption-Totals (alle, unabhängig vom Filter)
-      const konzAlle = state.enriched.konzeption.filter(k => k.projektLookupId === projektId);
+      // Konzeption-Totals
+      const konzAlle     = state.enriched.konzeption.filter(k => k.projektLookupId === projektId);
       const konzTotalBetrag = konzAlle.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
       const konzVerrBetrag  = konzAlle.filter(k => k.verrechenbar === "verrechenbar").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
       const konzKlaerBetrag = konzAlle.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
-      const konzInklBetrag  = konzAlle.filter(k => k.verrechenbar === "Inklusive (ohne Verrechnung)").reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
       const konzTotalStd    = konzAlle.reduce((s,k) => s + (k.aufwandStunden || 0), 0);
       const konzVerrStd     = konzAlle.filter(k => k.verrechenbar === "verrechenbar").reduce((s,k) => s + (k.aufwandStunden || 0), 0);
       const konzKlaerStd    = konzAlle.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k) => s + (k.aufwandStunden || 0), 0);
 
+      // Gespeicherte Zusatzspesen-Werte (erhalten bei Re-Render nach Klärung-Entscheid)
+      const savedZusatzBetrag = opts.zusatzBetrag ?? "";
+      const savedZusatzBem    = opts.zusatzBem ?? "";
+
       ui.renderModal(`<style>
-        .ad-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:860px;max-height:92vh;display:flex;flex-direction:column;animation:adUp .25s cubic-bezier(.16,1,.3,1)}
+        .ad-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;animation:adUp .25s cubic-bezier(.16,1,.3,1)}
         @keyframes adUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
         .ad-hd{background:#004078;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:20px 20px 0 0}
         .ad-hd-t{color:#fff;font-size:15px;font-weight:700}
@@ -2073,53 +2067,57 @@
         .ad-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
         .ad-cl:hover{background:rgba(255,255,255,.2)}
         .ad-bd{overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:22px}
-        .ad-sec-t{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
-        .ad-sec-t span{font-size:13px;font-weight:700;color:#1a2332;text-transform:none;letter-spacing:0}
+        .ad-sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+        .ad-sec-lbl{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
+        .ad-sec-total{font-size:13px;font-weight:700;color:#1a2332}
         .ad-table{width:100%;border-collapse:collapse;font-size:13px}
         .ad-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;padding:0 8px 8px;border-bottom:1px solid #dde4ec;text-align:left}
         .ad-table th.r{text-align:right}
         .ad-table td{padding:8px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
         .ad-table td.r{text-align:right;font-weight:600;color:#1a2332}
-        .ad-table td.muted{color:#8896a5}
+        .ad-table td.muted{color:#8896a5;font-size:12px}
         .ad-table tr.cancelled td{text-decoration:line-through;color:#8896a5}
         .ad-table tr:last-child td{border-bottom:none}
         .ad-cb{width:15px;height:15px;cursor:pointer;accent-color:#004078}
-        .ad-total{display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:10px 8px 0;border-top:1.5px solid #dde4ec;margin-top:4px}
-        .ad-total-lbl{font-size:12px;color:#8896a5}
-        .ad-total-val{font-size:16px;font-weight:700;color:#004078}
-        /* Spesen */
-        .ad-spesen-list{background:#f4f7fb;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-        .ad-spesen-row{display:flex;justify-content:space-between;font-size:13px}
+        .ad-subtotal{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:8px 8px 0;border-top:1.5px solid #dde4ec;margin-top:2px}
+        .ad-subtotal-lbl{font-size:12px;color:#8896a5}
+        .ad-subtotal-val{font-size:15px;font-weight:700;color:#004078}
+        /* Spesen Info-Box */
+        .ad-spesen-info{background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:10px 14px;margin-bottom:10px}
+        .ad-spesen-info-note{font-size:11px;color:#8896a5;margin-bottom:8px;font-style:italic}
+        .ad-spesen-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
         .ad-spesen-row .lbl{color:#4a5568}
         .ad-spesen-row .val{font-weight:600;color:#1a2332}
-        .ad-spesen-total{display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-top:6px;border-top:1px solid #dde4ec;color:#004078}
-        .ad-spesen-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
-        .ad-spesen-zusatz input{padding:6px 10px;font-size:13px;background:#fff;border:1.5px solid #dde4ec;border-radius:7px;font-family:inherit;outline:none}
-        .ad-spesen-zusatz input:focus{border-color:#0a5a9e}
-        .ad-spesen-zusatz input.wide{flex:1;min-width:180px}
-        /* Konzeption */
-        .ad-konz-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
-        .ad-konz-card{background:#f4f7fb;border-radius:8px;padding:10px 12px}
-        .ad-konz-card-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:4px}
-        .ad-konz-card-val{font-size:15px;font-weight:700;color:#1a2332}
-        .ad-konz-card-sub{font-size:11px;color:#8896a5;margin-top:1px}
-        .ad-konz-card.verr .ad-konz-card-val{color:#1a8a5e}
-        .ad-konz-card.klaer .ad-konz-card-val{color:#b45309}
-        /* Klärung-Entscheid */
-        .ad-klaer-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s}
-        .ad-klaer-btn:hover{border-color:#0a5a9e;color:#0a5a9e}
-        .ad-klaer-btn.verr{border-color:rgba(26,138,94,.4);color:#1a8a5e}
-        .ad-klaer-btn.inkl{border-color:rgba(107,114,128,.4);color:#6b7280}
+        .ad-spesen-total-row{display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-top:7px;margin-top:4px;border-top:1px solid #dde4ec;color:#004078}
+        /* Zusatzspesen */
+        .ad-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:10px 14px;background:#fff;border:1.5px solid #dde4ec;border-radius:8px}
+        .ad-zusatz-lbl{font-size:12px;color:#8896a5;white-space:nowrap;font-weight:600}
+        .ad-zusatz input{padding:6px 10px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:7px;font-family:inherit;outline:none;transition:border-color .15s}
+        .ad-zusatz input:focus{border-color:#0a5a9e;background:#fff}
+        .ad-zusatz input.wide{flex:1;min-width:180px}
+        /* Konzeption Summary */
+        .ad-konz-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+        .ad-kc{background:#f4f7fb;border-radius:8px;padding:10px 12px}
+        .ad-kc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:4px}
+        .ad-kc-val{font-size:15px;font-weight:700;color:#1a2332}
+        .ad-kc-sub{font-size:11px;color:#8896a5;margin-top:2px}
+        .ad-kc.verr .ad-kc-val{color:#1a8a5e}
+        .ad-kc.klaer .ad-kc-val{color:#b45309}
+        /* Klärung-Buttons */
+        .ad-kl-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s}
+        .ad-kl-btn:hover{border-color:#0a5a9e}
+        .ad-kl-btn.verr{border-color:rgba(26,138,94,.4);color:#1a8a5e}
+        .ad-kl-btn.inkl{border-color:rgba(107,114,128,.4);color:#6b7280}
         /* Footer */
-        .ad-ft{padding:14px 22px 18px;border-top:1px solid #dde4ec;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:12px}
-        .ad-ft-sum{font-size:13px;color:#8896a5}
-        .ad-ft-sum strong{color:#004078;font-size:15px}
+        .ad-ft{padding:13px 22px 16px;border-top:1px solid #dde4ec;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:12px}
+        .ad-ft-sum{font-size:12px;color:#8896a5;display:flex;gap:12px;flex-wrap:wrap}
+        .ad-ft-sum strong{color:#004078}
         .ad-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
         .ad-btn-s{padding:8px 24px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(29,158,117,.3)}
         .ad-btn-s:hover{background:#0F6E56}
-        .ad-btn-s:disabled{background:#dde4ec;color:#8896a5;cursor:not-allowed;box-shadow:none}
-        .ad-empty{font-size:13px;color:#8896a5;padding:12px 0;text-align:center}
-        .ad-check-all{display:flex;align-items:center;gap:6px;font-size:12px;color:#8896a5;cursor:pointer}
+        .ad-empty{font-size:13px;color:#8896a5;padding:10px 0;font-style:italic}
+        .ad-check-all-lbl{display:flex;align-items:center;gap:6px;font-size:12px;color:#8896a5;cursor:pointer}
+        .ad-divider{height:1px;background:#f0f4f8}
       </style>
       <div class="ad-m">
         <div class="ad-hd">
@@ -2134,105 +2132,150 @@
 
           <!-- SEKTION 1: Einsätze -->
           <div>
-            <div class="ad-sec-t">
-              Einsätze
-              ${einsaetze.length ? `<label class="ad-check-all"><input type="checkbox" id="ad-check-all" onchange="document.querySelectorAll('.ad-e-cb').forEach(cb=>cb.checked=this.checked);adUpdateTotal()"> Alle</label>` : ""}
+            <div class="ad-sec-hd">
+              <span class="ad-sec-lbl">Einsätze</span>
+              ${einsaetze.length ? `<label class="ad-check-all-lbl"><input type="checkbox" id="ad-check-all" onchange="document.querySelectorAll('.ad-e-cb').forEach(cb=>{cb.checked=this.checked});adUpdateTotal()"> Alle wählen</label>` : ""}
             </div>
             ${einsaetze.length ? `
             <table class="ad-table">
               <thead><tr>
                 <th style="width:28px"></th>
                 <th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th>
-                <th class="r">Betrag</th><th>Status</th>
+                <th class="r">Betrag CHF</th><th>Status</th>
               </tr></thead>
               <tbody>
-                ${einsaetze.map(e => `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
-                  <td><input type="checkbox" class="ad-cb ad-e-cb" data-id="${e.id}"
-                    data-betrag="${(h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet) ?? 0)}"
-                    onchange="adUpdateTotal()"></td>
-                  <td class="muted">${h.esc(e.datumFmt)}</td>
-                  <td style="font-weight:500">${h.esc(e.title)}</td>
-                  <td class="muted">${h.esc(e.kategorie)}</td>
-                  <td class="muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName!=="—"?`<br><span style="font-size:11px">Co: ${h.esc(e.coPersonName)}</span>`:""}</td>
-                  <td class="r">${h.chf(h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0)}${e.coAnzeigeBetrag?`<br><span style="font-size:11px;color:#8896a5">Co: ${h.chf(e.coAnzeigeBetrag)}</span>`:""}</td>
-                  <td>${h.statusBadge(e)}</td>
-                </tr>`).join("")}
+                ${einsaetze.map(e => {
+                  const betrag = (h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet) ?? 0);
+                  const spesen = e.spesenBerechnet || 0;
+                  return `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
+                    <td><input type="checkbox" class="ad-cb ad-e-cb"
+                      data-id="${e.id}"
+                      data-betrag="${betrag}"
+                      data-spesen="${spesen}"
+                      onchange="adUpdateTotal()"></td>
+                    <td class="muted">${h.esc(e.datumFmt)}</td>
+                    <td style="font-weight:500">${h.esc(e.title)}</td>
+                    <td class="muted">${h.esc(e.kategorie)}</td>
+                    <td class="muted">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<br><span style="font-size:11px">Co: ${h.esc(e.coPersonName)}</span>`:""}</td>
+                    <td class="r">${h.chf(h.num(e.betragFinal)??h.num(e.betragBerechnet)??0)}${e.coAnzeigeBetrag?`<br><span style="font-size:11px;color:#8896a5">Co: ${h.chf(e.coAnzeigeBetrag)}</span>`:""}${spesen?`<br><span style="font-size:11px;color:#1a8a5e">Spesen: ${h.chf(spesen)}</span>`:""}
+                    </td>
+                    <td>${h.statusBadge(e)}</td>
+                  </tr>`;
+                }).join("")}
               </tbody>
             </table>
-            <div class="ad-total">
-              <span class="ad-total-lbl">Gewählt:</span>
-              <span class="ad-total-val" id="ad-einsatz-total">CHF 0.00</span>
-            </div>` : `<div class="ad-empty">Keine offenen Einsätze</div>`}
+            <div class="ad-subtotal">
+              <span class="ad-subtotal-lbl">Einsätze gewählt:</span>
+              <span class="ad-subtotal-val" id="ad-einsatz-total">CHF 0.00</span>
+            </div>` : `<div class="ad-empty">Keine offenen Einsätze vorhanden.</div>`}
           </div>
+
+          <div class="ad-divider"></div>
 
           <!-- SEKTION 2: Spesen -->
           <div>
-            <div class="ad-sec-t">Spesen <span>${spesenTotal > 0 ? "CHF " + h.chf(spesenTotal) : "—"}</span></div>
-            ${spesenEinsaetze.length ? `
-            <div class="ad-spesen-list">
-              ${spesenEinsaetze.map(e => `
-              <div class="ad-spesen-row">
-                <span class="lbl">${h.esc(e.datumFmt)} · ${h.esc(e.title || e.kategorie)} — ${h.esc(p.firmaName)}</span>
-                <span class="val">CHF ${h.chf(e.spesenBerechnet)}</span>
-              </div>`).join("")}
-              <div class="ad-spesen-total">
-                <span>Total Wegspesen</span>
-                <span>CHF ${h.chf(spesenTotal)}</span>
-              </div>
-            </div>` : `<div class="ad-empty" style="margin-bottom:8px">Keine Wegspesen</div>`}
-            <div class="ad-spesen-zusatz">
-              <span style="font-size:12px;color:#8896a5;white-space:nowrap">Zusatzspesen CHF</span>
-              <input type="number" id="ad-spesen-zusatz-betrag" step="0.01" min="0" placeholder="0.00" style="width:100px">
-              <input type="text" id="ad-spesen-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)">
+            <div class="ad-sec-hd">
+              <span class="ad-sec-lbl">Spesen</span>
+              <span class="ad-sec-total" id="ad-spesen-total-hd">${h.chf(0)}</span>
+            </div>
+            <div class="ad-spesen-info" id="ad-spesen-info">
+              <div class="ad-spesen-info-note">Wegspesen der gewählten Einsätze — werden vollständig übertragen</div>
+              <div id="ad-spesen-rows"><div class="ad-empty" style="padding:4px 0">Keine Einsätze gewählt</div></div>
+            </div>
+            <div class="ad-zusatz">
+              <span class="ad-zusatz-lbl">Zusatzspesen</span>
+              <input type="number" id="ad-spesen-zusatz-betrag" step="0.01" min="0" placeholder="CHF" style="width:100px" value="${h.esc(String(savedZusatzBetrag))}">
+              <input type="text" id="ad-spesen-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)" value="${h.esc(savedZusatzBem)}">
             </div>
           </div>
 
+          <div class="ad-divider"></div>
+
           <!-- SEKTION 3: Konzeption -->
           <div>
-            <div class="ad-sec-t">Konzeption</div>
-            <div class="ad-konz-summary">
-              <div class="ad-konz-card">
-                <div class="ad-konz-card-lbl">Total</div>
-                <div class="ad-konz-card-val">CHF ${h.chf(konzTotalBetrag)}</div>
-                <div class="ad-konz-card-sub">${konzTotalStd.toFixed(1)} h</div>
+            <div class="ad-sec-hd"><span class="ad-sec-lbl">Konzeption</span></div>
+            <div class="ad-konz-sum">
+              <div class="ad-kc">
+                <div class="ad-kc-lbl">Total</div>
+                <div class="ad-kc-val">CHF ${h.chf(konzTotalBetrag)}</div>
+                <div class="ad-kc-sub">${konzTotalStd.toFixed(1)} h</div>
               </div>
-              <div class="ad-konz-card verr">
-                <div class="ad-konz-card-lbl">Verrechenbar</div>
-                <div class="ad-konz-card-val">CHF ${h.chf(konzVerrBetrag)}</div>
-                <div class="ad-konz-card-sub">${konzVerrStd.toFixed(1)} h · kommt auf Rechnung</div>
+              <div class="ad-kc verr">
+                <div class="ad-kc-lbl">Verrechenbar</div>
+                <div class="ad-kc-val">CHF ${h.chf(konzVerrBetrag)}</div>
+                <div class="ad-kc-sub">${konzVerrStd.toFixed(1)} h</div>
               </div>
-              <div class="ad-konz-card klaer">
-                <div class="ad-konz-card-lbl">Klärung nötig</div>
-                <div class="ad-konz-card-val">CHF ${h.chf(konzKlaerBetrag)}</div>
-                <div class="ad-konz-card-sub">${konzKlaerStd.toFixed(1)} h · Entscheid ausstehend</div>
+              <div class="ad-kc klaer">
+                <div class="ad-kc-lbl">Klärung nötig</div>
+                <div class="ad-kc-val">CHF ${h.chf(konzKlaerBetrag)}</div>
+                <div class="ad-kc-sub">${konzKlaerStd.toFixed(1)} h</div>
               </div>
             </div>
-            ${konzKlaerung.length ? `
-            <table class="ad-table">
-              <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag</th><th>Entscheid</th></tr></thead>
-              <tbody>
-                ${konzKlaerung.map(k => `<tr>
-                  <td class="muted">${h.esc(k.datumFmt)}</td>
-                  <td style="font-weight:500">${h.esc(k.title)}</td>
-                  <td class="r muted">${k.aufwandStunden || "—"} h</td>
-                  <td class="r">CHF ${h.chf(k.anzeigeBetrag)}</td>
-                  <td>
-                    <div style="display:flex;gap:5px">
-                      <button type="button" class="ad-klaer-btn verr" onclick="ctrl.klaerungEntscheid(${k.id},'verrechenbar',this)">verrechenbar</button>
-                      <button type="button" class="ad-klaer-btn inkl" onclick="ctrl.klaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this)">inklusive</button>
-                    </div>
-                  </td>
-                </tr>`).join("")}
-              </tbody>
-            </table>` : ""}
+
+            ${konzVerr.length ? `
+            <div style="margin-bottom:10px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#1a8a5e;margin-bottom:6px">
+                Verrechenbar — zur Abrechnung auswählen
+              </div>
+              <table class="ad-table">
+                <thead><tr>
+                  <th style="width:28px"></th>
+                  <th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th>
+                </tr></thead>
+                <tbody>
+                  ${konzVerr.map(k => `<tr>
+                    <td><input type="checkbox" class="ad-cb ad-k-cb"
+                      data-id="${k.id}"
+                      data-betrag="${k.anzeigeBetrag || 0}"
+                      onchange="adUpdateTotal()"></td>
+                    <td class="muted">${h.esc(k.datumFmt)}</td>
+                    <td style="font-weight:500">${h.esc(k.title)}</td>
+                    <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+                    <td class="r">${h.chf(k.anzeigeBetrag)}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+              <div class="ad-subtotal">
+                <span class="ad-subtotal-lbl">Konzeption gewählt:</span>
+                <span class="ad-subtotal-val" id="ad-konz-total">CHF 0.00</span>
+              </div>
+            </div>` : ""}
+
+            ${konzKlaer.length ? `
+            <div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#b45309;margin-bottom:6px">
+                Klärung nötig — Freigabe erforderlich
+              </div>
+              <table class="ad-table">
+                <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th><th>Freigabe</th></tr></thead>
+                <tbody>
+                  ${konzKlaer.map(k => `<tr>
+                    <td class="muted">${h.esc(k.datumFmt)}</td>
+                    <td style="font-weight:500">${h.esc(k.title)}</td>
+                    <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+                    <td class="r">${h.chf(k.anzeigeBetrag)}</td>
+                    <td>
+                      <div style="display:flex;gap:5px">
+                        <button type="button" class="ad-kl-btn verr"
+                          onclick="ctrl.klaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
+                        <button type="button" class="ad-kl-btn inkl"
+                          onclick="ctrl.klaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this,${projektId})">→ inklusive</button>
+                      </div>
+                    </td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>` : ""}
+
           </div>
 
         </div><!-- /ad-bd -->
 
         <div class="ad-ft">
           <div class="ad-ft-sum">
-            Einsätze: <strong id="ad-ft-einsatz">CHF 0.00</strong>
-            ${spesenTotal > 0 || true ? ` · Wegspesen: <strong>CHF ${h.chf(spesenTotal)}</strong>` : ""}
+            <span>Einsätze: <strong id="ad-ft-einsatz">CHF 0.00</strong></span>
+            <span>Spesen: <strong id="ad-ft-spesen">CHF 0.00</strong></span>
+            <span>Konzeption: <strong id="ad-ft-konz">CHF 0.00</strong></span>
           </div>
           <div style="display:flex;gap:8px">
             <button type="button" class="ad-btn-c" data-close-modal>Abbrechen</button>
@@ -2244,19 +2287,17 @@
     },
 
     // Konzeption Klärung-Entscheid: direkt in SP schreiben
-    async klaerungEntscheid(konzId, neuerWert, btn) {
+    async klaerungEntscheid(konzId, neuerWert, btn, projektId) {
       try {
         btn.disabled = true;
-        // Projekt-ID aus State holen bevor Modal geschlossen wird
-        const k = state.enriched.konzeption.find(k => k.id === konzId);
-        const projektId = k?.projektLookupId;
+        // Zusatzspesen-Werte vor Re-Render sichern
+        const zusatzBetrag = h.num(document.getElementById("ad-spesen-zusatz-betrag")?.value);
+        const zusatzBem    = (document.getElementById("ad-spesen-zusatz-bem")?.value || "").trim();
         await api.patch(CONFIG.lists.konzeption, konzId, { Verrechenbar: neuerWert });
-        const row = btn.closest("tr");
-        if (row) row.style.opacity = "0.4";
         await api.loadAll();
-        ui.setMsg(`Klärung gesetzt: ${neuerWert}`, "success");
-        // Dialog mit aktualisierten Daten neu öffnen
-        if (projektId) ctrl.openAbrechnungDialog(projektId);
+        ui.setMsg(`Freigabe gesetzt: ${neuerWert}`, "success");
+        // Dialog mit gespeicherten Zusatzspesen-Werten neu öffnen
+        ctrl.openAbrechnungDialog(projektId, { zusatzBetrag, zusatzBem });
       } catch(e) {
         debug.err("klaerungEntscheid", e);
         ui.setMsg("Fehler: " + e.message, "error");
@@ -2298,13 +2339,9 @@
         }));
         const einsatzFehler = einsatzResults.filter(r => r.status === "rejected").length;
 
-        // 3. Verrechenbare Konzeption abrechnen
-        const konzVerrIds = state.enriched.konzeption
-          .filter(k => k.projektLookupId === projektId)
-          .filter(k => k.verrechenbar === "verrechenbar")
-          .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung))
-          .map(k => k.id);
-        const konzResults = await Promise.allSettled(konzVerrIds.map(async kid => {
+        // 3. Gewählte Konzeption abrechnen (nur gecheckte)
+        const checkedKonzIds = [...document.querySelectorAll(".ad-k-cb:checked")].map(cb => Number(cb.dataset.id));
+        const konzResults = await Promise.allSettled(checkedKonzIds.map(async kid => {
           await api.patch(CONFIG.lists.konzeption, kid, { Abrechnung: "abgerechnet" });
           await api.patchLookups(CONFIG.lists.konzeption, kid, { [F.abrechnung_w]: abrId });
         }));
@@ -2314,12 +2351,12 @@
         const fehlerMsg = (einsatzFehler + konzFehler) > 0
           ? ` ⚠ ${einsatzFehler + konzFehler} Fehler — betroffene Einträge manuell prüfen.`
           : "";
-        ui.setMsg(`Abrechnung erstellt — ${checkedIds.length - einsatzFehler} Einsätze, ${konzVerrIds.length - konzFehler} Konzeptionsaufwände.${fehlerMsg}`, fehlerMsg ? "warning" : "success");
+        ui.setMsg(`Abrechnung erstellt — ${checkedIds.length - einsatzFehler} Einsätze, ${checkedKonzIds.length - konzFehler} Konzeptionsaufwände.${fehlerMsg}`, fehlerMsg ? "warning" : "success");
         await api.loadAll();
         ctrl.render();
         // PDF generieren (nach loadAll damit enriched aktuell ist)
         try {
-          await ctrl.generateAbrechnungPDF(projektId, checkedIds, zusatzBetrag, zusatzBem);
+          await ctrl.generateAbrechnungPDF(projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem);
         } catch(pdfErr) {
           debug.err("generateAbrechnungPDF", pdfErr);
           ui.setMsg("Abrechnung gespeichert — PDF-Generierung fehlgeschlagen: " + pdfErr.message, "warning");
@@ -2331,7 +2368,7 @@
       }
     },
     // ── PDF-Generierung ──────────────────────────────────────────────────
-    async generateAbrechnungPDF(projektId, checkedEinsatzIds, spesenZusatzBetrag, spesenZusatzBem) {
+    async generateAbrechnungPDF(projektId, checkedEinsatzIds, checkedKonzIds, spesenZusatzBetrag, spesenZusatzBem) {
       const p        = state.enriched.projekte.find(p => p.id === projektId);
       const datum    = new Date().toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
       const datumLang = new Date().toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" });
@@ -2340,18 +2377,12 @@
       const einsaetze = state.enriched.einsaetze
         .filter(e => checkedEinsatzIds.includes(e.id));
 
-      // Verrechenbare Konzeption
+      // Gewählte Konzeption (nur gecheckte)
       const konzeption = state.enriched.konzeption
-        .filter(k => k.projektLookupId === projektId)
-        .filter(k => k.verrechenbar === "verrechenbar")
-        .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung));
+        .filter(k => (checkedKonzIds || []).includes(k.id));
 
-      // Spesen: alle offenen Einsätze des Projekts mit Wegspesen (unabhängig von Checkbox)
-      const alleOffenPDF = state.enriched.einsaetze
-        .filter(e => e.projektLookupId === projektId)
-        .filter(e => e.einsatzStatus !== "abgesagt")
-        .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung));
-      const spesenEinsaetze = alleOffenPDF.filter(e => (e.spesenBerechnet || 0) > 0);
+      // Spesen: nur aus gewählten Einsätzen
+      const spesenEinsaetze = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
       const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
 
       // Totals
@@ -2964,15 +2995,58 @@
 
   // Abrechnungsdialog: Total berechnen (global, weil inline onchange)
   window.adUpdateTotal = function() {
-    let total = 0;
+    let einsatzTotal = 0, spesenTotal = 0, konzTotal = 0;
+    const spesenRows = [];
+
     document.querySelectorAll(".ad-e-cb:checked").forEach(cb => {
-      total += parseFloat(cb.dataset.betrag) || 0;
+      einsatzTotal += parseFloat(cb.dataset.betrag) || 0;
+      const spesen = parseFloat(cb.dataset.spesen) || 0;
+      if (spesen > 0) {
+        // Zeile für Spesen-Aufstellung holen
+        const row = cb.closest("tr");
+        const datum = row?.cells[1]?.textContent?.trim() || "";
+        const title = row?.cells[2]?.textContent?.trim() || "";
+        spesenTotal += spesen;
+        spesenRows.push({ datum, title, spesen });
+      }
     });
-    const fmt = total.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    document.querySelectorAll(".ad-k-cb:checked").forEach(cb => {
+      konzTotal += parseFloat(cb.dataset.betrag) || 0;
+    });
+
+    const fmt = v => v.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
     const el1 = document.getElementById("ad-einsatz-total");
     const el2 = document.getElementById("ad-ft-einsatz");
-    if (el1) el1.textContent = "CHF " + fmt;
-    if (el2) el2.textContent = "CHF " + fmt;
+    const el3 = document.getElementById("ad-konz-total");
+    const el4 = document.getElementById("ad-ft-konz");
+    const el5 = document.getElementById("ad-ft-spesen");
+    const el6 = document.getElementById("ad-spesen-total-hd");
+    const spesenRowsEl = document.getElementById("ad-spesen-rows");
+
+    if (el1) el1.textContent = "CHF " + fmt(einsatzTotal);
+    if (el2) el2.textContent = "CHF " + fmt(einsatzTotal);
+    if (el3) el3.textContent = "CHF " + fmt(konzTotal);
+    if (el4) el4.textContent = "CHF " + fmt(konzTotal);
+    if (el5) el5.textContent = "CHF " + fmt(spesenTotal);
+    if (el6) el6.textContent = "CHF " + fmt(spesenTotal);
+
+    if (spesenRowsEl) {
+      if (spesenRows.length) {
+        spesenRowsEl.innerHTML = spesenRows.map(r =>
+          `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0">
+            <span style="color:#4a5568">${r.datum} · ${r.title}</span>
+            <span style="font-weight:600;color:#1a2332">CHF ${fmt(r.spesen)}</span>
+          </div>`
+        ).join("") + (spesenRows.length > 1 ? `
+          <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-top:6px;margin-top:4px;border-top:1px solid #dde4ec;color:#004078">
+            <span>Total Wegspesen</span><span>CHF ${fmt(spesenTotal)}</span>
+          </div>` : "");
+      } else {
+        spesenRowsEl.innerHTML = `<div style="font-size:13px;color:#8896a5;font-style:italic;padding:4px 0">Keine Einsätze mit Wegspesen gewählt</div>`;
+      }
+    }
   };
 
   document.addEventListener("DOMContentLoaded", boot);
