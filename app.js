@@ -1196,6 +1196,9 @@
       const show = isTagKat && hasCoLead;
       const coRow = document.getElementById("ef-betrag-co-row");
       if (coRow) coRow.style.display = show ? "" : "none";
+      // Lead-Label nur anzeigen wenn Co-Lead aktiv
+      const leadLbl = document.getElementById("ef-betrag-lead-lbl");
+      if (leadLbl) leadLbl.style.display = show ? "" : "none";
       if (show) {
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
         const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
@@ -1478,7 +1481,7 @@
                 <div class="ef-l">Datum & Ort</div>
                 <div class="ef-r2">
                   <div class="ef-iw"><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
-                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || "")}" placeholder="Ort, Zoom…"></div>
+                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || "")}" placeholder="Ort, Virtuell…"></div>
                 </div>
               </div>
 
@@ -1512,7 +1515,7 @@
 
               <!-- Beschreibung -->
               <div class="ef-s">
-                <div class="ef-l">Beschreibung (optional)</div>
+                <div class="ef-l">Beschreibung</div>
                 <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
               </div>
 
@@ -1575,14 +1578,16 @@
               <div class="ef-s">
                 <div class="ef-l">Betrag</div>
                 <div class="ef-betrag-box" id="ef-betrag-box">
-                  <!-- Lead -->
+                  <!-- Lead: Label nur wenn Co-Lead gesetzt; Anpassen nur wenn Kategorie gewählt -->
                   <div class="ef-betrag-row">
                     <div>
-                      <div class="ef-betrag-lbl">Lead</div>
+                      <div class="ef-betrag-lbl" id="ef-betrag-lead-lbl" style="${selCoPerson && isTagKat ? "" : "display:none"}">Lead</div>
                       <div class="ef-betrag-val${lbi.warn ? " warn" : ""}" id="ef-bval-lead">${h.esc(lbi.val)}</div>
                       ${lbi.sub ? `<div class="ef-betrag-src">${h.esc(lbi.sub)}</div>` : ""}
                     </div>
-                    <button type="button" class="ef-betrag-edit" onclick="ctrl.efToggleOverride('ef-ov-lead')">Anpassen</button>
+                    <button type="button" class="ef-betrag-edit" id="ef-betrag-anpassen"
+                      style="${selKat && !lbi.warn ? "" : "display:none"}"
+                      onclick="ctrl.efToggleOverride('ef-ov-lead')">Anpassen</button>
                   </div>
                   <div class="ef-betrag-override${e?.betragFinal ? " show" : ""}" id="ef-ov-lead">
                     <span style="font-size:11px;color:#8896a5">CHF</span>
@@ -1634,7 +1639,7 @@
 
               <!-- Status / Abgesagt -->
               <div class="ef-s">
-                <div class="ef-l">Abgesagt?</div>
+                <div class="ef-l">Status</div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <div class="ef-st-info" id="ef-st-info">
                     <div class="${statusAnzeige.cls}" id="ef-st-dot"></div>
@@ -1652,7 +1657,7 @@
 
               <!-- Bemerkungen -->
               <div class="ef-s">
-                <div class="ef-l">Bemerkungen (optional)</div>
+                <div class="ef-l">Bemerkungen</div>
                 <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || "")}</textarea></div>
               </div>
 
@@ -1821,6 +1826,9 @@
         else if (betrag === null) { bvl.textContent = "Nicht konfiguriert"; bvl.className = "ef-betrag-val warn"; }
         else                 { bvl.textContent = "CHF " + h.chf(betrag);   bvl.className = "ef-betrag-val"; }
       }
+      // Anpassen-Button: nur sichtbar wenn Kat gewählt + Betrag konfiguriert
+      const anp = document.getElementById("ef-betrag-anpassen");
+      if (anp) anp.style.display = (kat && betrag !== null) ? "" : "none";
       ctrl.updateCoBetrag();
     },
 
