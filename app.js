@@ -197,12 +197,20 @@
       h._debounceTimers[key] = setTimeout(fn, delay);
     },
     searchInput(filterPath, value) {
-      // filterPath z.B. "projekte" → state.filters.projekte.search = value
       const parts = filterPath.split(".");
       let obj = state.filters;
       for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
       obj[parts[parts.length - 1]] = value;
-      h.debounce("search-" + filterPath, () => ctrl.render());
+      const selStart = document.activeElement?.selectionStart;
+      const selEnd   = document.activeElement?.selectionEnd;
+      h.debounce("search-" + filterPath, () => {
+        ctrl.render();
+        const el = document.querySelector(`[data-search-key="${filterPath}"]`);
+        if (el) {
+          el.focus();
+          try { el.setSelectionRange(selStart, selEnd); } catch {}
+        }
+      });
     },
 
     // Lookup aus raw SP-Item lesen
@@ -908,7 +916,7 @@
         </div>
         <div class="tm-filter-bar">
           <input type="search" placeholder="Suche Projekt oder Firma…" value="${h.esc(f.search)}"
-            oninput="h.searchInput('projekte.search',this.value)">
+            data-search-key="projekte.search" oninput="h.searchInput('projekte.search',this.value)">
           <select onchange="state.filters.projekte.status=this.value;ctrl.render()">
             <option value="">Alle Status</option>
             ${state.choices.projektStatus.map(s => `<option value="${s}" ${f.status===s?"selected":""}>${s}</option>`).join("")}
@@ -1049,7 +1057,7 @@
           <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button></div>
         </div>
         <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="h.searchInput('einsaetze.search',this.value)">
+          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
           <select onchange="state.filters.einsaetze.abrechnung=this.value;ctrl.render()">
             <option value="">Abrechnung: alle</option>
             ${state.choices.einsatzAbrechnung.map(s => `<option value="${s}" ${f.abrechnung===s?"selected":""}>${s}</option>`).join("")}
@@ -1104,7 +1112,7 @@
           <div class="tm-kpi"><div class="tm-kpi-label">Inklusive</div><div class="tm-kpi-value tm-chf">CHF ${h.chf(sumI)}</div></div>
         </div>
         <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="h.searchInput('konzeption.search',this.value)">
+          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)">
           <select onchange="state.filters.konzeption.verrechenbar=this.value;ctrl.render()">
             <option value="">Verrechenbar: alle</option>
             ${state.choices.konzVerrechenbar.map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
@@ -1184,7 +1192,7 @@
 
         <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
           <input type="search" placeholder="Suche Firma, Ort, Kontakt…" value="${h.esc(f.search)}"
-            oninput="h.searchInput('firmen.search',this.value)" style="flex:1;min-width:200px">
+            data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)" style="flex:1;min-width:200px">
           <select onchange="state.filters.firmen.klassifizierung=this.value;ctrl.render()">
             <option value="">Klassifizierung: alle</option>
             ${klassifizierungen.map(k => `<option value="${h.esc(k)}" ${f.klassifizierung===k?"selected":""}>${h.esc(k)}</option>`).join("")}
@@ -1602,7 +1610,7 @@
 
         <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
           <input type="search" placeholder="Suche Abrechnung, Projekt, Firma…" value="${h.esc(f.search)}"
-            oninput="h.searchInput('abrechnungen.search',this.value)" style="flex:1;min-width:180px">
+            data-search-key="abrechnungen.search" oninput="h.searchInput('abrechnungen.search',this.value)" style="flex:1;min-width:180px">
           <select onchange="state.filters.abrechnungen.status=this.value;ctrl.render()">
             <option value="">Status: alle</option>
             ${state.choices.abrStatus.map(s => `<option value="${h.esc(s)}" ${f.status===s?"selected":""}>${h.esc(s)}</option>`).join("")}
