@@ -1277,6 +1277,29 @@
     setTab(route, tab) { state.filters.activeTab[route] = tab; this.render(); },
     closeModal() { ui.closeModal(); },
 
+    async resetKonzeptionAbrechnung(id) {
+      const k = state.enriched.konzeption.find(k => k.id === id);
+      if (!k) return;
+      if (!confirm(
+        `Abrechnung zurücksetzen für: «${k.title || k.datumFmt}»\n\n` +
+        `Dieser Konzeptionsaufwand ist als «abgerechnet» markiert, hat aber keine verknüpfte Abrechnung mehr — ` +
+        `vermutlich weil die Abrechnung direkt in SharePoint gelöscht wurde.\n\n` +
+        `Der Status wird auf «offen» zurückgesetzt, damit der Aufwand erneut abgerechnet werden kann.\n\n` +
+        `Fortfahren?`
+      )) return;
+      try {
+        ui.setMsg("Wird zurückgesetzt…", "info");
+        await api.patch(CONFIG.lists.konzeption, id, { Abrechnung: "offen" });
+        ui.closeModal();
+        ui.setMsg(`Konzeptionsaufwand «${k.title || k.datumFmt}» zurückgesetzt — Status ist wieder «offen».`, "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (err) {
+        debug.err("resetKonzeptionAbrechnung", err);
+        ui.setMsg("Fehler beim Zurücksetzen: " + err.message, "error");
+      }
+    },
+
     async resetEinsatzAbrechnung(id) {
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
@@ -3287,7 +3310,18 @@
           </form><!-- /kf-bd -->
 
         <div class="kf-ft">
-          ${id && k?.abrechnung ? `<div class="kf-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(k.abrechnung)}</div>` : `<div></div>`}
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">
+            ${id && k?.abrechnung ? `<div class="kf-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(k.abrechnung)}</div>` : ""}
+            ${id && k?.abrechnung === "abgerechnet" && !k?.abrechnungLookupId ? `
+              <button type="button" style="
+                font-family:inherit;font-size:11px;font-weight:600;
+                padding:4px 10px;border-radius:6px;cursor:pointer;
+                background:#fff3cd;border:1.5px solid #e59c2e;color:#7a5000;
+                display:flex;align-items:center;gap:5px;
+              " onclick="ctrl.resetKonzeptionAbrechnung(${id})" title="Nur verwenden wenn die verknüpfte Abrechnung direkt in SharePoint gelöscht wurde — nicht über die App.">
+                ⚠ Abrechnung zurücksetzen
+              </button>` : ""}
+          </div>
           <div style="display:flex;gap:8px">
             <button type="button" class="kf-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="kf-btn-s" onclick="document.getElementById('konzeption-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
