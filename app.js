@@ -759,6 +759,7 @@
         if (a("[data-action='edit-konzeption']"))  { ctrl.openKonzeptionForm(+a("[data-action='edit-konzeption']").dataset.id); return; }
         if (a("[data-action='open-abrechnung']"))  { ctrl.openAbrechnungDialog(+a("[data-action='open-abrechnung']").dataset.projektId); return; }
         if (a("[data-action='delete-einsatz']"))  { ctrl.deleteEinsatz(+a("[data-action='delete-einsatz']").dataset.id); return; }
+        if (a("[data-action='copy-einsatz']"))    { ctrl.copyEinsatz(+a("[data-action='copy-einsatz']").dataset.id); return; }
         if (a("[data-action='delete-konzeption']")) { ctrl.deleteKonzeption(+a("[data-action='delete-konzeption']").dataset.id); return; }
         if (a("[data-action='delete-abrechnung']")) { ctrl.deleteAbrechnung(+a("[data-action='delete-abrechnung']").dataset.id); return; }
         if (a("[data-action='delete-projekt']"))   { ctrl.deleteProjekt(+a("[data-action='delete-projekt']").dataset.id); return; }
