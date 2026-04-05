@@ -190,6 +190,21 @@
     },
     inc(a, b) { return String(a||"").toLowerCase().includes(String(b||"").toLowerCase()); },
 
+    // Debounce: verhindert dass render() bei jedem Tastendruck feuert
+    _debounceTimers: {},
+    debounce(key, fn, delay = 220) {
+      clearTimeout(h._debounceTimers[key]);
+      h._debounceTimers[key] = setTimeout(fn, delay);
+    },
+    searchInput(filterPath, value) {
+      // filterPath z.B. "projekte" → state.filters.projekte.search = value
+      const parts = filterPath.split(".");
+      let obj = state.filters;
+      for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+      obj[parts[parts.length - 1]] = value;
+      h.debounce("search-" + filterPath, () => ctrl.render());
+    },
+
     // Lookup aus raw SP-Item lesen
     // SP/Graph gibt Lookup-Felder inkonsistent zurück:
     // - manchmal mit doppeltem Suffix: FirmaLookupIdLookupId
@@ -893,7 +908,7 @@
         </div>
         <div class="tm-filter-bar">
           <input type="search" placeholder="Suche Projekt oder Firma…" value="${h.esc(f.search)}"
-            oninput="state.filters.projekte.search=this.value;ctrl.render()">
+            oninput="h.searchInput('projekte.search',this.value)">
           <select onchange="state.filters.projekte.status=this.value;ctrl.render()">
             <option value="">Alle Status</option>
             ${state.choices.projektStatus.map(s => `<option value="${s}" ${f.status===s?"selected":""}>${s}</option>`).join("")}
@@ -1034,7 +1049,7 @@
           <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button></div>
         </div>
         <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="state.filters.einsaetze.search=this.value;ctrl.render()">
+          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="h.searchInput('einsaetze.search',this.value)">
           <select onchange="state.filters.einsaetze.abrechnung=this.value;ctrl.render()">
             <option value="">Abrechnung: alle</option>
             ${state.choices.einsatzAbrechnung.map(s => `<option value="${s}" ${f.abrechnung===s?"selected":""}>${s}</option>`).join("")}
@@ -1089,7 +1104,7 @@
           <div class="tm-kpi"><div class="tm-kpi-label">Inklusive</div><div class="tm-kpi-value tm-chf">CHF ${h.chf(sumI)}</div></div>
         </div>
         <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="state.filters.konzeption.search=this.value;ctrl.render()">
+          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" oninput="h.searchInput('konzeption.search',this.value)">
           <select onchange="state.filters.konzeption.verrechenbar=this.value;ctrl.render()">
             <option value="">Verrechenbar: alle</option>
             ${state.choices.konzVerrechenbar.map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
@@ -1169,7 +1184,7 @@
 
         <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
           <input type="search" placeholder="Suche Firma, Ort, Kontakt…" value="${h.esc(f.search)}"
-            oninput="state.filters.firmen.search=this.value;ctrl.render()" style="flex:1;min-width:200px">
+            oninput="h.searchInput('firmen.search',this.value)" style="flex:1;min-width:200px">
           <select onchange="state.filters.firmen.klassifizierung=this.value;ctrl.render()">
             <option value="">Klassifizierung: alle</option>
             ${klassifizierungen.map(k => `<option value="${h.esc(k)}" ${f.klassifizierung===k?"selected":""}>${h.esc(k)}</option>`).join("")}
@@ -1495,68 +1510,172 @@
 
 
     abrechnungen() {
+      const f = state.filters.abrechnungen;
+
+      const jahre = [...new Set(
+        state.enriched.abrechnungen
+          .map(a => h.toDate(a.datum)?.getFullYear())
+          .filter(Boolean)
+      )].sort((a,b) => b - a);
+
+      const projMitAbr = [...new Map(
+        state.enriched.abrechnungen.map(a => [a.projektLookupId, state.enriched.projekte.find(p=>p.id===a.projektLookupId)])
+      ).values()].filter(Boolean).sort((a,b) => a.title.localeCompare(b.title,"de"));
+
+      let list = [...state.enriched.abrechnungen];
+      if (f.search) list = list.filter(a => {
+        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+        const firma = proj ? h.firmName(proj.firmaLookupId) : "";
+        return h.inc(a.title,f.search) || h.inc(a.projektTitle,f.search) || h.inc(firma,f.search);
+      });
+      if (f.status)  list = list.filter(a => a.status === f.status);
+      if (f.projekt) list = list.filter(a => String(a.projektLookupId) === f.projekt);
+      if (f.jahr)    list = list.filter(a => { const d = h.toDate(a.datum); return d && String(d.getFullYear()) === f.jahr; });
+      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+
+      const abrBetrag = (a) => {
+        const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
+        const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
+        const eSum = einsaetze.reduce((t,e) => t+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+        const kSum = konz.reduce((t,k) => t+(k.anzeigeBetrag||0),0);
+        const wSum = einsaetze.reduce((t,e) => t+(e.spesenBerechnet||0),0);
+        const sSum = (a.spesenZusatzBetrag||0)+wSum;
+        return { eSum, kSum, sSum, total: eSum+kSum+sSum, einsaetze, konz };
+      };
+
+      const totalBetrag = list.reduce((s,a) => s+abrBetrag(a).total, 0);
+      const byStatus    = (s) => list.filter(a => a.status === s).length;
+
+      const abrStatusBadge = (v) => {
+        const m = {
+          "erstellt":  ["tm-badge tm-badge-planned","erstellt"],
+          "versendet": ["tm-badge tm-badge-billing","versendet"],
+          "bezahlt":   ["tm-badge tm-badge-billed", "bezahlt"]
+        };
+        const [c,l] = m[v] || ["tm-badge", v||"—"];
+        return h.badge(c, l);
+      };
 
       ui.render(`
         <style>
-          .fi-card{background:#fff;border-radius:12px;border:1.5px solid #dde4ec;padding:14px 16px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:flex;flex-direction:column;gap:6px}
-          .fi-card:hover{box-shadow:0 4px 16px rgba(0,64,120,.1);border-color:#b8cde0}
-          .fi-name{font-size:14px;font-weight:700;color:#1a2332}
-          .fi-meta{font-size:12px;color:#8896a5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-          .fi-badge-vip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000}
-          .fi-badge-kl{font-size:10px;font-weight:600;padding:2px 7px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078}
-          .fi-stats{display:flex;gap:12px;margin-top:4px}
-          .fi-stat{font-size:11px;color:#8896a5}
-          .fi-stat strong{font-size:13px;font-weight:700;color:#004078;display:block}
-          .fi-grid{display:grid;grid-template-columns:1fr;gap:10px}
-          @media(min-width:600px){.fi-grid{grid-template-columns:1fr 1fr}}
-          @media(min-width:1000px){.fi-grid{grid-template-columns:1fr 1fr 1fr}}
+          .abr-card{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden;transition:box-shadow .15s,border-color .15s}
+          .abr-card:hover{box-shadow:0 4px 20px rgba(0,64,120,.1);border-color:#b8cde0}
+          .abr-card-hd{padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
+          .abr-card-main{flex:1;min-width:0}
+          .abr-card-title{font-size:14px;font-weight:700;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .abr-card-meta{font-size:12px;color:#8896a5;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+          .abr-card-right{text-align:right;flex-shrink:0}
+          .abr-card-total{font-size:17px;font-weight:800;color:#004078;white-space:nowrap}
+          .abr-card-sub{font-size:11px;color:#8896a5;margin-top:2px}
+          .abr-card-ft{padding:12px 18px 14px;background:#f9fbfd;border-top:1px solid #dde4ec;display:none;flex-direction:column;gap:12px}
+          .abr-card-ft.open{display:flex}
+          .abr-detail-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eef1f6}
+          .abr-detail-row:last-child{border:none}
+          .abr-detail-lbl{color:#4a5568}
+          .abr-detail-val{font-weight:600;color:#1a2332}
+          .abr-detail-val.muted{font-weight:400;color:#8896a5;font-size:12px}
+          .abr-flow{display:flex;gap:6px;flex-wrap:wrap}
+          .abr-flow-btn{padding:5px 14px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;color:#4a5568;cursor:pointer;font-family:inherit;transition:all .15s}
+          .abr-flow-btn:hover:not(.active-e):not(.active-v):not(.active-b){border-color:#0a5a9e;background:#e8f0f8}
+          .abr-flow-btn.active-e{background:#004078;border-color:#004078;color:#fff}
+          .abr-flow-btn.active-v{background:#e59c2e;border-color:#e59c2e;color:#fff}
+          .abr-flow-btn.active-b{background:#1a6e40;border-color:#1a6e40;color:#fff}
+          .abr-act{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
+          .abr-grid{display:grid;grid-template-columns:1fr;gap:10px}
+          @media(min-width:700px){.abr-grid{grid-template-columns:1fr 1fr}}
+          @media(min-width:1100px){.abr-grid{grid-template-columns:1fr 1fr 1fr}}
         </style>
 
         <div class="tm-page-header">
           <div>
-            <div class="tm-page-title">Firmen</div>
-            <div class="tm-page-meta">${list.length} Firmen</div>
+            <div class="tm-page-title">Abrechnungen</div>
+            <div class="tm-page-meta">${list.length} Einträge${f.jahr?" · "+f.jahr:""}${f.status?" · "+f.status:""}</div>
           </div>
         </div>
 
-        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
-          <input type="search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search)}"
-            oninput="state.filters.firmen.search=this.value;ctrl.render()" style="flex:1;min-width:180px">
-          <select onchange="state.filters.firmen.klassifizierung=this.value;ctrl.render()">
-            <option value="">Klassifizierung: alle</option>
-            ${klassifizierungen.map(k => `<option value="${h.esc(k)}" ${f.klassifizierung===k?"selected":""}>${h.esc(k)}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.firmen.vip=this.value;ctrl.render()">
-            <option value="">VIP: alle</option>
-            <option value="ja" ${f.vip==="ja"?"selected":""}>Nur VIP</option>
-          </select>
-          ${(f.search||f.klassifizierung||f.vip) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.firmen={search:'',klassifizierung:'',vip:''};ctrl.render()">✕ Filter</button>` : ""}
+        <div class="tm-kpi-row" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
+          <div class="tm-kpi"><div class="tm-kpi-label">Total (gefiltert)</div><div class="tm-kpi-value tm-chf" style="font-size:15px">CHF ${h.chf(totalBetrag)}</div></div>
+          <div class="tm-kpi"><div class="tm-kpi-label">erstellt</div><div class="tm-kpi-value" style="color:var(--tm-blue)">${byStatus("erstellt")}</div></div>
+          <div class="tm-kpi"><div class="tm-kpi-label">versendet</div><div class="tm-kpi-value" style="color:#e59c2e">${byStatus("versendet")}</div></div>
+          <div class="tm-kpi"><div class="tm-kpi-label">bezahlt</div><div class="tm-kpi-value" style="color:#1a6e40">${byStatus("bezahlt")}</div></div>
         </div>
 
-        ${list.length ? `<div class="fi-grid">
-          ${list.map(fi => {
-            const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
-            const aktiv    = projekte.filter(p => p.status === "aktiv").length;
-            const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
-            return `<div class="fi-card" onclick="ctrl.openFirma(${fi.id})">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-                <div class="fi-name">${h.esc(fi.title)}</div>
-                ${fi.vip ? `<span class="fi-badge-vip">VIP</span>` : ""}
+        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
+          <input type="search" placeholder="Suche Abrechnung, Projekt, Firma…" value="${h.esc(f.search)}"
+            oninput="h.searchInput('abrechnungen.search',this.value)" style="flex:1;min-width:180px">
+          <select onchange="state.filters.abrechnungen.status=this.value;ctrl.render()">
+            <option value="">Status: alle</option>
+            ${state.choices.abrStatus.map(s => `<option value="${h.esc(s)}" ${f.status===s?"selected":""}>${h.esc(s)}</option>`).join("")}
+          </select>
+          <select onchange="state.filters.abrechnungen.projekt=this.value;ctrl.render()">
+            <option value="">Projekt: alle</option>
+            ${projMitAbr.map(p => `<option value="${p.id}" ${f.projekt===String(p.id)?"selected":""}>${h.esc(p.title)}</option>`).join("")}
+          </select>
+          <select onchange="state.filters.abrechnungen.jahr=this.value;ctrl.render()">
+            <option value="">Jahr: alle</option>
+            ${jahre.map(y => `<option value="${y}" ${f.jahr===String(y)?"selected":""}>${y}</option>`).join("")}
+          </select>
+          ${(f.search||f.status||f.projekt||f.jahr) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.abrechnungen={search:'',status:'',projekt:'',jahr:''};ctrl.render()">✕ Filter</button>` : ""}
+        </div>
+
+        ${list.length ? `<div class="abr-grid">
+          ${list.map(a => {
+            const { eSum, kSum, sSum, total, einsaetze, konz } = abrBetrag(a);
+            const proj  = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+            const firma = proj ? h.firmName(proj.firmaLookupId) : "—";
+            const ftId  = "abr-ft-" + a.id;
+            const aStat = a.status || "erstellt";
+            return `
+            <div class="abr-card">
+              <div class="abr-card-hd" onclick="document.getElementById('${ftId}').classList.toggle('open')">
+                <div class="abr-card-main">
+                  <div class="abr-card-title" title="${h.esc(a.title)}">${h.esc(a.title || a.datumFmt)}</div>
+                  <div class="abr-card-meta">
+                    ${abrStatusBadge(aStat)}
+                    <span style="font-weight:600;color:#1a2332">${h.esc(firma)}</span>
+                    <span style="color:#8896a5">·</span>
+                    <span style="font-weight:500;color:#4a5568">${h.esc(proj?.title||"—")}</span>
+                    <span style="color:#8896a5">·</span>
+                    <span>${h.esc(a.datumFmt)}</span>
+                  </div>
+                </div>
+                <div class="abr-card-right">
+                  <div class="abr-card-total">CHF ${h.chf(total)}</div>
+                  <div class="abr-card-sub">${einsaetze.length} Einsatz${einsaetze.length!==1?"ätze":""}${konz.length?" · "+konz.length+" Konz.":""}</div>
+                </div>
               </div>
-              <div class="fi-meta">
-                ${fi.klassifizierung ? `<span class="fi-badge-kl">${h.esc(fi.klassifizierung)}</span>` : ""}
-                ${fi.ort ? `<span>${h.esc(fi.ort)}</span>` : ""}
-              </div>
-              <div class="fi-stats">
-                <div class="fi-stat"><strong>${projekte.length}</strong>Projekte</div>
-                ${aktiv > 0 ? `<div class="fi-stat"><strong style="color:#1a6e40">${aktiv}</strong>aktiv</div>` : ""}
-                <div class="fi-stat"><strong>${kontakte}</strong>Kontakte</div>
+              <div class="abr-card-ft" id="${ftId}">
+                <div>
+                  ${eSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Einsätze (${einsaetze.length})</span><span class="abr-detail-val">CHF ${h.chf(eSum)}</span></div>`:""}
+                  ${kSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Konzeption (${konz.length})</span><span class="abr-detail-val">CHF ${h.chf(kSum)}</span></div>`:""}
+                  ${sSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Spesen</span><span class="abr-detail-val">CHF ${h.chf(sSum)}</span></div>`:""}
+                  ${a.spesenZusatzBemerkung?`<div class="abr-detail-row"><span class="abr-detail-lbl">Zusatzspesen-Notiz</span><span class="abr-detail-val muted">${h.esc(a.spesenZusatzBemerkung)}</span></div>`:""}
+                  <div class="abr-detail-row" style="border-top:1.5px solid #dde4ec;margin-top:4px;padding-top:6px">
+                    <span class="abr-detail-lbl" style="font-weight:700;color:#1a2332">Total</span>
+                    <span class="abr-detail-val" style="color:#004078">CHF ${h.chf(total)}</span>
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5;margin-bottom:7px">Status</div>
+                  <div class="abr-flow">
+                    ${["erstellt","versendet","bezahlt"].map(s => {
+                      const cls = aStat===s?(s==="erstellt"?" active-e":s==="versendet"?" active-v":" active-b"):"";
+                      return `<button class="abr-flow-btn${cls}" onclick="ctrl.abrSetStatus(${a.id},'${h.esc(s)}')">${h.esc(s)}</button>`;
+                    }).join("")}
+                  </div>
+                </div>
+                <div class="abr-act">
+                  <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+                  ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+                  <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑 Löschen & zurücksetzen</button>
+                </div>
               </div>
             </div>`;
           }).join("")}
-        </div>` : ui.empty("Keine Firmen gefunden.")}
+        </div>` : ui.empty("Keine Abrechnungen gefunden.")}
       `);
     },
+
 
   };
 
