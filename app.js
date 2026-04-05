@@ -67,9 +67,9 @@
     // Schreiben — SP interner Name: AbrechnungLookupID0 (SP fügte 0-Suffix wegen Namenskonflikt an)
     abrechnung_w:      "AbrechnungLookupID0",
 
-    // KonzeptionTM → AbrechnungenTM
-    konz_abrechnung_r: "AbrechnungLookupID0LookupId",
-    konz_abrechnung_w: "AbrechnungLookupID0"
+    // KonzeptionTM → AbrechnungenTM (interner SP-Name ohne Suffix — kleines d)
+    konz_abrechnung_r: "AbrechnungLookupIdLookupId",
+    konz_abrechnung_w: "AbrechnungLookupId"
   };
 
   // ════════════════════════════════════════════════════════════════════════
