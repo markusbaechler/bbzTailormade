@@ -104,11 +104,13 @@
       contacts:   []    // [{id, nachname, vorname, firmaLookupId}]
     },
     choices: {
-      // Dynamisch aus SP geladen — Choice-Felder pro Liste
-      projektStatus:      ["geplant","aktiv","abgeschlossen"],
-      einsatzAbrechnung:  ["offen","zur Abrechnung","abgerechnet"],
-      einsatzStatus:      ["abgesagt","abgesagt mit Kostenfolge"],
-      konzVerrechenbar:   ["Inklusive","Klärung nötig","zur Abrechnung","abgerechnet"]
+      // Dynamisch aus SP geladen via getChoices() — nie hier hardcodieren.
+      // Leere Arrays bis loadChoices() gelaufen ist.
+      projektStatus:      [],
+      einsatzAbrechnung:  [],
+      einsatzStatus:      [],
+      konzVerrechenbar:   [],
+      konzAbrechnung:     []
     },
     enriched: {
       projekte:   [],
@@ -260,9 +262,20 @@
         if (coVal) coVal.value = item.dataset.id;
         ctrl.updateCoBetrag();
       }
+      // Konzeption-Person Pill aktualisieren
+      if (name === "personLookupId" && document.getElementById("kf-person-pill")) {
+        const pName = item.textContent.trim();
+        const initials = n => n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+        const av   = document.getElementById("kf-person-av");
+        const nm   = document.getElementById("kf-person-name");
+        const pill = document.getElementById("kf-person-pill");
+        const ta   = document.getElementById("kf-person-ta");
+        if (av)   av.textContent = initials(pName);
+        if (nm)   nm.textContent = pName;
+        if (pill) pill.style.display = "inline-flex";
+        if (ta)   ta.style.display = "none";
+      }
     },
-
-    // Einsatz-Status
     einsatzStatus(e) {
       const s = String(e.status||"").toLowerCase();
       if (s.includes("kostenfolge")) return "abgesagt-chf";
@@ -453,6 +466,7 @@
       coBetragBerechnet: h.num(raw.CoBetragBerechnet),
       coBetragFinal:     h.num(raw.CoBetragFinal),
       verrechenbar:    raw.Verrechenbar || "",
+      abrechnung:      raw.Abrechnung || "offen",
       bemerkungen:     raw.Bemerkungen || ""
     };
     k.datumFmt      = h.fmtDate(k.datum);
@@ -526,20 +540,21 @@
 
     async loadChoices() {
       try {
-        const [projSt, einsAbrech, einsSt, konzVerr] = await Promise.all([
+        const [projSt, einsAbrech, einsSt, konzVerr, konzAbrech] = await Promise.all([
           api.getChoices(CONFIG.lists.projekte,   "Status"),
           api.getChoices(CONFIG.lists.einsaetze,  "Abrechnung"),
           api.getChoices(CONFIG.lists.einsaetze,  "Status"),
-          api.getChoices(CONFIG.lists.konzeption, "Verrechenbar")
+          api.getChoices(CONFIG.lists.konzeption, "Verrechenbar"),
+          api.getChoices(CONFIG.lists.konzeption, "Abrechnung")
         ]);
-        if (projSt.length)    state.choices.projektStatus     = projSt;
+        if (projSt.length)     state.choices.projektStatus    = projSt;
         if (einsAbrech.length) state.choices.einsatzAbrechnung = einsAbrech;
-        if (einsSt.length)    state.choices.einsatzStatus     = einsSt;
-        if (konzVerr.length)  state.choices.konzVerrechenbar  = konzVerr;
+        if (einsSt.length)     state.choices.einsatzStatus    = einsSt;
+        if (konzVerr.length)   state.choices.konzVerrechenbar = konzVerr;
+        if (konzAbrech.length) state.choices.konzAbrechnung   = konzAbrech;
         debug.log("loadChoices", state.choices);
       } catch (e) {
         debug.err("loadChoices", e);
-        // Fallback auf Defaults — App läuft weiter
       }
     },
 
@@ -1963,85 +1978,308 @@
       ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
     },
 
-    // ── Konzeption-Formular ────────────────────────────────────────────────
+    // ── Konzeption-Formular (v2) ──────────────────────────────────────────
+    // Analog Einsatz-Modal: gleiche Struktur, alle Choices dynamisch aus SP
     openKonzeptionForm(id, projektId = null) {
-      const k         = id ? state.enriched.konzeption.find(k => k.id === id) : null;
+      const k          = id ? state.enriched.konzeption.find(k => k.id === id) : null;
       const prefProjId = projektId || (k?.projektLookupId || null);
-      const defPerson = h.defaultPerson();
-      const selPerson = k ? k.personLookupId : (defPerson?.id || null);
+      const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
+      const defPerson  = h.defaultPerson();
+      const selPerson  = k ? k.personLookupId : (defPerson?.id || null);
+      const personName = selPerson ? h.contactName(selPerson) : null;
+      const initials   = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
 
       const projektOpts = state.enriched.projekte
         .filter(p => !p.archiviert)
         .map(p => `<option value="${p.id}" ${prefProjId === p.id ? "selected" : ""}>${h.esc(p.title)}</option>`)
         .join("");
 
-      ui.renderModal(`<div class="tm-modal">
-        <div class="tm-modal-header">
-          <span class="tm-modal-title">${id ? "Aufwand bearbeiten" : "Konzeptionsaufwand erfassen"}</span>
-          <button class="tm-modal-close" data-close-modal>✕</button>
-        </div>
-        <div class="tm-modal-body">
-          <form id="konzeption-form" class="tm-form-grid" autocomplete="off">
-            <input type="hidden" name="itemId" value="${id || ""}">
-            <input type="hidden" name="mode"   value="${id ? "edit" : "create"}">
+      // Betrag-Vorschau berechnen
+      const selKat   = k?.kategorie || "Konzeption";
+      const ansatz   = selProjekt ? (selKat === "Admin" ? selProjekt.ansatzAdmin : selProjekt.ansatzKonzeption) : null;
+      const betragBer = (ansatz && k?.aufwandStunden) ? (ansatz / 8) * k.aufwandStunden : null;
 
-            <div class="tm-field">
-              <label>Datum <span class="req">*</span></label>
-              <input type="date" name="datum" value="${h.esc(k ? h.toDateInput(k.datum) : "")}" required>
-            </div>
-            <div class="tm-field">
-              <label>Projekt <span class="req">*</span></label>
-              <select name="projektLookupId" required>
-                <option value="">— wählen —</option>
-                ${projektOpts}
-              </select>
-            </div>
+      // Kategorie-Buttons dynamisch — aus SP wenn vorhanden, sonst Fallback
+      const konzKats = ["Konzeption", "Admin"];
 
-            <div class="tm-field tm-form-full">
-              <label>Beschreibung <span class="req">*</span></label>
-              <input type="text" name="titel" value="${h.esc(k?.title||"")}" required>
-            </div>
-
-            <div class="tm-field">
-              <label>Kategorie <span class="req">*</span></label>
-              <div class="tm-radio-group">
-                ${["Konzeption","Admin"].map(kat => `<div class="tm-radio-btn${(k?.kategorie||"Konzeption")===kat?" sel":""}"
-                  onclick="this.closest('.tm-radio-group').querySelectorAll('.tm-radio-btn').forEach(b=>b.classList.remove('sel'));this.classList.add('sel');document.getElementById('kat-konz').value='${kat}'">${kat}</div>`).join("")}
+      ui.renderModal(`<style>
+        .kf-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:kfUp .25s cubic-bezier(.16,1,.3,1)}
+        @media(min-width:700px){.kf-m{max-width:780px}}
+        @keyframes kfUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        .kf-hd{background:#004078;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        .kf-hd-l{display:flex;align-items:center;gap:10px}
+        .kf-hd-ic{width:32px;height:32px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+        .kf-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .kf-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .kf-hd-abr{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);margin-left:8px;vertical-align:middle}
+        .kf-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .kf-cl:hover{background:rgba(255,255,255,.2)}
+        .kf-bd{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+        @media(min-width:700px){
+          .kf-bd{display:grid;grid-template-columns:1fr 1fr;column-gap:22px;overflow:visible;align-items:start}
+          .kf-col-l,.kf-col-r{display:flex;flex-direction:column;gap:14px}
+        }
+        .kf-s{display:flex;flex-direction:column;gap:6px}
+        .kf-l{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
+        .kf-iw input,.kf-iw select,.kf-iw textarea{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s,background .15s;-webkit-appearance:none}
+        .kf-iw input:focus,.kf-iw select:focus,.kf-iw textarea:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        .kf-iw input::placeholder,.kf-iw textarea::placeholder{color:#8896a5;font-weight:400}
+        .kf-iw textarea{resize:none;height:60px;line-height:1.5}
+        .kf-r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .kf-proj-card{background:#e8f1f9;border:1.5px solid rgba(0,64,120,.15);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between}
+        .kf-kg{display:flex;flex-wrap:wrap;gap:6px}
+        .kf-kat-btn{flex:0 0 auto;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:600;color:#4a5568;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;cursor:pointer;transition:all .15s}
+        .kf-kat-btn:hover{border-color:#0a5a9e;color:#0a5a9e}
+        .kf-kat-btn.active{background:#004078;border-color:#004078;color:#fff}
+        .kf-pp{display:inline-flex;align-items:center;gap:7px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;padding:5px 10px 5px 6px;cursor:pointer;transition:all .15s}
+        .kf-pp:hover{border-color:#0a5a9e}
+        .kf-av{width:24px;height:24px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0}
+        .kf-pn{font-size:12px;font-weight:600;color:#1a2332}
+        .kf-pr-role{font-size:10px;color:#8896a5}
+        .kf-pe{font-size:11px;color:#8896a5;margin-left:2px}
+        .kf-ta-wrap{display:none}
+        /* Stunden + Betrag */
+        .kf-std-row{display:flex;align-items:center;gap:10px}
+        .kf-std-row input{width:100px;padding:8px 10px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;transition:border-color .15s}
+        .kf-std-row input:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        .kf-betrag-preview{font-size:13px;font-weight:600;color:#1a8a5e}
+        .kf-betrag-box{background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden}
+        .kf-betrag-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;gap:8px}
+        .kf-betrag-val{font-size:15px;font-weight:700;color:#1a2332}
+        .kf-betrag-val.warn{font-size:12px;font-weight:500;color:#b45309}
+        .kf-betrag-src{font-size:10px;color:#8896a5;margin-top:1px}
+        .kf-betrag-edit{font-size:11px;color:#0a5a9e;border:1px solid #dde4ec;border-radius:6px;padding:3px 8px;background:#fff;cursor:pointer;font-family:inherit;flex-shrink:0}
+        .kf-betrag-override{padding:0 12px 9px;display:none}
+        .kf-betrag-override.show{display:flex;align-items:center;gap:6px}
+        .kf-betrag-override input{width:110px;padding:5px 8px;font-size:12px;background:#fff;border:1.5px solid #dde4ec;border-radius:6px;color:#1a2332;font-family:inherit;outline:none}
+        .kf-betrag-override input:focus{border-color:#0a5a9e}
+        .kf-betrag-override .muted{font-size:11px;color:#8896a5}
+        /* Verrechenbar-Pills */
+        .kf-verr{display:flex;gap:6px;flex-wrap:wrap}
+        .kf-verr-btn{padding:6px 13px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;color:#4a5568;cursor:pointer;font-family:inherit;transition:all .15s}
+        .kf-verr-btn:hover{border-color:#0a5a9e}
+        .kf-verr-btn.on{background:#004078;border-color:#004078;color:#fff}
+        .kf-dv{height:1px;background:#dde4ec}
+        .kf-ft{padding:11px 20px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #dde4ec;flex-shrink:0;gap:10px}
+        .kf-abr-info{font-size:11px;color:#8896a5;display:flex;align-items:center;gap:5px}
+        .kf-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .kf-btn-c:hover{border-color:#4a5568}
+        .kf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
+        .kf-btn-s:hover{background:#0a5a9e}
+      </style>
+      <div class="kf-m">
+        <div class="kf-hd">
+          <div class="kf-hd-l">
+            <div class="kf-hd-ic">📝</div>
+            <div>
+              <div class="kf-hd-t">
+                ${id ? "Aufwand bearbeiten" : "Konzeptionsaufwand erfassen"}
+                ${id && k?.abrechnung ? `<span class="kf-hd-abr">${h.esc(k.abrechnung)}</span>` : ""}
               </div>
-              <input type="hidden" id="kat-konz" name="kategorie" value="${h.esc(k?.kategorie||"Konzeption")}">
+              <div class="kf-hd-s">${selProjekt ? h.esc(selProjekt.title) + (selProjekt.firmaName ? " · " + h.esc(selProjekt.firmaName) : "") : "Projekt wählen"}</div>
             </div>
-            <div class="tm-field">
-              <label>Person</label>
-              ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
-            </div>
+          </div>
+          <button class="kf-cl" data-close-modal>✕</button>
+        </div>
 
-            <div class="tm-field">
-              <label>Aufwand Stunden <span class="req">*</span></label>
-              <input type="number" name="aufwandStunden" min="0.25" step="0.25" value="${k?.aufwandStunden||""}" required>
-            </div>
-            <div class="tm-field">
-              <label>Betrag final (optional)</label>
-              <input type="number" name="betragFinal" step="0.01" value="${k?.betragFinal??""}">
-            </div>
+        <div class="kf-bd">
+          <form id="konzeption-form" autocomplete="off" style="display:contents">
+            <input type="hidden" name="itemId" value="${id || ""}">
+            <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
+            <input type="hidden" id="kf-kat-hid" name="kategorie" value="${h.esc(selKat)}">
+            <input type="hidden" id="kf-verr-hid" name="verrechenbar" value="${h.esc(k?.verrechenbar || "")}">
+            <input type="hidden" id="kf-abr-hid" name="abrechnung" value="${h.esc(k?.abrechnung || "offen")}">
 
-            <div class="tm-field tm-form-full">
-              <label>Verrechenbar <span class="req">*</span></label>
-              <select name="verrechenbar" required>
-                ${state.choices.konzVerrechenbar.map(v => `<option value="${v}" ${(k?.verrechenbar||state.choices.konzVerrechenbar[0])===v?"selected":""}>${v}</option>`).join("")}
-              </select>
-            </div>
-            <div class="tm-field tm-form-full">
-              <label>Bemerkungen</label>
-              <textarea name="bemerkungen">${h.esc(k?.bemerkungen||"")}</textarea>
-            </div>
+            <!-- LINKE SPALTE -->
+            <div class="kf-col-l">
 
-            <div class="tm-form-actions tm-form-full">
-              <button type="button" class="tm-btn" data-close-modal>Abbrechen</button>
-              <button type="submit" class="tm-btn tm-btn-primary">Speichern</button>
-            </div>
+              <!-- Datum -->
+              <div class="kf-s">
+                <div class="kf-l">Datum</div>
+                <div class="kf-iw"><input type="date" name="datum" value="${h.esc(k ? h.toDateInput(k.datum) : "")}" required></div>
+              </div>
+
+              <!-- Projekt -->
+              <div class="kf-s">
+                <div class="kf-l">Projekt</div>
+                ${selProjekt ? `
+                <div class="kf-proj-card">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:7px;height:7px;background:#004078;border-radius:50%;flex-shrink:0"></div>
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#004078">${h.esc(selProjekt.title)}</div>
+                      <div style="font-size:11px;color:#8896a5">${selProjekt.projektNr ? "#" + h.esc(selProjekt.projektNr) + " · " : ""}${h.esc(selProjekt.firmaName)}</div>
+                    </div>
+                  </div>
+                  <span style="font-size:11px;color:#0a5a9e;font-weight:600;text-decoration:underline;cursor:pointer"
+                    onclick="this.closest('.kf-proj-card').style.display='none';document.getElementById('kf-proj-sel').style.display='block'">ändern</span>
+                </div>
+                <div class="kf-iw" id="kf-proj-sel" style="display:none">
+                  <select name="projektLookupId" onchange="ctrl.kfOnProjChange(this)">
+                    ${projektOpts}
+                  </select>
+                </div>` : `
+                <div class="kf-iw">
+                  <select name="projektLookupId" required onchange="ctrl.kfOnProjChange(this)">
+                    <option value="">— Projekt wählen —</option>
+                    ${projektOpts}
+                  </select>
+                </div>`}
+              </div>
+
+              <!-- Beschreibung -->
+              <div class="kf-s">
+                <div class="kf-l">Beschreibung <span style="font-size:10px;color:#dde4ec">*</span></div>
+                <div class="kf-iw"><input type="text" name="titel" value="${h.esc(k?.title || "")}" placeholder="z.B. Vorbereitung Modul 3, Call mit Kunde…" required></div>
+              </div>
+
+              <!-- Kategorie -->
+              <div class="kf-s">
+                <div class="kf-l">Kategorie</div>
+                <div class="kf-kg">
+                  ${konzKats.map(kat => `<button type="button" class="kf-kat-btn${selKat === kat ? " active" : ""}"
+                    onclick="document.querySelectorAll('.kf-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kf-kat-hid').value='${h.esc(kat)}';ctrl.kfUpdateBetrag()">${h.esc(kat)}</button>`).join("")}
+                </div>
+              </div>
+
+              <!-- Person -->
+              <div class="kf-s">
+                <div class="kf-l">Person</div>
+                <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+                  <div class="kf-pp" onclick="ctrl.kfOpenPicker()" id="kf-person-pill">
+                    <div class="kf-av" id="kf-person-av">${personName ? h.esc(initials(personName)) : "?"}</div>
+                    <div>
+                      <div class="kf-pn" id="kf-person-name">${personName ? h.esc(personName) : "Person wählen"}</div>
+                      <div class="kf-pr-role">Trainer</div>
+                    </div>
+                    <span class="kf-pe">✎</span>
+                  </div>
+                  <div class="kf-ta-wrap" id="kf-person-ta">
+                    ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /kf-col-l -->
+
+            <!-- RECHTE SPALTE -->
+            <div class="kf-col-r">
+
+              <!-- Aufwand + Betrag-Vorschau -->
+              <div class="kf-s">
+                <div class="kf-l">Aufwand</div>
+                <div class="kf-std-row">
+                  <input type="number" name="aufwandStunden" id="kf-std-inp"
+                    min="0.25" step="0.25" value="${k?.aufwandStunden || ""}"
+                    placeholder="Stunden" required oninput="ctrl.kfUpdateBetrag()">
+                  <span style="font-size:12px;color:#8896a5">Stunden</span>
+                  <span class="kf-betrag-preview" id="kf-betrag-preview">${betragBer !== null ? "= CHF " + h.chf(betragBer) : ""}</span>
+                </div>
+              </div>
+
+              <!-- Betrag -->
+              <div class="kf-s">
+                <div class="kf-l">Betrag</div>
+                <div class="kf-betrag-box">
+                  <div class="kf-betrag-row">
+                    <div>
+                      <div class="kf-betrag-val${betragBer === null ? " warn" : ""}" id="kf-bval">
+                        ${betragBer !== null ? "CHF " + h.chf(betragBer) : (selProjekt ? "Kein Ansatz konfiguriert" : "Projekt wählen")}
+                      </div>
+                      <div class="kf-betrag-src">berechnet (Ansatz ÷ 8 × Stunden)</div>
+                    </div>
+                    <button type="button" class="kf-betrag-edit"
+                      id="kf-anpassen-btn"
+                      style="${betragBer !== null ? "" : "display:none"}"
+                      onclick="ctrl.kfToggleOverride()">Anpassen</button>
+                  </div>
+                  <div class="kf-betrag-override${k?.betragFinal ? " show" : ""}" id="kf-ov">
+                    <span style="font-size:11px;color:#8896a5">CHF</span>
+                    <input type="number" name="betragFinal" step="0.01" value="${k?.betragFinal ?? ""}" placeholder="Betrag">
+                    <span class="muted">leer = berechnet</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="kf-dv"></div>
+
+              <!-- Verrechenbar — dynamisch aus SP -->
+              <div class="kf-s">
+                <div class="kf-l">Verrechenbar</div>
+                <div class="kf-verr">
+                  ${state.choices.konzVerrechenbar.map(v => `<button type="button"
+                    class="kf-verr-btn${(k?.verrechenbar || "") === v ? " on" : ""}"
+                    onclick="document.querySelectorAll('.kf-verr-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('kf-verr-hid').value='${h.esc(v)}'"
+                    >${h.esc(v)}</button>`).join("")}
+                </div>
+              </div>
+
+              <div class="kf-dv"></div>
+
+              <!-- Bemerkungen -->
+              <div class="kf-s">
+                <div class="kf-l">Bemerkungen</div>
+                <div class="kf-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(k?.bemerkungen || "")}</textarea></div>
+              </div>
+
+            </div><!-- /kf-col-r -->
+
           </form>
         </div>
+
+        <div class="kf-ft">
+          ${id && k?.abrechnung ? `<div class="kf-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(k.abrechnung)}</div>` : `<div></div>`}
+          <div style="display:flex;gap:8px">
+            <button type="button" class="kf-btn-c" data-close-modal>Abbrechen</button>
+            <button type="button" class="kf-btn-s" onclick="document.getElementById('konzeption-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+              <span>✓</span> Speichern
+            </button>
+          </div>
+        </div>
       </div>`);
+    },
+
+    // ── Konzeption-Formular Helfer ────────────────────────────────────────
+    kfOpenPicker() {
+      const ta   = document.getElementById("kf-person-ta");
+      const pill = document.getElementById("kf-person-pill");
+      if (!ta || !pill) return;
+      pill.style.display = "none";
+      ta.style.display = "block";
+      ta.querySelector(".tm-ta-input")?.focus();
+    },
+
+    kfToggleOverride() {
+      const el = document.getElementById("kf-ov");
+      if (!el) return;
+      const vis = el.classList.toggle("show");
+      if (vis) el.querySelector("input")?.focus();
+    },
+
+    kfOnProjChange(sel) {
+      // Betrag-Vorschau nach Projekt-Wechsel aktualisieren
+      ctrl.kfUpdateBetrag();
+    },
+
+    kfUpdateBetrag() {
+      const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+      const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+      const kat    = document.getElementById("kf-kat-hid")?.value || "Konzeption";
+      const std    = h.num(document.getElementById("kf-std-inp")?.value);
+      const ansatz = proj ? (kat === "Admin" ? proj.ansatzAdmin : proj.ansatzKonzeption) : null;
+      const betrag = (ansatz && std) ? (ansatz / 8) * std : null;
+
+      const bval    = document.getElementById("kf-bval");
+      const preview = document.getElementById("kf-betrag-preview");
+      const anpBtn  = document.getElementById("kf-anpassen-btn");
+
+      if (bval) {
+        if (betrag !== null) { bval.textContent = "CHF " + h.chf(betrag); bval.className = "kf-betrag-val"; }
+        else if (proj)       { bval.textContent = "Kein Ansatz konfiguriert"; bval.className = "kf-betrag-val warn"; }
+        else                 { bval.textContent = "Projekt w\u00e4hlen"; bval.className = "kf-betrag-val warn"; }
+      }
+      if (preview) preview.textContent = betrag !== null ? "= CHF " + h.chf(betrag) : "";
+      if (anpBtn)  anpBtn.style.display = betrag !== null ? "" : "none";
     },
 
     async saveKonzeption(fd) {
@@ -2078,7 +2316,8 @@
         const fields = {
           Kategorie:      kat,
           AufwandStunden: std,
-          Verrechenbar:   fd.get("verrechenbar")
+          Verrechenbar:   fd.get("verrechenbar") || "",
+          Abrechnung:     fd.get("abrechnung") || "offen"
         };
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
