@@ -63,9 +63,13 @@
     abr_projekt_w:     "ProjektLookupId",
 
     // EinsaetzeTM / KonzeptionTM → AbrechnungenTM — Lesen
-    abrechnung_r:      "AbrechnungLookupIdLookupId",
-    // Schreiben
-    abrechnung_w:      "AbrechnungLookupId"
+    abrechnung_r:      "AbrechnungLookupIDLookupId",
+    // Schreiben — SP hat internen Namen mit grossem D angelegt
+    abrechnung_w:      "AbrechnungLookupID",
+
+    // KonzeptionTM → AbrechnungenTM
+    konz_abrechnung_r: "AbrechnungLookupIDLookupId",
+    konz_abrechnung_w: "AbrechnungLookupID"
   };
 
   // ════════════════════════════════════════════════════════════════════════
@@ -122,7 +126,8 @@
       einsatzAbrechnung:  [],
       einsatzStatus:      [],
       konzVerrechenbar:   [],
-      konzAbrechnung:     []
+      konzAbrechnung:     [],
+      abrStatus:          []   // AbrechnungenTM.Status
     },
     enriched: {
       projekte:     [],
@@ -578,18 +583,20 @@
 
     async loadChoices() {
       try {
-        const [projSt, einsAbrech, einsSt, konzVerr, konzAbrech] = await Promise.all([
-          api.getChoices(CONFIG.lists.projekte,   "Status"),
-          api.getChoices(CONFIG.lists.einsaetze,  "Abrechnung"),
-          api.getChoices(CONFIG.lists.einsaetze,  "Status"),
-          api.getChoices(CONFIG.lists.konzeption, "Verrechenbar"),
-          api.getChoices(CONFIG.lists.konzeption, "Abrechnung")
+        const [projSt, einsAbrech, einsSt, konzVerr, konzAbrech, abrSt] = await Promise.all([
+          api.getChoices(CONFIG.lists.projekte,     "Status"),
+          api.getChoices(CONFIG.lists.einsaetze,   "Abrechnung"),
+          api.getChoices(CONFIG.lists.einsaetze,   "Status"),
+          api.getChoices(CONFIG.lists.konzeption,  "Verrechenbar"),
+          api.getChoices(CONFIG.lists.konzeption,  "Abrechnung"),
+          api.getChoices(CONFIG.lists.abrechnungen,"Status")
         ]);
         if (projSt.length)     state.choices.projektStatus    = projSt;
         if (einsAbrech.length) state.choices.einsatzAbrechnung = einsAbrech;
         if (einsSt.length)     state.choices.einsatzStatus    = einsSt;
         if (konzVerr.length)   state.choices.konzVerrechenbar = konzVerr;
         if (konzAbrech.length) state.choices.konzAbrechnung   = konzAbrech;
+        if (abrSt.length)      state.choices.abrStatus        = abrSt;
         debug.log("loadChoices", state.choices);
       } catch (e) {
         debug.err("loadChoices", e);
@@ -2419,11 +2426,14 @@
         </div>
         <div class="sm-ft">
           <button type="button" class="sm-btn-c" onclick="document.getElementById('ad-summary-overlay').remove()">← Zurück</button>
-          <button type="button" class="sm-btn-s" onclick="document.getElementById('ad-summary-overlay').remove();ctrl.abrechnenSpeichern(${projektId},${JSON.stringify(checkedIds)},${JSON.stringify(checkedKonzIds)},${zusatzBetrag ?? "null"},'${h.esc(zusatzBem)}')">
+          <button type="button" class="sm-btn-s" onclick="ctrl.abrechnenSpeichern()">
             ✓ Bestätigen &amp; herunterladen
           </button>
         </div>
       </div>`;
+
+      // Auswahl in window-State speichern — sicherer als inline-String (kein Escaping-Problem)
+      window._abrSummary = { projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem };
 
       // Summary als Overlay über dem Backdrop
       let overlay = document.getElementById("ad-summary-overlay");
@@ -2437,7 +2447,11 @@
     },
 
     // Schritt 2: Speichern (wird aus Summary-Modal aufgerufen)
-    async abrechnenSpeichern(projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem) {
+    async abrechnenSpeichern() {
+      const s = window._abrSummary;
+      if (!s) { ui.setMsg("Fehler: Keine Abrechnungsdaten gefunden.", "error"); return; }
+      const { projektId, checkedIds, checkedKonzIds, zusatzBetrag, zusatzBem } = s;
+
       ui.setMsg("Wird gespeichert…", "info");
       try {
         const p = state.enriched.projekte.find(p => p.id === projektId);
@@ -2449,7 +2463,7 @@
         const abrId  = Number(abrCr?.id || abrCr?.fields?.id);
         if (!abrId) throw new Error("Abrechnung-ID fehlt.");
 
-        const abrFields = { Datum: datum + "T12:00:00Z", Status: "erstellt" };
+        const abrFields = { Datum: datum + "T12:00:00Z", Status: state.choices.abrStatus[0] || "erstellt" };
         if (zusatzBetrag !== null && zusatzBetrag !== undefined) abrFields.SpesenZusatzBetrag = zusatzBetrag;
         if (zusatzBem)  abrFields.SpesenZusatzBemerkung = zusatzBem;
         await api.patch(CONFIG.lists.abrechnungen, abrId, abrFields);
@@ -2465,10 +2479,13 @@
         // 3. Konzeption abrechnen
         const konzResults = await Promise.allSettled(checkedKonzIds.map(async kid => {
           await api.patch(CONFIG.lists.konzeption, kid, { Abrechnung: "abgerechnet" });
-          await api.patchLookups(CONFIG.lists.konzeption, kid, { [F.abrechnung_w]: abrId });
+          await api.patchLookups(CONFIG.lists.konzeption, kid, { [F.konz_abrechnung_w]: abrId });
         }));
         const konzFehler = konzResults.filter(r => r.status === "rejected").length;
 
+        // Overlay + Modal erst jetzt schliessen (nach erfolgreichem Speichern)
+        document.getElementById("ad-summary-overlay")?.remove();
+        window._abrSummary = null;
         ui.closeModal();
         const fehlerMsg = (einsatzFehler + konzFehler) > 0
           ? ` ⚠ ${einsatzFehler + konzFehler} Fehler — betroffene Einträge manuell prüfen.` : "";
