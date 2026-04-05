@@ -1188,28 +1188,22 @@
 
     // Co-Lead gewählt → Co-Betrag anzeigen
     updateCoBetrag() {
-      // Neues Formular: coperson-val hidden field
       const coVal = document.getElementById("coperson-val")?.value ||
                     document.querySelector('.tm-typeahead[data-name="coPersonLookupId_ta"] .tm-ta-val')?.value || "";
       const hasCoLead = !!coVal;
       const kat = document.getElementById("kat-hid")?.value || "";
       const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(kat);
       const show = isTagKat && hasCoLead;
-      const coBcItem = document.getElementById("ef-bc-co");
-      const bcGrid = document.getElementById("ef-bc-grid");
-      if (coBcItem) coBcItem.style.display = show ? "" : "none";
-      if (bcGrid) {
-        if (show) bcGrid.classList.add("two");
-        else bcGrid.classList.remove("two");
-      }
+      const coRow = document.getElementById("ef-betrag-co-row");
+      if (coRow) coRow.style.display = show ? "" : "none";
       if (show) {
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-        const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+        const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
         const coBetrag = proj ? h.berechneCoBetrag(proj, kat) : null;
-        const card = document.getElementById("ef-bc-co-card");
-        if (card) {
-          if (coBetrag === null) card.innerHTML = '<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Co-Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>';
-          else card.innerHTML = '<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Co-Lead \u00b7 aus Projekt</div><div class="ef-bc-val">CHF ' + h.chf(coBetrag) + '</div></div>';
+        const bvc = document.getElementById("ef-bval-co");
+        if (bvc) {
+          if (coBetrag === null) { bvc.textContent = "Nicht konfiguriert"; bvc.className = "ef-betrag-val warn"; }
+          else                   { bvc.textContent = "CHF " + h.chf(coBetrag); bvc.className = "ef-betrag-val"; }
         }
       }
     },
@@ -1297,7 +1291,14 @@
       }
     },
 
-    // ── Einsatz-Formular ──────────────────────────────────────────────────
+    // ── Einsatz-Formular (v2) ─────────────────────────────────────────────
+    // Bereinigungen:
+    // - Abrechnung raus aus Modal (read-only Badge im Footer)
+    // - Status (Abgesagt/Abgesagt CHF) eigene Sektion, klar getrennt
+    // - Spesen: 1 Toggle, 1 Km-Feld, keine Sub-Toggles
+    // - SpesenZusatz + SpesenFinal entfernt
+    // - Beschreibung zwischen Projekt und Kategorie
+    // - Desktop: 2-spaltig, kein Scroll
     openEinsatzForm(id, projektId = null, preselectKat = null) {
       const e          = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
       const prefProjId = projektId || (e?.projektLookupId || null);
@@ -1324,92 +1325,136 @@
       const katBtnHtml = kats.map(k => `<button type="button" class="ef-kat-btn${selKat===k?" active":""}"
         onclick="document.querySelectorAll('.ef-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</button>`).join("");
 
-      const betragLeadCard = () => {
-        if (!selKat) return `<div class="ef-bc ef-bc-pending"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Kategorie wählen</div></div>`;
-        if (betragBer === null) return `<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>`;
-        return `<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Lead · aus Projekt</div><div class="ef-bc-val">CHF ${h.chf(betragBer)}</div></div>`;
+      // Betrag-Info für Lead/Co — kompakte Read-only-Zeile
+      const leadBetragInfo = () => {
+        if (!selKat) return { val: "Kategorie wählen", sub: "", warn: true };
+        if (betragBer === null) return { val: "Nicht konfiguriert", sub: "", warn: true };
+        return { val: "CHF " + h.chf(betragBer), sub: "aus Projekt", warn: false };
       };
-      const betragCoCard = () => {
-        if (coBetragBer === null) return `<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Co-Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>`;
-        return `<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Co-Lead · aus Projekt</div><div class="ef-bc-val">CHF ${h.chf(coBetragBer)}</div></div>`;
+      const coBetragInfo = () => {
+        if (coBetragBer === null) return { val: "Nicht konfiguriert", sub: "", warn: true };
+        return { val: "CHF " + h.chf(coBetragBer), sub: "aus Projekt", warn: false };
       };
+      const lbi = leadBetragInfo();
+      const cbi = coBetragInfo();
+
+      // Spesen: Km aus Projekt vorbelegen falls vorhanden
+      const kmVorbelegt = selProjekt?.kmZumKunden || "";
+      const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
+      const hasSp       = !!(e?.spesenBerechnet);
+      const kmGespeichert = (hasSp && ansatzKm) ? Math.round(e.spesenBerechnet / ansatzKm) : (kmVorbelegt || "");
+      const spesenTotal = hasSp ? e.spesenBerechnet : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0);
+
+      // Einsatz-Status berechnet (Geplant/Durchgeführt)
+      const statusAnzeige = (() => {
+        if (!e) return { label: "Geplant", cls: "ef-st-info-dot blue" };
+        const s = h.einsatzStatus(e);
+        if (s === "durchgefuehrt") return { label: "Durchgeführt", cls: "ef-st-info-dot green" };
+        return { label: "Geplant", cls: "ef-st-info-dot blue" };
+      })();
 
       ui.renderModal(`<style>
         .ef-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:efUp .25s cubic-bezier(.16,1,.3,1)}
-        @keyframes efUp{from{opacity:0;transform:translateY(16px) scale(.98)}to{opacity:1;transform:none}}
-        .ef-hd{background:linear-gradient(135deg,#004078,#0a5a9e);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+        @media(min-width:700px){.ef-m{max-width:820px}}
+        @keyframes efUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        .ef-hd{background:#004078;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
         .ef-hd-l{display:flex;align-items:center;gap:10px}
-        .ef-hd-ic{width:34px;height:34px;background:rgba(255,255,255,.15);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px}
-        .ef-hd-t{color:#fff;font-size:15px;font-weight:700}
-        .ef-hd-s{color:rgba(255,255,255,.6);font-size:12px;margin-top:1px}
-        .ef-cl{width:30px;height:30px;background:rgba(255,255,255,.12);border:none;border-radius:8px;color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-        .ef-cl:hover{background:rgba(255,255,255,.22)}
-        .ef-bd{overflow-y:auto;padding:18px 22px;display:flex;flex-direction:column;gap:16px}
-        .ef-s{display:flex;flex-direction:column;gap:7px}
+        .ef-hd-ic{width:32px;height:32px;background:rgba(255,255,255,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+        .ef-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .ef-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .ef-hd-abr{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2);margin-left:8px;vertical-align:middle}
+        .ef-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+        .ef-cl:hover{background:rgba(255,255,255,.2)}
+        /* Body: single-col mobile, 2-col desktop */
+        .ef-bd{overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+        @media(min-width:700px){
+          .ef-bd{display:grid;grid-template-columns:1fr 1fr;column-gap:22px;overflow:visible;align-items:start}
+          .ef-col-l{display:flex;flex-direction:column;gap:14px}
+          .ef-col-r{display:flex;flex-direction:column;gap:14px}
+        }
+        .ef-s{display:flex;flex-direction:column;gap:6px}
         .ef-l{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
-        .ef-r2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-        .ef-iw{position:relative}
-        .ef-ii{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:13px;color:#8896a5;pointer-events:none}
-        .ef-iw input,.ef-iw select,.ef-iw textarea{width:100%;font-family:inherit;font-size:14px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:9px 11px;outline:none;transition:border-color .15s,background .15s,box-shadow .15s;-webkit-appearance:none}
-        .ef-iw.hi input{padding-left:32px}
+        .ef-r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .ef-iw input,.ef-iw select,.ef-iw textarea{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s,background .15s;-webkit-appearance:none}
         .ef-iw input:focus,.ef-iw select:focus,.ef-iw textarea:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
         .ef-iw input::placeholder,.ef-iw textarea::placeholder{color:#8896a5;font-weight:400}
-        .ef-iw textarea{resize:none;height:64px;line-height:1.5}
+        .ef-iw textarea{resize:none;height:60px;line-height:1.5}
+        /* Projekt-Card */
+        .ef-proj-card{background:#e8f1f9;border:1.5px solid rgba(0,64,120,.15);border-radius:8px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between}
+        /* Kategorie */
         .ef-kg{display:flex;flex-wrap:wrap;gap:6px}
-        .ef-kat-btn{flex:0 0 auto;padding:8px 15px;font-family:inherit;font-size:13px;font-weight:600;color:#4a5568;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;cursor:pointer;transition:all .15s;white-space:nowrap}
-        .ef-kat-btn:hover{border-color:#0a5a9e;color:#0a5a9e;background:#f0f6fc}
-        .ef-kat-btn.active{background:#004078;border-color:#004078;color:#fff;box-shadow:0 2px 8px rgba(0,64,120,.25)}
-        .ef-pr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .ef-pp{display:inline-flex;align-items:center;gap:8px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;padding:6px 12px 6px 7px;cursor:pointer;transition:all .15s}
-        .ef-pp:hover{border-color:#0a5a9e;background:#f0f6fc}
-        .ef-av{width:26px;height:26px;background:linear-gradient(135deg,#004078,#0a5a9e);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
-        .ef-av.co{background:linear-gradient(135deg,#6b7280,#4b5563)}
-        .ef-pn{font-size:13px;font-weight:600;color:#1a2332}
-        .ef-pr-role{font-size:10px;color:#8896a5;font-weight:500}
-        .ef-pe{font-size:12px;color:#8896a5;margin-left:2px}
-        .ef-addco{display:inline-flex;align-items:center;gap:6px;background:none;border:1.5px dashed #dde4ec;border-radius:100px;padding:6px 14px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;cursor:pointer;transition:all .15s}
-        .ef-addco:hover{border-color:#0a5a9e;color:#0a5a9e}
-        .ef-bc-grid{display:grid;gap:10px}
-        .ef-bc-grid.two{grid-template-columns:1fr 1fr}
-        .ef-bi{display:flex;flex-direction:column;gap:5px}
-        .ef-bc{border-radius:8px;padding:10px 13px;border:1.5px solid #dde4ec}
-        .ef-bc-ok{background:#e8f5ef;border-color:rgba(26,138,94,.2)}
-        .ef-bc-warn{background:#fef3c7;border-color:rgba(180,83,9,.2)}
-        .ef-bc-pending{background:#f4f7fb}
-        .ef-bc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#1a8a5e}
-        .ef-bc-warn .ef-bc-lbl{color:#b45309}
-        .ef-bc-pending .ef-bc-lbl{color:#8896a5}
-        .ef-bc-val{font-size:18px;font-weight:700;color:#1a2332;letter-spacing:-.3px;margin-top:1px}
-        .ef-bc-warn .ef-bc-val,.ef-bc-pending .ef-bc-val{font-size:13px;font-weight:500;color:#b45309}
-        .ef-bc-pending .ef-bc-val{color:#8896a5}
-        .ef-ov{position:relative}
-        .ef-ov-p{position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:#8896a5;pointer-events:none}
-        .ef-ov input{background:#fff;font-size:13px;padding:8px 10px 8px 30px;border-radius:8px;border:1.5px solid #dde4ec;width:100%;font-family:inherit;font-weight:500;color:#1a2332;outline:none;transition:border-color .15s}
-        .ef-ov input:focus{border-color:#0a5a9e;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
-        .ef-ov input::placeholder{color:#8896a5;font-weight:400}
-        .ef-sr{display:flex;gap:6px;flex-wrap:wrap}
-        .ef-sp{padding:6px 14px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;cursor:pointer;background:#f4f7fb;color:#4a5568;transition:all .15s;font-family:inherit}
-        .ef-sp:hover{border-color:#0a5a9e}
-        .ef-sp.on{background:#004078;border-color:#004078;color:#fff}
-        .ef-sp.abg{color:#950e13;border-color:rgba(149,14,19,.3)}
-        .ef-sp.abg.on{background:#950e13;border-color:#950e13;color:#fff}
-        .ef-dv{height:1px;background:#dde4ec;margin:2px 0}
-        .ef-ft{padding:13px 22px 18px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #dde4ec;flex-shrink:0;gap:10px}
-        .ef-btn-c{padding:9px 20px;border-radius:9px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer;transition:all .15s}
-        .ef-btn-c:hover{border-color:#4a5568}
-        .ef-btn-s{padding:9px 28px;border-radius:9px;font-family:inherit;font-size:14px;font-weight:700;background:linear-gradient(135deg,#004078,#0a5a9e);border:none;color:#fff;cursor:pointer;box-shadow:0 3px 12px rgba(0,64,120,.3);transition:all .15s;display:flex;align-items:center;gap:6px}
-        .ef-btn-s:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(0,64,120,.38)}
-        .ef-sub-inp{display:none;margin-top:8px}
+        .ef-kat-btn{flex:0 0 auto;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:600;color:#4a5568;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;cursor:pointer;transition:all .15s;white-space:nowrap}
+        .ef-kat-btn:hover{border-color:#0a5a9e;color:#0a5a9e}
+        .ef-kat-btn.active{background:#004078;border-color:#004078;color:#fff}
+        .ef-sub-inp{display:none;margin-top:6px}
         .ef-sub-inp.show{display:block}
+        /* Personen */
+        .ef-pr{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+        .ef-pp{display:inline-flex;align-items:center;gap:7px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:100px;padding:5px 10px 5px 6px;cursor:pointer;transition:all .15s}
+        .ef-pp:hover{border-color:#0a5a9e}
+        .ef-av{width:24px;height:24px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0}
+        .ef-av.co{background:#6b7280}
+        .ef-pn{font-size:12px;font-weight:600;color:#1a2332}
+        .ef-pr-role{font-size:10px;color:#8896a5}
+        .ef-pe{font-size:11px;color:#8896a5;margin-left:2px}
+        .ef-addco{display:inline-flex;align-items:center;gap:5px;background:none;border:1.5px dashed #dde4ec;border-radius:100px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;cursor:pointer;transition:all .15s}
+        .ef-addco:hover{border-color:#0a5a9e;color:#0a5a9e}
         .ef-ta-wrap{display:none}
-        .ef-proj-card{background:#e8f1f9;border:1.5px solid rgba(0,64,120,.15);border-radius:9px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+        /* Betrag */
+        .ef-betrag-box{background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden}
+        .ef-betrag-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;gap:8px}
+        .ef-betrag-row+.ef-betrag-row{border-top:1px solid #dde4ec}
+        .ef-betrag-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:2px}
+        .ef-betrag-val{font-size:15px;font-weight:700;color:#1a2332}
+        .ef-betrag-val.warn{font-size:12px;font-weight:500;color:#b45309}
+        .ef-betrag-src{font-size:10px;color:#8896a5}
+        .ef-betrag-edit{font-size:11px;color:#0a5a9e;border:1px solid #dde4ec;border-radius:6px;padding:3px 8px;background:#fff;cursor:pointer;font-family:inherit;flex-shrink:0}
+        .ef-betrag-override{padding:0 12px 9px;display:none}
+        .ef-betrag-override.show{display:flex;align-items:center;gap:6px}
+        .ef-betrag-override input{width:110px;padding:5px 8px;font-size:12px;background:#fff;border:1.5px solid #dde4ec;border-radius:6px;color:#1a2332;font-family:inherit;outline:none}
+        .ef-betrag-override input:focus{border-color:#0a5a9e}
+        .ef-betrag-override .muted{font-size:11px;color:#8896a5}
+        /* Wegspesen */
+        .ef-weg-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 13px;border-radius:100px;border:1.5px solid #dde4ec;background:#f4f7fb;color:#4a5568;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+        .ef-weg-toggle:hover{border-color:#0a5a9e}
+        .ef-weg-toggle.on{background:#004078;border-color:#004078;color:#fff}
+        .ef-weg-detail{margin-top:8px;display:none;flex-direction:column;gap:7px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:10px 12px}
+        .ef-weg-detail.show{display:flex}
+        .ef-weg-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .ef-weg-inp{width:90px;padding:6px 8px;font-size:12px;background:#fff;border:1.5px solid #dde4ec;border-radius:6px;color:#1a2332;font-family:inherit;outline:none}
+        .ef-weg-inp:focus{border-color:#0a5a9e}
+        .ef-weg-hint{font-size:11px;color:#8896a5}
+        .ef-weg-calc{font-size:12px;font-weight:700;color:#1a8a5e}
+        .ef-weg-noansatz{font-size:11px;color:#950e13}
+        /* Divider */
+        .ef-dv{height:1px;background:#dde4ec}
+        /* Status */
+        .ef-st-info{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:7px;background:#f4f7fb;border:1.5px solid #dde4ec;font-size:12px;color:#4a5568}
+        .ef-st-info-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+        .ef-st-info-dot.blue{background:#378ADD}
+        .ef-st-info-dot.green{background:#1D9E75}
+        .ef-st-info-dot.red{background:#950e13}
+        .ef-st-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+        .ef-st-btn{padding:6px 13px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid rgba(149,14,19,.3);color:#950e13;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s}
+        .ef-st-btn:hover{background:#fef2f2}
+        .ef-st-btn.on{background:#950e13;border-color:#950e13;color:#fff}
+        /* Footer */
+        .ef-ft{padding:11px 20px 14px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #dde4ec;flex-shrink:0;gap:10px}
+        .ef-abr-info{font-size:11px;color:#8896a5;display:flex;align-items:center;gap:5px}
+        .ef-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .ef-btn-c:hover{border-color:#4a5568}
+        .ef-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
+        .ef-btn-s:hover{background:#0a5a9e}
       </style>
       <div class="ef-m">
         <div class="ef-hd">
           <div class="ef-hd-l">
             <div class="ef-hd-ic">📋</div>
             <div>
-              <div class="ef-hd-t">${id ? "Einsatz bearbeiten" : "Einsatz erfassen"}</div>
+              <div class="ef-hd-t">
+                ${id ? "Einsatz bearbeiten" : "Einsatz erfassen"}
+                ${id && e?.abrechnung ? `<span class="ef-hd-abr">${h.esc(e.abrechnung)}</span>` : ""}
+              </div>
               <div class="ef-hd-s" id="ef-hd-sub">${selProjekt ? h.esc(selProjekt.title) + (selProjekt.firmaName ? " · " + h.esc(selProjekt.firmaName) : "") : "Projekt wählen"}</div>
             </div>
           </div>
@@ -1417,265 +1462,215 @@
         </div>
 
         <div class="ef-bd">
-          <form id="einsatz-form" autocomplete="off">
+          <form id="einsatz-form" autocomplete="off" style="display:contents">
             <input type="hidden" name="itemId" value="${id || ""}">
             <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
             <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
             <input type="hidden" id="coperson-val" name="coPersonLookupId" value="${selCoPerson || ""}">
-            <input type="hidden" id="abr-hid" name="abrechnung" value="${e?.abrechnung||"offen"}">
-            <input type="hidden" id="status-hid" name="status" value="${e?.status||""}">
+            <input type="hidden" id="abr-hid" name="abrechnung" value="${e?.abrechnung || "offen"}">
+            <input type="hidden" id="status-hid" name="status" value="${e?.status || ""}">
 
-            <!-- Datum & Ort -->
-            <div class="ef-s">
-              <div class="ef-l">Datum & Ort</div>
-              <div class="ef-r2">
-                <div class="ef-iw hi"><span class="ef-ii">📅</span><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
-                <div class="ef-iw hi"><span class="ef-ii">📍</span><input type="text" name="ort" value="${h.esc(e?.ort||"")}" placeholder="Ort, Zoom…"></div>
-              </div>
-            </div>
+            <!-- LINKE SPALTE (mobile: normal flow) -->
+            <div class="ef-col-l">
 
-            <!-- Projekt -->
-            <div class="ef-s">
-              <div class="ef-l">Projekt</div>
-              ${selProjekt ? `
-              <div class="ef-proj-card">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:8px;height:8px;background:#004078;border-radius:50%;flex-shrink:0"></div>
-                  <div>
-                    <div style="font-size:14px;font-weight:600;color:#004078">${h.esc(selProjekt.title)}</div>
-                    <div style="font-size:12px;color:#8896a5">${selProjekt.projektNr?"#"+h.esc(selProjekt.projektNr)+" · ":""}${h.esc(selProjekt.firmaName)}</div>
-                  </div>
-                </div>
-                <span style="font-size:11px;color:#0a5a9e;font-weight:600;text-decoration:underline;cursor:pointer"
-                  onclick="this.closest('.ef-proj-card').style.display='none';document.getElementById('ef-proj-sel').style.display='block'">ändern</span>
-              </div>
-              <div class="ef-iw" id="ef-proj-sel" style="display:none">
-                <select name="projektLookupId" onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
-                  ${projektOpts}
-                </select>
-              </div>` : `
-              <div class="ef-iw">
-                <select name="projektLookupId" required onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
-                  <option value="">— Projekt wählen —</option>
-                  ${projektOpts}
-                </select>
-              </div>`}
-            </div>
-
-            <!-- Kategorie -->
-            <div class="ef-s">
-              <div class="ef-l">Kategorie</div>
-              <div class="ef-kg" id="kat-grp">
-                ${kats.length ? katBtnHtml : `<span style="font-size:13px;color:#8896a5">Zuerst Projekt wählen</span>`}
-              </div>
-              <div id="fd-std" class="ef-sub-inp${selKat==="Stunde"?" show":""}">
-                <div class="ef-iw" style="max-width:200px">
-                  <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden||""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+              <!-- Datum & Ort -->
+              <div class="ef-s">
+                <div class="ef-l">Datum & Ort</div>
+                <div class="ef-r2">
+                  <div class="ef-iw"><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
+                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || "")}" placeholder="Ort, Zoom…"></div>
                 </div>
               </div>
-              <div id="fd-stk" class="ef-sub-inp${selKat==="Stück"?" show":""}">
-                <div class="ef-iw" style="max-width:200px">
-                  <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck||""}" placeholder="Anzahl Stück" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
-                </div>
-              </div>
-            </div>
 
-            <!-- Personen -->
-            <div class="ef-s">
-              <div class="ef-l">Personen</div>
-              <div class="ef-pr" id="ef-pr">
-                <!-- Lead Pill -->
-                <div class="ef-pp" onclick="ctrl.efOpenPicker('lead')" id="ef-lead-pill">
-                  <div class="ef-av" id="ef-lead-av">${personName ? h.esc(initials(personName)) : "?"}</div>
-                  <div>
-                    <div class="ef-pn" id="ef-lead-name">${personName ? h.esc(personName) : "Person wählen"}</div>
-                    <div class="ef-pr-role">Lead</div>
-                  </div>
-                  <span class="ef-pe">✎</span>
-                </div>
-                <!-- Lead typeahead (versteckt) -->
-                <div class="ef-ta-wrap" id="ef-lead-ta">
-                  ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
-                </div>
-
-                <!-- Co-Lead Add Button -->
-                <button type="button" class="ef-addco" id="ef-addco-btn"
-                  style="${isTagKat?"":"display:none"}"
-                  onclick="ctrl.efToggleCo(true)">
-                  <span>＋</span> Co-Lead
-                </button>
-
-                <!-- Co-Lead Pill -->
-                <div class="ef-pp" id="ef-co-pill" style="${selCoPerson?"":"display:none"}" onclick="ctrl.efOpenPicker('co')">
-                  <div class="ef-av co" id="ef-co-av">${coPersonName ? h.esc(initials(coPersonName)) : "?"}</div>
-                  <div>
-                    <div class="ef-pn" id="ef-co-name">${coPersonName ? h.esc(coPersonName) : "—"}</div>
-                    <div class="ef-pr-role">Co-Lead</div>
-                  </div>
-                  <span class="ef-pe" onclick="event.stopPropagation();ctrl.efToggleCo(false)">✕</span>
-                </div>
-                <!-- Co typeahead (versteckt) -->
-                <div class="ef-ta-wrap" id="ef-co-ta">
-                  ${ui.personTypeahead("coPersonLookupId_ta", selCoPerson ? String(selCoPerson) : "")}
-                </div>
-              </div>
-            </div>
-
-            <!-- Beschreibung -->
-            <div class="ef-s">
-              <div class="ef-l">Beschreibung (optional)</div>
-              <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title||"")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
-            </div>
-
-            <div class="ef-dv"></div>
-
-            <!-- Beträge -->
-            <div class="ef-s">
-              <div class="ef-l">Beträge</div>
-              <div class="ef-bc-grid${selCoPerson && isTagKat ? " two" : ""}" id="ef-bc-grid">
-                <div class="ef-bi">
-                  <div id="ef-bc-lead">${betragLeadCard()}</div>
-                  <div class="ef-ov"><span class="ef-ov-p">CHF</span><input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal??""}" placeholder="Anpassen (optional)"></div>
-                </div>
-                <div class="ef-bi" id="ef-bc-co" style="${selCoPerson && isTagKat ? "" : "display:none"}">
-                  <div id="ef-bc-co-card">${betragCoCard()}</div>
-                  <div class="ef-ov"><span class="ef-ov-p">CHF</span><input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal??""}" placeholder="Anpassen (optional)"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="ef-dv"></div>
-
-            <!-- Spesen -->
-            <div class="ef-s">
-              <div class="ef-l">Spesen</div>
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-                <button type="button" id="ef-spesen-btn"
-                  class="ef-sp"
-                  onclick="ctrl.efToggleSpesen()"
-                  style="font-size:13px;padding:7px 16px">
-                  Spesen verrechenbar?
-                </button>
-              </div>
-              <div id="ef-spesen-detail" style="display:none;flex-direction:column;gap:10px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:9px;padding:12px 14px">
-                <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <button type="button" id="ef-wegspesen-btn"
-                      class="ef-sp"
-                      onclick="ctrl.efToggleWegspesen()"
-                      style="font-size:12px;padding:5px 12px">
-                      Wegspesen
-                    </button>
-                    <span id="ef-km-ansatz-label" style="font-size:11px;color:#8896a5">Ansatz: CHF {}/km</span>
-                  </div>
-                  <div id="ef-wegspesen-detail" style="display:none;flex-direction:column;gap:8px">
-                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                      <div class="ef-iw" style="max-width:130px">
-                        <input type="number" name="kmAnzahl" id="ef-km-input" min="0" step="1"
-                          placeholder="km (einfach)"
-                          oninput="ctrl.efCalcWegspesen(this.value)">
-                      </div>
-                      <span style="font-size:12px;color:#8896a5">× CHF/km Ansatz</span>
-                      <div id="ef-wegspesen-total" style="font-size:13px;font-weight:600;color:#1a8a5e"></div>
-                      <input type="hidden" name="spesenBerechnet" id="ef-spesen-ber" value="">
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px">
-                      <div class="ef-ov" style="max-width:160px">
-                        <span class="ef-ov-p">CHF</span>
-                        <input type="number" name="spesenFinal" id="ef-spesen-final" step="0.01" min="0" placeholder="Anpassen (optional)">
-                      </div>
-                      <span style="font-size:11px;color:#8896a5">Leer = berechneter Wert</span>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:5px">Sonstige Spesen</div>
+              <!-- Projekt -->
+              <div class="ef-s">
+                <div class="ef-l">Projekt</div>
+                ${selProjekt ? `
+                <div class="ef-proj-card">
                   <div style="display:flex;align-items:center;gap:8px">
-                    <div class="ef-ov" style="max-width:160px">
-                      <span class="ef-ov-p">CHF</span>
-                      <input type="number" name="spesenZusatz" id="ef-spesen-zusatz" step="0.01" min="0" placeholder="Betrag">
+                    <div style="width:7px;height:7px;background:#004078;border-radius:50%;flex-shrink:0"></div>
+                    <div>
+                      <div style="font-size:13px;font-weight:600;color:#004078">${h.esc(selProjekt.title)}</div>
+                      <div style="font-size:11px;color:#8896a5">${selProjekt.projektNr ? "#" + h.esc(selProjekt.projektNr) + " · " : ""}${h.esc(selProjekt.firmaName)}</div>
                     </div>
-                    <span style="font-size:11px;color:#8896a5">Details in Bemerkungen ergänzen</span>
+                  </div>
+                  <span style="font-size:11px;color:#0a5a9e;font-weight:600;text-decoration:underline;cursor:pointer"
+                    onclick="this.closest('.ef-proj-card').style.display='none';document.getElementById('ef-proj-sel').style.display='block'">ändern</span>
+                </div>
+                <div class="ef-iw" id="ef-proj-sel" style="display:none">
+                  <select name="projektLookupId" onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
+                    ${projektOpts}
+                  </select>
+                </div>` : `
+                <div class="ef-iw">
+                  <select name="projektLookupId" required onchange="ctrl.onProjChange(this);ctrl.efUpdateHeader(this)">
+                    <option value="">— Projekt wählen —</option>
+                    ${projektOpts}
+                  </select>
+                </div>`}
+              </div>
+
+              <!-- Beschreibung -->
+              <div class="ef-s">
+                <div class="ef-l">Beschreibung (optional)</div>
+                <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
+              </div>
+
+              <!-- Kategorie -->
+              <div class="ef-s">
+                <div class="ef-l">Kategorie</div>
+                <div class="ef-kg" id="kat-grp">
+                  ${kats.length ? katBtnHtml : `<span style="font-size:12px;color:#8896a5">Zuerst Projekt wählen</span>`}
+                </div>
+                <div id="fd-std" class="ef-sub-inp${selKat === "Stunde" ? " show" : ""}">
+                  <div class="ef-iw" style="max-width:180px">
+                    <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden || ""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+                  </div>
+                </div>
+                <div id="fd-stk" class="ef-sub-inp${selKat === "Stück" ? " show" : ""}">
+                  <div class="ef-iw" style="max-width:180px">
+                    <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck || ""}" placeholder="Anzahl Stück" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
                   </div>
                 </div>
               </div>
-            </div>
-            <!-- Bemerkungen -->
-            <div class="ef-s">
-              <div class="ef-l">Bemerkungen (optional)</div>
-              <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen||"")}</textarea></div>
-            </div>
 
-            <div class="ef-dv"></div>
+              <!-- Personen -->
+              <div class="ef-s">
+                <div class="ef-l">Personen</div>
+                <div class="ef-pr" id="ef-pr">
+                  <div class="ef-pp" onclick="ctrl.efOpenPicker('lead')" id="ef-lead-pill">
+                    <div class="ef-av" id="ef-lead-av">${personName ? h.esc(initials(personName)) : "?"}</div>
+                    <div>
+                      <div class="ef-pn" id="ef-lead-name">${personName ? h.esc(personName) : "Person wählen"}</div>
+                      <div class="ef-pr-role">Lead</div>
+                    </div>
+                    <span class="ef-pe">✎</span>
+                  </div>
+                  <div class="ef-ta-wrap" id="ef-lead-ta">
+                    ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
+                  </div>
+                  <button type="button" class="ef-addco" id="ef-addco-btn"
+                    style="${isTagKat ? "" : "display:none"}"
+                    onclick="ctrl.efToggleCo(true)">＋ Co-Lead</button>
+                  <div class="ef-pp" id="ef-co-pill" style="${selCoPerson ? "" : "display:none"}" onclick="ctrl.efOpenPicker('co')">
+                    <div class="ef-av co" id="ef-co-av">${coPersonName ? h.esc(initials(coPersonName)) : "?"}</div>
+                    <div>
+                      <div class="ef-pn" id="ef-co-name">${coPersonName ? h.esc(coPersonName) : "—"}</div>
+                      <div class="ef-pr-role">Co-Lead</div>
+                    </div>
+                    <span class="ef-pe" onclick="event.stopPropagation();ctrl.efToggleCo(false)">✕</span>
+                  </div>
+                  <div class="ef-ta-wrap" id="ef-co-ta">
+                    ${ui.personTypeahead("coPersonLookupId_ta", selCoPerson ? String(selCoPerson) : "")}
+                  </div>
+                </div>
+              </div>
 
-            <!-- Abrechnung -->
-            <div class="ef-s">
-              <div class="ef-l">Abrechnung</div>
-              <div class="ef-sr">
-                ${state.choices.einsatzAbrechnung.map(s => `<button type="button" class="ef-sp${(e?.abrechnung||state.choices.einsatzAbrechnung[0])===s?" on":""}"
-                  onclick="document.querySelectorAll('.ef-sp:not(.abg)').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('abr-hid').value='${h.esc(s)}'"
-                  >${s.charAt(0).toUpperCase()+s.slice(1)}</button>`).join("")}
-                <button type="button" class="ef-sp abg${e?.status?" on":""}"
-                  onclick="ctrl.efToggleAbgesagt(this)">Abgesagt</button>
+            </div><!-- /ef-col-l -->
+
+            <!-- RECHTE SPALTE (mobile: normal flow, nach linker) -->
+            <div class="ef-col-r">
+
+              <!-- Betrag -->
+              <div class="ef-s">
+                <div class="ef-l">Betrag</div>
+                <div class="ef-betrag-box" id="ef-betrag-box">
+                  <!-- Lead -->
+                  <div class="ef-betrag-row">
+                    <div>
+                      <div class="ef-betrag-lbl">Lead</div>
+                      <div class="ef-betrag-val${lbi.warn ? " warn" : ""}" id="ef-bval-lead">${h.esc(lbi.val)}</div>
+                      ${lbi.sub ? `<div class="ef-betrag-src">${h.esc(lbi.sub)}</div>` : ""}
+                    </div>
+                    <button type="button" class="ef-betrag-edit" onclick="ctrl.efToggleOverride('ef-ov-lead')">Anpassen</button>
+                  </div>
+                  <div class="ef-betrag-override${e?.betragFinal ? " show" : ""}" id="ef-ov-lead">
+                    <span style="font-size:11px;color:#8896a5">CHF</span>
+                    <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal ?? ""}" placeholder="Betrag">
+                    <span class="muted">leer = aus Projekt</span>
+                  </div>
+                  <!-- Co-Lead (nur wenn Tag-Kat + Co gesetzt) -->
+                  <div id="ef-betrag-co-row" style="${selCoPerson && isTagKat ? "" : "display:none"}">
+                    <div class="ef-betrag-row">
+                      <div>
+                        <div class="ef-betrag-lbl">Co-Lead</div>
+                        <div class="ef-betrag-val${cbi.warn ? " warn" : ""}" id="ef-bval-co">${h.esc(cbi.val)}</div>
+                        ${cbi.sub ? `<div class="ef-betrag-src">${h.esc(cbi.sub)}</div>` : ""}
+                      </div>
+                      <button type="button" class="ef-betrag-edit" onclick="ctrl.efToggleOverride('ef-ov-co')">Anpassen</button>
+                    </div>
+                    <div class="ef-betrag-override${e?.coBetragFinal ? " show" : ""}" id="ef-ov-co">
+                      <span style="font-size:11px;color:#8896a5">CHF</span>
+                      <input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal ?? ""}" placeholder="Betrag">
+                      <span class="muted">leer = aus Projekt</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div id="ef-abg-opts" style="display:${e?.status?"flex":"none"};gap:6px;margin-top:8px">
-                ${state.choices.einsatzStatus.map(s => `<button type="button" class="ef-sp${e?.status===s?" on":""}"
-                  style="font-size:11px"
-                  onclick="document.querySelectorAll('#ef-abg-opts .ef-sp').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('status-hid').value='${h.esc(s)}'"
-                  >${s}</button>`).join("")}
+
+              <!-- Wegspesen -->
+              <div class="ef-s">
+                <div class="ef-l">Wegspesen</div>
+                <button type="button" id="ef-weg-btn" class="ef-weg-toggle${hasSp ? " on" : ""}" onclick="ctrl.efToggleWeg()">
+                  ${hasSp ? "Wegspesen verrechnen ✓" : "Wegspesen verrechnen"}
+                </button>
+                <div class="ef-weg-detail${hasSp ? " show" : ""}" id="ef-weg-detail">
+                  ${ansatzKm ? `
+                  <div class="ef-weg-row">
+                    <input type="number" class="ef-weg-inp" id="ef-km-inp" name="kmAnzahl" min="0" step="1"
+                      value="${kmGespeichert}" placeholder="km" oninput="ctrl.efCalcKm(this.value)">
+                    <span class="ef-weg-hint">km (Hin &amp; Zurück)</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="ef-weg-hint">CHF ${h.chf(ansatzKm)}/km</span>
+                    <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
+                  </div>
+                  <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${hasSp ? (e?.spesenBerechnet ?? "") : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : "")}">
+                  ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
+                </div>
               </div>
-            </div>
+
+              <div class="ef-dv"></div>
+
+              <!-- Status / Abgesagt -->
+              <div class="ef-s">
+                <div class="ef-l">Abgesagt?</div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div class="ef-st-info" id="ef-st-info">
+                    <div class="${statusAnzeige.cls}" id="ef-st-dot"></div>
+                    <span id="ef-st-label">${h.esc(statusAnzeige.label)}</span>
+                  </div>
+                </div>
+                <div class="ef-st-btns">
+                  ${state.choices.einsatzStatus.map(s => `<button type="button"
+                    class="ef-st-btn${e?.status === s ? " on" : ""}"
+                    onclick="ctrl.efToggleStatus(this, '${h.esc(s)}')">${h.esc(s)}</button>`).join("")}
+                </div>
+              </div>
+
+              <div class="ef-dv"></div>
+
+              <!-- Bemerkungen -->
+              <div class="ef-s">
+                <div class="ef-l">Bemerkungen (optional)</div>
+                <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || "")}</textarea></div>
+              </div>
+
+            </div><!-- /ef-col-r -->
 
           </form>
-        </div>
+        </div><!-- /ef-bd -->
 
         <div class="ef-ft">
-          <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
-          <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
-            <span>✓</span> Speichern
-          </button>
+          ${id && e?.abrechnung ? `<div class="ef-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(e.abrechnung)}</div>` : `<div></div>`}
+          <div style="display:flex;gap:8px">
+            <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
+            <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+              <span>✓</span> Speichern
+            </button>
+          </div>
         </div>
       </div>`);
-
-      // Spesen-Felder nach Render initialisieren (vermeidet Template-String-Probleme)
-      setTimeout(() => {
-        const ansatz = selProjekt?.ansatzKmSpesen;
-        const label = document.getElementById("ef-km-ansatz-label");
-        if (label) {
-          if (ansatz) label.textContent = "Ansatz: CHF " + h.chf(ansatz) + "/km";
-          else { label.textContent = "\u26a0 Kein Km-Ansatz im Projekt"; label.style.color = "#950e13"; }
-        }
-
-        const hasSp = !!(e?.spesenBerechnet || e?.spesenZusatz || e?.spesenFinal);
-        if (hasSp) {
-          const btn = document.getElementById("ef-spesen-btn");
-          const detail = document.getElementById("ef-spesen-detail");
-          if (btn) { btn.classList.add("on"); btn.textContent = "Spesen verrechenbar \u2713"; }
-          if (detail) detail.style.display = "flex";
-        }
-
-        const hasWeg = !!e?.spesenBerechnet;
-        if (hasWeg) {
-          const wbtn = document.getElementById("ef-wegspesen-btn");
-          const wdetail = document.getElementById("ef-wegspesen-detail");
-          if (wbtn) wbtn.classList.add("on");
-          if (wdetail) wdetail.style.display = "flex";
-          const kmInp = document.getElementById("ef-km-input");
-          if (kmInp && ansatz) {
-            const km = Math.round(e.spesenBerechnet / ansatz);  // KmZumKunden ist bereits Hin+Zurück
-            kmInp.value = km;
-          }
-          const ber = document.getElementById("ef-spesen-ber");
-          if (ber) ber.value = e.spesenBerechnet || "";
-          const tot = document.getElementById("ef-wegspesen-total");
-          if (tot && e.spesenBerechnet) tot.textContent = "= CHF " + h.chf(e.spesenBerechnet);
-          const sf = document.getElementById("ef-spesen-final");
-          if (sf) sf.value = e?.spesenFinal || "";
-        }
-
-        const zusatz = document.getElementById("ef-spesen-zusatz");
-        if (zusatz && e?.spesenZusatz) zusatz.value = e.spesenZusatz;
-      }, 0);
     },
     // ── Einsatz-Formular Helfer ──────────────────────────────────────────
     efUpdateHeader(sel) {
@@ -1685,9 +1680,9 @@
     },
 
     efOpenPicker(type) {
-      const taId = type === "lead" ? "ef-lead-ta" : "ef-co-ta";
+      const taId   = type === "lead" ? "ef-lead-ta" : "ef-co-ta";
       const pillId = type === "lead" ? "ef-lead-pill" : "ef-co-pill";
-      const ta = document.getElementById(taId);
+      const ta   = document.getElementById(taId);
       const pill = document.getElementById(pillId);
       if (!ta || !pill) return;
       pill.style.display = "none";
@@ -1698,21 +1693,17 @@
     efToggleCo(show) {
       const addBtn = document.getElementById("ef-addco-btn");
       const coPill = document.getElementById("ef-co-pill");
-      const coBc   = document.getElementById("ef-bc-co");
-      const bcGrid = document.getElementById("ef-bc-grid");
+      const coRow  = document.getElementById("ef-betrag-co-row");
       const coVal  = document.getElementById("coperson-val");
       if (show) {
         if (addBtn) addBtn.style.display = "none";
         if (coPill) coPill.style.display = "inline-flex";
-        // Open co picker immediately
         ctrl.efOpenPicker("co");
       } else {
         if (addBtn) addBtn.style.display = "inline-flex";
         if (coPill) coPill.style.display = "none";
-        if (coBc)   coBc.style.display = "none";
-        if (bcGrid) bcGrid.classList.remove("two");
+        if (coRow)  coRow.style.display = "none";
         if (coVal)  coVal.value = "";
-        // Reset co typeahead
         const coTa = document.getElementById("ef-co-ta");
         if (coTa) {
           coTa.style.display = "none";
@@ -1721,95 +1712,74 @@
           if (inp) inp.value = "";
           if (val) val.value = "";
         }
-        // Update co betrag display
         ctrl.updateCoBetrag();
       }
     },
 
-    efToggleSpesen() {
-      const btn    = document.getElementById("ef-spesen-btn");
-      const detail = document.getElementById("ef-spesen-detail");
+    // Betrag-Override-Panel ein-/ausklappen
+    efToggleOverride(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const vis = el.classList.toggle("show");
+      if (vis) el.querySelector("input")?.focus();
+    },
+
+    // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    efToggleWeg() {
+      const btn    = document.getElementById("ef-weg-btn");
+      const detail = document.getElementById("ef-weg-detail");
       if (!btn || !detail) return;
-      if (btn.classList.contains("on")) {
-        // Deaktivieren
-        btn.classList.remove("on");
-        btn.textContent = "Spesen verrechenbar?";
-        detail.style.display = "none";
-        // Wegspesen zurücksetzen
-        const wb = document.getElementById("ef-wegspesen-btn");
-        const wd = document.getElementById("ef-wegspesen-detail");
-        if (wb) wb.classList.remove("on");
-        if (wd) wd.style.display = "none";
-        const km = document.getElementById("ef-km-input");       if (km) km.value = "";
-        const ber = document.getElementById("ef-spesen-ber");    if (ber) ber.value = "";
-        const tot = document.getElementById("ef-wegspesen-total"); if (tot) tot.textContent = "";
-        const sf = document.getElementById("ef-spesen-final");   if (sf) sf.value = "";
-        const sz = document.getElementById("ef-spesen-zusatz");  if (sz) sz.value = "";
-      } else {
-        // Aktivieren
-        btn.classList.add("on");
-        btn.textContent = "Spesen verrechenbar ✓";
-        detail.style.display = "flex";
+      const on = btn.classList.toggle("on");
+      detail.classList.toggle("show", on);
+      btn.textContent = on ? "Wegspesen verrechnen \u2713" : "Wegspesen verrechnen";
+      if (!on) {
+        // Felder zurücksetzen
+        const km  = document.getElementById("ef-km-inp");    if (km) km.value = "";
+        const ber = document.getElementById("ef-sp-ber");    if (ber) ber.value = "";
+        const calc = document.getElementById("ef-km-calc");  if (calc) calc.textContent = "";
       }
     },
 
-    efToggleWegspesen() {
-      const btn    = document.getElementById("ef-wegspesen-btn");
-      const detail = document.getElementById("ef-wegspesen-detail");
-      if (!btn || !detail) return;
-      if (btn.classList.contains("on")) {
-        // Deaktivieren
-        btn.classList.remove("on");
-        detail.style.display = "none";
-        const km  = document.getElementById("ef-km-input");        if (km) km.value = "";
-        const ber = document.getElementById("ef-spesen-ber");      if (ber) ber.value = "";
-        const tot = document.getElementById("ef-wegspesen-total"); if (tot) tot.textContent = "";
-        const sf  = document.getElementById("ef-spesen-final");    if (sf) sf.value = "";
-        return;
-      }
-      // Aktivieren — Km-Ansatz prüfen
-      const projId = Number(document.querySelector("[name=\'projektLookupId\']")?.value) || null;
-      const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-      if (!proj?.ansatzKmSpesen) {
-        ui.setMsg("Kein Km-Ansatz im Projekt. Bitte in Projektsettings erfassen.", "error");
-        return;
-      }
-      btn.classList.add("on");
-      detail.style.display = "flex";
-      // Km aus Projektstammdaten vorausfüllen und direkt berechnen
-      const kmInp = document.getElementById("ef-km-input");
-      if (kmInp && !kmInp.value && proj?.kmZumKunden) {
-        kmInp.value = proj.kmZumKunden;
-        ctrl.efCalcWegspesen(proj.kmZumKunden);
-      }
-    },
-
-    efCalcWegspesen(km) {
+    // Km-Berechnung (inline, still)
+    efCalcKm(km) {
       const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-      const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+      const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
       const ansatz = proj?.ansatzKmSpesen;
-      const kmNum = parseFloat(km) || 0;
-      const total = ansatz ? kmNum * ansatz : 0;  // KmZumKunden ist bereits Hin+Zurück
-      const tot = document.getElementById("ef-wegspesen-total");
-      if (tot) tot.textContent = total > 0 ? "= CHF " + h.chf(total) : "";
-      const ber = document.getElementById("ef-spesen-ber");
-      if (ber) ber.value = total > 0 ? total : "";
+      if (!ansatz) return;
+      const total = (parseFloat(km) || 0) * ansatz;
+      const calc = document.getElementById("ef-km-calc");
+      if (calc) calc.textContent = total > 0 ? "= CHF " + h.chf(total) : "";
+      const ber = document.getElementById("ef-sp-ber");
+      if (ber) ber.value = total > 0 ? String(total) : "";
     },
 
-    efToggleAbgesagt(btn) {
-      const opts = document.getElementById("ef-abg-opts");
+    // Status-Toggle: mutual exclusive, zweiter Klick deaktiviert
+    efToggleStatus(btn, statusVal) {
       const statusHid = document.getElementById("status-hid");
-      if (opts.style.display === "none" || opts.style.display === "") {
-        opts.style.display = "flex";
+      const wasOn = btn.classList.contains("on");
+      document.querySelectorAll(".ef-st-btn").forEach(b => b.classList.remove("on"));
+      if (!wasOn) {
         btn.classList.add("on");
-        if (statusHid && !statusHid.value) statusHid.value = "abgesagt";
-        // Set first option active
-        const first = opts.querySelector(".ef-sp");
-        if (first) { first.classList.add("on"); }
+        if (statusHid) statusHid.value = statusVal;
       } else {
-        opts.style.display = "none";
-        btn.classList.remove("on");
         if (statusHid) statusHid.value = "";
+      }
+      // Status-Info-Pill aktualisieren
+      const dot   = document.getElementById("ef-st-dot");
+      const label = document.getElementById("ef-st-label");
+      const cur   = statusHid?.value || "";
+      if (dot && label) {
+        if (!cur) {
+          // Datum-basiert: Geplant/Durchgeführt
+          const datumVal = document.querySelector("[name='datum']")?.value;
+          const d = h.toDate(datumVal);
+          const isPast = d && d <= h.todayStart();
+          dot.className   = "ef-st-info-dot " + (isPast ? "green" : "blue");
+          label.textContent = isPast ? "Durchgef\u00fchrt" : "Geplant";
+        } else {
+          dot.className   = "ef-st-info-dot red";
+          label.textContent = cur === "abgesagt mit Kostenfolge" ? "Abgesagt (CHF)" : "Abgesagt";
+        }
       }
     },
 
@@ -1817,36 +1787,39 @@
       const p    = state.enriched.projekte.find(p => p.id === Number(sel.value));
       const kats = h.kategorien(p);
       const grp  = document.getElementById("kat-grp");
-      if (grp) grp.innerHTML = kats.map(k => `<button type="button" class="ef-kat-btn"
-        onclick="document.querySelectorAll('.ef-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</button>`).join("");
+      if (grp) grp.innerHTML = kats.length
+        ? kats.map(k => `<button type="button" class="ef-kat-btn"
+            onclick="document.querySelectorAll('.ef-kat-btn').forEach(b=>b.classList.remove('active'));this.classList.add('active');document.getElementById('kat-hid').value='${h.esc(k)}';ctrl.onKatChange('${h.esc(k)}')">${h.esc(k)}</button>`).join("")
+        : `<span style="font-size:12px;color:#8896a5">Keine Kategorien konfiguriert</span>`;
       const hid = document.getElementById("kat-hid");
       if (hid) hid.value = "";
-      // Dauer-Felder zurücksetzen
-      const dStd = document.querySelector("[name='dauerStunden']");
-      if (dStd) dStd.value = "";
-      const dStk = document.querySelector("[name='anzahlStueck']");
-      if (dStk) dStk.value = "";
+      const dStd = document.querySelector("[name='dauerStunden']"); if (dStd) dStd.value = "";
+      const dStk = document.querySelector("[name='anzahlStueck']"); if (dStk) dStk.value = "";
+      // Betrag-Anzeige zurücksetzen
+      const bvl = document.getElementById("ef-bval-lead");
+      if (bvl) { bvl.textContent = "Kategorie wählen"; bvl.className = "ef-betrag-val warn"; }
     },
 
     onKatChange(kat) {
       const fdStd = document.getElementById("fd-std");
       const fdStk = document.getElementById("fd-stk");
       if (fdStd) fdStd.className = "ef-sub-inp" + (kat === "Stunde" ? " show" : "");
-      if (fdStk) fdStk.className = "ef-sub-inp" + (kat === "St\u00fcck"  ? " show" : "");
-      const isTagKat = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(kat);
+      if (fdStk) fdStk.className = "ef-sub-inp" + (kat === "St\u00fcck" ? " show" : "");
+      const isTagKat = ["Einsatz (Tag)", "Einsatz (Halbtag)"].includes(kat);
       const addCoBtn = document.getElementById("ef-addco-btn");
       if (addCoBtn) addCoBtn.style.display = isTagKat ? "inline-flex" : "none";
       if (!isTagKat) ctrl.efToggleCo(false);
+      // Betrag neu berechnen
       const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-      const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-      const std = h.num(document.querySelector("[name='dauerStunden']")?.value);
-      const stk = h.num(document.querySelector("[name='anzahlStueck']")?.value);
+      const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+      const std    = h.num(document.querySelector("[name='dauerStunden']")?.value);
+      const stk    = h.num(document.querySelector("[name='anzahlStueck']")?.value);
       const betrag = proj ? h.berechneBetrag(proj, kat, 1, std, stk) : null;
-      const leadCard = document.getElementById("ef-bc-lead");
-      if (leadCard) {
-        if (!kat) leadCard.innerHTML = '<div class="ef-bc ef-bc-pending"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Kategorie w\u00e4hlen</div></div>';
-        else if (betrag === null) leadCard.innerHTML = '<div class="ef-bc ef-bc-warn"><div class="ef-bc-lbl">Lead</div><div class="ef-bc-val">Nicht konfiguriert</div></div>';
-        else leadCard.innerHTML = '<div class="ef-bc ef-bc-ok"><div class="ef-bc-lbl">Lead \u00b7 aus Projekt</div><div class="ef-bc-val">CHF ' + h.chf(betrag) + '</div></div>';
+      const bvl    = document.getElementById("ef-bval-lead");
+      if (bvl) {
+        if (!kat)            { bvl.textContent = "Kategorie w\u00e4hlen"; bvl.className = "ef-betrag-val warn"; }
+        else if (betrag === null) { bvl.textContent = "Nicht konfiguriert"; bvl.className = "ef-betrag-val warn"; }
+        else                 { bvl.textContent = "CHF " + h.chf(betrag);   bvl.className = "ef-betrag-val"; }
       }
       ctrl.updateCoBetrag();
     },
@@ -1912,13 +1885,14 @@
         if (ort) fields.Ort = ort;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
-        // Spesen: immer explizit setzen (auch 0) — sonst behält SP den alten Wert
-        const spesenAktiv = document.getElementById("ef-spesen-btn")?.classList.contains("on");
-        fields.SpesenZusatz    = spesenAktiv ? (h.num(fd.get("spesenZusatz"))    ?? 0) : 0;
-        fields.SpesenBerechnet = spesenAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
-        fields.SpesenFinal     = spesenAktiv ? (h.num(fd.get("spesenFinal"))     ?? 0) : 0;
+        // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag aus hidden field
+        const wegAktiv = document.getElementById("ef-weg-btn")?.classList.contains("on");
+        fields.SpesenBerechnet = wegAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
+        // SpesenZusatz + SpesenFinal nicht mehr im Modal gesetzt — bestehende Werte erhalten
+        // (werden im späteren Abrechnungsdialog verwaltet)
         const status = fd.get("status");
         if (status) fields.Status = status;
+        else fields.Status = "";   // explizit leeren bei "normal"
 
         // Lookup-Felder via SP REST API
         const lookupFields = { [F.projekt_w]: projId };
