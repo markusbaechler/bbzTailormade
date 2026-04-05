@@ -746,7 +746,7 @@
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
-        if (a(".tm-modal-backdrop") && !a(".tm-modal") && !a(".ef-m") && !a(".kf-m")) { ctrl.closeModal(); return; }
+        if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
       });
     },
 
@@ -2313,12 +2313,223 @@
         ui.setMsg(`Abrechnung erstellt — ${checkedIds.length - einsatzFehler} Einsätze, ${konzVerrIds.length - konzFehler} Konzeptionsaufwände.${fehlerMsg}`, fehlerMsg ? "warning" : "success");
         await api.loadAll();
         ctrl.render();
+        // PDF generieren (nach loadAll damit enriched aktuell ist)
+        try {
+          await ctrl.generateAbrechnungPDF(projektId, checkedIds, zusatzBetrag, zusatzBem);
+        } catch(pdfErr) {
+          debug.err("generateAbrechnungPDF", pdfErr);
+          ui.setMsg("Abrechnung gespeichert — PDF-Generierung fehlgeschlagen: " + pdfErr.message, "warning");
+        }
       } catch(e) {
         debug.err("abrechnenSpeichern", e);
         ui.setMsg("Fehler: " + e.message, "error");
         if (btn) btn.disabled = false;
       }
     },
+    // ── PDF-Generierung ──────────────────────────────────────────────────
+    async generateAbrechnungPDF(projektId, checkedEinsatzIds, spesenZusatzBetrag, spesenZusatzBem) {
+      const p        = state.enriched.projekte.find(p => p.id === projektId);
+      const datum    = new Date().toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const datumLang = new Date().toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" });
+
+      // Gewählte Einsätze
+      const einsaetze = state.enriched.einsaetze
+        .filter(e => checkedEinsatzIds.includes(e.id));
+
+      // Verrechenbare Konzeption
+      const konzeption = state.enriched.konzeption
+        .filter(k => k.projektLookupId === projektId)
+        .filter(k => k.verrechenbar === "verrechenbar")
+        .filter(k => ["offen","zur Abrechnung"].includes(k.abrechnung));
+
+      // Spesen
+      const spesenEinsaetze = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
+      const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
+
+      // Totals
+      const einsatzTotal = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
+      const konzTotal    = konzeption.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
+      const spesenGes    = spesenTotal + (spesenZusatzBetrag || 0);
+
+      // jsPDF dynamisch laden
+      if (!window.jspdf) {
+        await new Promise((res, rej) => {
+          const s1 = document.createElement("script");
+          s1.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+          s1.onload = res; s1.onerror = rej;
+          document.head.appendChild(s1);
+        });
+      }
+      if (!window.jspdf?.jsPDF?.API?.autoTable) {
+        await new Promise((res, rej) => {
+          const s2 = document.createElement("script");
+          s2.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
+          s2.onload = res; s2.onerror = rej;
+          document.head.appendChild(s2);
+        });
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+      const PW  = 210; // A4 Breite
+      const PH  = 297; // A4 Höhe
+      const ML  = 20;  // Margin links
+      const MR  = 20;  // Margin rechts
+      const CW  = PW - ML - MR; // Content-Breite
+      const COL = "#919294";
+      const BLUE = "#004078";
+
+      // ── LOGO (Header) ────────────────────────────────────────────────
+      const LOGO = "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";
+      const logoW = 25.4; // ~723900 EMU / 914400 * 25.4mm
+      const logoH = 15.0;
+      doc.addImage("data:image/png;base64," + LOGO, "PNG", PW - MR - logoW, 8, logoW, logoH);
+
+      // ── HEADER-LINIE ─────────────────────────────────────────────────
+      doc.setDrawColor(BLUE);
+      doc.setLineWidth(0.5);
+      doc.line(ML, 26, PW - MR, 26);
+
+      // ── TITEL-BEREICH ────────────────────────────────────────────────
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(BLUE);
+      doc.text("Abrechnung", ML, 36);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(60, 60, 60);
+      doc.text(h.esc(p.title) + (p.projektNr ? "  #" + p.projektNr : ""), ML, 43);
+      doc.text(h.esc(p.firmaName), ML, 49);
+
+      doc.setTextColor(COL);
+      doc.setFontSize(9);
+      doc.text("Datum: " + datumLang, PW - MR, 36, { align: "right" });
+
+      let y = 58;
+
+      // ── SEKTION: EINSÄTZE ────────────────────────────────────────────
+      if (einsaetze.length) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(BLUE);
+        doc.text("Einsätze", ML, y);
+        y += 3;
+
+        doc.autoTable({
+          startY: y,
+          margin: { left: ML, right: MR },
+          headStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          alternateRowStyles: { fillColor: [245, 248, 251] },
+          columnStyles: { 4: { halign: "right" } },
+          head: [["Datum", "Beschreibung", "Kategorie", "Person", "Betrag CHF"]],
+          body: einsaetze.map(e => [
+            e.datumFmt,
+            e.title || "—",
+            e.kategorie,
+            e.personName + (e.coPersonName && e.coPersonName !== "—" ? "\nCo: " + e.coPersonName : ""),
+            h.chf((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0))
+          ]),
+          foot: [["", "", "", "Total Einsätze", h.chf(einsatzTotal)]],
+          footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+
+      // ── SEKTION: SPESEN ──────────────────────────────────────────────
+      if (spesenEinsaetze.length || spesenZusatzBetrag) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(BLUE);
+        doc.text("Spesen", ML, y);
+        y += 3;
+
+        const spesenRows = spesenEinsaetze.map(e => [
+          e.datumFmt,
+          (e.title || e.kategorie) + " — " + h.esc(p.firmaName),
+          "Wegspesen",
+          h.chf(e.spesenBerechnet)
+        ]);
+        if (spesenZusatzBetrag) {
+          spesenRows.push([datum, spesenZusatzBem || "Zusatzspesen", "Spesen", h.chf(spesenZusatzBetrag)]);
+        }
+
+        doc.autoTable({
+          startY: y,
+          margin: { left: ML, right: MR },
+          headStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          alternateRowStyles: { fillColor: [245, 248, 251] },
+          columnStyles: { 3: { halign: "right" } },
+          head: [["Datum", "Beschreibung", "Art", "Betrag CHF"]],
+          body: spesenRows,
+          foot: [["", "", "Total Spesen", h.chf(spesenGes)]],
+          footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+
+      // ── SEKTION: KONZEPTION ──────────────────────────────────────────
+      if (konzeption.length) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(BLUE);
+        doc.text("Konzeption", ML, y);
+        y += 3;
+
+        doc.autoTable({
+          startY: y,
+          margin: { left: ML, right: MR },
+          headStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          alternateRowStyles: { fillColor: [245, 248, 251] },
+          columnStyles: { 2: { halign: "right" }, 3: { halign: "right" } },
+          head: [["Datum", "Beschreibung", "Stunden", "Betrag CHF"]],
+          body: konzeption.map(k => [
+            k.datumFmt,
+            k.title || "—",
+            k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—",
+            h.chf(k.anzeigeBetrag)
+          ]),
+          foot: [["", "Total Konzeption", "", h.chf(konzTotal)]],
+          footStyles: { fillColor: [0, 64, 120], textColor: 255, fontSize: 8, fontStyle: "bold", halign: "right" },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+
+      // ── GESAMT-TOTAL ─────────────────────────────────────────────────
+      const grandTotal = einsatzTotal + spesenGes + konzTotal;
+      doc.setDrawColor(BLUE);
+      doc.setLineWidth(0.3);
+      doc.line(ML, y, PW - MR, y);
+      y += 5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(BLUE);
+      doc.text("Total", ML, y);
+      doc.text("CHF " + h.chf(grandTotal), PW - MR, y, { align: "right" });
+
+      // ── FOOTER (alle Seiten) ─────────────────────────────────────────
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setDrawColor(COL);
+        doc.setLineWidth(0.3);
+        doc.line(ML, PH - 18, PW - MR, PH - 18);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(COL);
+        doc.text("bbz st.gallen ag  |  Zürcherstrasse 202  |  CH-9014 St.Gallen  |  +41 71 274 02 40  |  info@bankenberatung.ch  |  bankenberatungszentrum.ch", ML, PH - 13);
+        doc.text("Seite " + i + " | " + pageCount, PW - MR, PH - 13, { align: "right" });
+      }
+
+      // ── DOWNLOAD ─────────────────────────────────────────────────────
+      const filename = `Abrechnung_${(p.title || "Projekt").replace(/[^a-zA-Z0-9]/g,"_")}_${datum.replace(/\./g,"")}.pdf`;
+      doc.save(filename);
+    },
+
     // Analog Einsatz-Modal: gleiche Struktur, alle Choices dynamisch aus SP
     openKonzeptionForm(id, projektId = null) {
       const k          = id ? state.enriched.konzeption.find(k => k.id === id) : null;
