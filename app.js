@@ -1114,13 +1114,11 @@
       const f = state.filters.firmen;
       const klassifizierungen = [...new Set(state.data.firms.map(fi => fi.klassifizierung).filter(Boolean))].sort();
 
-      // Intelligente Suche: Firma-Name, Ort, Klassifizierung, Kontaktname
       const matchFirma = (fi, q) => {
         if (!q) return true;
         if (h.inc(fi.title, q) || h.inc(fi.ort, q) || h.inc(fi.klassifizierung, q)) return true;
         return state.data.contacts.some(c =>
-          c.firmaLookupId === fi.id &&
-          (h.inc([c.vorname, c.nachname].join(" "), q) || h.inc(c.funktion, q))
+          c.firmaLookupId === fi.id && (h.inc([c.vorname, c.nachname].join(" "), q) || h.inc(c.funktion, q))
         );
       };
 
@@ -1129,7 +1127,6 @@
       if (f.klassifizierung) list = list.filter(fi => fi.klassifizierung === f.klassifizierung);
       if (f.vip === "ja")    list = list.filter(fi => fi.vip);
 
-      // Firmen mit Projekten zuerst, dann alphabetisch
       const hatProjekt = fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && !p.archiviert);
       list.sort((a,b) => {
         const pa = hatProjekt(a), pb = hatProjekt(b);
@@ -1158,8 +1155,9 @@
           @media(min-width:600px){.fi-grid{grid-template-columns:1fr 1fr}}
           @media(min-width:1000px){.fi-grid{grid-template-columns:1fr 1fr 1fr}}
           .fi-section-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5;margin:16px 0 8px}
-          .fi-toggle{font-size:12px;color:#0a5a9e;cursor:pointer;font-weight:600;padding:8px 0;display:inline-flex;align-items:center;gap:5px}
+          .fi-toggle{font-size:12px;color:#0a5a9e;cursor:pointer;font-weight:600;padding:6px 0;display:inline-flex;align-items:center;gap:5px}
           .fi-toggle:hover{text-decoration:underline}
+          .fi-next{font-size:11px;color:#004078;font-weight:600;margin-top:4px;border-top:1px solid #f0f4f8;padding-top:6px}
         </style>
 
         <div class="tm-page-header">
@@ -1191,7 +1189,11 @@
               const aktiv    = projekte.filter(p => p.status === "aktiv").length;
               const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
               const naechster = state.enriched.einsaetze
-                .filter(e => { const p = state.enriched.projekte.find(p => p.id === e.projektLookupId); return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf"; })
+                .filter(e => {
+                  const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                  return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart()
+                    && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
+                })
                 .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
               return `<div class="fi-card has-proj" onclick="ctrl.openFirma(${fi.id})">
                 <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
@@ -1207,7 +1209,7 @@
                   ${aktiv > 0 ? `<div class="fi-stat"><strong style="color:#1a6e40">${aktiv}</strong>aktiv</div>` : ""}
                   <div class="fi-stat"><strong>${kontakte}</strong>Kontakte</div>
                 </div>
-                ${naechster ? `<div style="font-size:11px;color:#004078;font-weight:600;margin-top:2px;border-top:1px solid #f0f4f8;padding-top:6px">▶ ${h.esc(naechster.datumFmt)} · ${h.esc(naechster.title||naechster.kategorie)}</div>` : ""}
+                ${naechster ? `<div class="fi-next">▶ ${h.esc(naechster.datumFmt)} · ${h.esc(naechster.title||naechster.kategorie)}</div>` : ""}
               </div>`;
             }).join("")}
           </div>` : ""}
@@ -1244,16 +1246,20 @@
       const fi = state.data.firms.find(f => f.id === id);
       if (!fi) { ui.render(`<p class="tm-muted">Firma nicht gefunden.</p>`); return; }
 
-      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert);
-      const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === id && !p.archiviert);
-      const kontaktIds = new Set(kontakte.map(c => c.id));
       const heute      = h.todayStart();
+      const crmUrl     = `https://markusbaechler.github.io/crm-spa/`;
+      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert)
+        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
+      const kontaktIds = new Set(kontakte.map(c => c.id));
+      const projekte   = state.enriched.projekte
+        .filter(p => p.firmaLookupId === id && !p.archiviert)
+        .sort((a,b) => ({aktiv:0,geplant:1,abgeschlossen:2}[a.status]??9) - ({aktiv:0,geplant:1,abgeschlossen:2}[b.status]??9));
 
+      // Aktivitäten + Aufgaben: alle Kontakte dieser Firma, chronologisch
       const history = state.data.history
         .filter(h2 => kontaktIds.has(h2.kontaktId))
         .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 50);
-
+        .slice(0, 20);
       const tasks = state.data.tasks
         .filter(t => kontaktIds.has(t.kontaktId) && t.status !== "erledigt")
         .sort((a,b) => (a.deadline||"9999") > (b.deadline||"9999") ? 1 : -1);
@@ -1261,71 +1267,84 @@
       const naechsteEinsaetze = state.enriched.einsaetze
         .filter(e => {
           const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-          return p?.firmaLookupId === id && h.toDate(e.datum) >= heute && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
+          return p?.firmaLookupId === id && h.toDate(e.datum) >= heute
+            && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
         })
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))
         .slice(0, 8);
 
+      const letzteKonzeptionen = state.enriched.konzeption
+        .filter(k => { const p = state.enriched.projekte.find(p => p.id === k.projektLookupId); return p?.firmaLookupId === id; })
+        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
+        .slice(0, 5);
+
       const abrechnungen = state.enriched.abrechnungen
         .filter(a => { const p = state.enriched.projekte.find(p => p.id === a.projektLookupId); return p?.firmaLookupId === id; })
         .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 10);
+        .slice(0, 8);
 
-      const abrStatusBadge = (v) => {
-        const m = { "erstellt":["tm-badge tm-badge-planned","erstellt"], "versendet":["tm-badge tm-badge-billing","versendet"], "bezahlt":["tm-badge tm-badge-billed","bezahlt"] };
-        const [c,l] = m[v] || ["tm-badge", v||"—"];
-        return h.badge(c, l);
+      const abrBadge2 = (v) => {
+        const m = {"erstellt":["tm-badge tm-badge-planned","erstellt"],"versendet":["tm-badge tm-badge-billing","versendet"],"bezahlt":["tm-badge tm-badge-billed","bezahlt"]};
+        const [c,l] = m[v]||["tm-badge",v||"—"]; return h.badge(c,l);
       };
 
-      const crmUrl = `https://markusbaechler.github.io/crm-spa/#firms`;
+      // Sektion-Helfer
+      const sec = (title, count, body, action="") => `
+        <div class="fd-sec">
+          <div class="fd-sec-hd">
+            <span class="fd-sec-title">${title}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${count !== null ? `<span class="fd-sec-count">${count}</span>` : ""}
+              ${action}
+            </div>
+          </div>
+          <div class="fd-sec-bd">${body}</div>
+        </div>`;
+      const empty = txt => `<div class="fd-empty">${txt}</div>`;
+      const crmLink = (label) => `<a href="${crmUrl}" target="_blank" class="fd-crm-link">${label} →</a>`;
 
       ui.render(`
         <style>
-          .fd-layout{display:grid;grid-template-columns:1fr;gap:16px}
+          .fd-layout{display:grid;grid-template-columns:1fr;gap:14px}
           @media(min-width:900px){.fd-layout{grid-template-columns:1fr 1fr;align-items:start}}
           .fd-sec{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden}
-          .fd-sec-hd{padding:10px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between;gap:8px}
+          .fd-sec-hd{padding:10px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between}
           .fd-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5}
-          .fd-sec-right{display:flex;align-items:center;gap:8px}
           .fd-sec-count{font-size:11px;font-weight:600;color:#004078}
-          .fd-sec-btn{font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;border:1px solid #dde4ec;background:#fff;color:#004078;cursor:pointer;font-family:inherit;white-space:nowrap}
-          .fd-sec-btn:hover{background:#e8f1f9}
-          .fd-sec-bd{padding:12px 16px;display:flex;flex-direction:column;gap:0}
-          .fd-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:5px 0;border-bottom:1px solid #f0f4f8}
+          .fd-sec-bd{padding:0 16px}
+          .fd-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid #f0f4f8}
           .fd-row:last-child{border:none}
-          .fd-lbl{color:#8896a5}
-          .fd-val{font-weight:500;color:#1a2332;text-align:right}
-          .fd-kontakt{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f4f8}
-          .fd-kontakt:last-child{border:none}
-          .fd-av{width:30px;height:30px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+          .fd-lbl{color:#8896a5;font-size:12px}
+          .fd-val{font-weight:500;color:#1a2332}
+          .fd-kontakt{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0f4f8}
+          .fd-kontakt:last-child{border-bottom:none}
+          .fd-av{width:28px;height:28px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px}
           .fd-kname{font-size:13px;font-weight:600;color:#1a2332}
           .fd-kfunk{font-size:11px;color:#8896a5;margin-top:1px}
           .fd-proj{padding:8px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
           .fd-proj:hover .fd-proj-name{color:#0a5a9e;text-decoration:underline}
           .fd-proj:last-child{border:none}
           .fd-proj-name{font-size:13px;font-weight:600;color:#004078}
-          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-          .fd-act{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
-          .fd-act:hover .fd-act-title{color:#0a5a9e;text-decoration:underline}
-          .fd-act:last-child{border:none}
-          .fd-act-dot{width:7px;height:7px;border-radius:50%;background:#8896a5;flex-shrink:0;margin-top:4px}
-          .fd-act-main{flex:1;min-width:0}
-          .fd-act-title{font-weight:500;color:#1a2332;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .fd-act-meta{font-size:11px;color:#8896a5;margin-top:1px}
-          .fd-task{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8}
-          .fd-task:last-child{border:none}
-          .fd-task-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0}
-          .fd-task-overdue{background:#950e13}
-          .fd-task-soon{background:#e59c2e}
-          .fd-task-ok{background:#1a6e40}
-          .fd-task-main{flex:1;min-width:0}
-          .fd-task-actions{display:flex;gap:5px;margin-top:4px}
-          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:6px 0}
+          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+          .fd-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
+          .fd-item:last-child{border:none}
+          .fd-item-dot{width:6px;height:6px;border-radius:50%;background:#8896a5;flex-shrink:0;margin-top:5px}
+          .fd-item-dot.overdue{background:#950e13}
+          .fd-item-dot.soon{background:#e59c2e}
+          .fd-item-dot.ok{background:#1a6e40}
+          .fd-item-main{flex:1;min-width:0}
+          .fd-item-title{font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .fd-item-meta{font-size:11px;color:#8896a5;margin-top:1px}
           .fd-einsatz{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
           .fd-einsatz:hover .fd-einsatz-title{color:#0a5a9e;text-decoration:underline}
           .fd-einsatz:last-child{border:none}
           .fd-einsatz-date{font-size:12px;font-weight:700;color:#004078;white-space:nowrap;min-width:72px}
           .fd-einsatz-title{font-size:13px;font-weight:500;color:#1a2332}
+          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:10px 0}
+          .fd-crm-link{font-size:11px;font-weight:600;color:#0a5a9e;text-decoration:none;padding:3px 8px;border-radius:5px;border:1px solid #b8cde0;background:#f4f7fb;white-space:nowrap}
+          .fd-crm-link:hover{background:#e8f1f9}
+          .fd-new-proj{display:flex;align-items:center;gap:6px;padding:8px 0;font-size:12px;font-weight:600;color:#0a5a9e;cursor:pointer;border-top:1px solid #f0f4f8;margin-top:2px}
+          .fd-new-proj:hover{text-decoration:underline}
         </style>
 
         <div class="tm-page-header">
@@ -1337,185 +1356,143 @@
               ${fi.vip ? `<span class="fi-badge-vip" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000">VIP</span>` : ""}
               ${fi.ort ? `<span style="font-size:13px;color:#8896a5">${h.esc(fi.ort)}</span>` : ""}
               ${fi.hauptnummer ? `<a href="tel:${h.esc(fi.hauptnummer)}" style="font-size:13px;color:#0a5a9e">${h.esc(fi.hauptnummer)}</a>` : ""}
+              <a href="${crmUrl}" target="_blank" class="fd-crm-link">In CRM-App öffnen →</a>
             </div>
           </div>
         </div>
 
         <div class="fd-layout">
 
-          <!-- LINKE SPALTE -->
+          <!-- LINKE SPALTE: CRM read-only -->
           <div style="display:flex;flex-direction:column;gap:14px">
 
-            <!-- Stammdaten -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd"><span class="fd-sec-title">Stammdaten</span></div>
-              <div class="fd-sec-bd">
-                ${[["Adresse",fi.adresse],["PLZ / Ort",[fi.plz,fi.ort].filter(Boolean).join(" ")],["Land",fi.land],["Telefon",fi.hauptnummer]]
-                  .filter(([,v])=>v)
-                  .map(([l,v])=>`<div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")}
-                ${!fi.adresse&&!fi.hauptnummer?`<div class="fd-empty">Keine Stammdaten hinterlegt.</div>`:""}
-              </div>
-            </div>
+            ${sec("Stammdaten", null,
+              [["Adresse",fi.adresse],["PLZ / Ort",[fi.plz,fi.ort].filter(Boolean).join(" ")],["Land",fi.land],["Telefon",fi.hauptnummer]]
+                .filter(([,v])=>v)
+                .map(([l,v])=>`<div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")
+              || empty("Keine Stammdaten hinterlegt.")
+            )}
 
-            <!-- Kontakte -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Kontakte</span>
-                <div class="fd-sec-right">
-                  <span class="fd-sec-count">${kontakte.length}</span>
-                  <a href="${crmUrl}" target="_blank" class="fd-sec-btn">+ Kontakt (CRM)</a>
-                </div>
-              </div>
-              <div class="fd-sec-bd">
-                ${kontakte.length ? kontakte.map(c => {
-                  const ini = [c.vorname?.[0],c.nachname?.[0]].filter(Boolean).join("").toUpperCase()||"?";
-                  return `<div class="fd-kontakt">
-                    <div class="fd-av">${ini}</div>
-                    <div style="flex:1;min-width:0">
-                      <div class="fd-kname">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
-                      <div class="fd-kfunk">${h.esc(c.funktion||"")}${c.email1?` · <a href="mailto:${h.esc(c.email1)}" style="color:#0a5a9e">${h.esc(c.email1)}</a>`:""}${c.direktwahl?` · ${h.esc(c.direktwahl)}`:""}</div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Kontakte.</div>`}
-              </div>
-            </div>
+            ${sec("Kontakte", kontakte.length,
+              (kontakte.length ? kontakte.map(c => {
+                const ini = [c.vorname?.[0],c.nachname?.[0]].filter(Boolean).join("").toUpperCase()||"?";
+                const kontaktHistory = history.filter(h2 => h2.kontaktId === c.id);
+                const kontaktTasks   = tasks.filter(t => t.kontaktId === c.id);
+                return `<div class="fd-kontakt">
+                  <div class="fd-av">${ini}</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="fd-kname">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
+                    <div class="fd-kfunk">${[c.funktion, c.email1, c.direktwahl].filter(Boolean).map(v=>h.esc(v)).join(" · ")||"—"}</div>
+                    ${kontaktHistory.length||kontaktTasks.length ? `<div style="font-size:10px;color:#8896a5;margin-top:3px">
+                      ${kontaktHistory.length ? `${kontaktHistory.length} Aktivität${kontaktHistory.length!==1?"en":""}` : ""}
+                      ${kontaktHistory.length&&kontaktTasks.length?" · ":""}
+                      ${kontaktTasks.length ? `${kontaktTasks.length} offene Aufgabe${kontaktTasks.length!==1?"n":""}` : ""}
+                    </div>` : ""}
+                  </div>
+                </div>`;
+              }).join("") : empty("Keine Kontakte."))
+            , crmLink("Kontakte bearbeiten"))}
 
-            <!-- Aktivitäten -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Aktivitäten</span>
-                <div class="fd-sec-right">
-                  <span class="fd-sec-count">${history.length}${history.length===50?"+":" "}</span>
-                  <button class="fd-sec-btn" onclick="ctrl.openAktivitaetForm(null,${id})">+ Neu</button>
-                </div>
-              </div>
-              <div class="fd-sec-bd">
-                ${history.length ? history.map(a => {
-                  const kont = state.data.contacts.find(c => c.id === a.kontaktId);
-                  const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
-                  return `<div class="fd-act" onclick="ctrl.openAktivitaetForm(${a.id},${id})">
-                    <div class="fd-act-dot"></div>
-                    <div class="fd-act-main">
-                      <div class="fd-act-title">${h.esc(a.title)}</div>
-                      <div class="fd-act-meta">${h.esc(h.fmtDate(a.datum))}${a.typ?" · "+h.esc(a.typ):""} · ${h.esc(kName)}</div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Aktivitäten.</div>`}
-              </div>
-            </div>
+            ${sec("Aktivitäten (letzte 20)", history.length + (history.length===20?"+":" "),
+              history.length ? history.map(a => {
+                const kont = kontakte.find(c => c.id === a.kontaktId);
+                const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
+                return `<div class="fd-item">
+                  <div class="fd-item-dot"></div>
+                  <div class="fd-item-main">
+                    <div class="fd-item-title">${h.esc(a.title)}</div>
+                    <div class="fd-item-meta">${h.esc(h.fmtDate(a.datum))}${a.typ?" · "+h.esc(a.typ):""} · ${h.esc(kName)}</div>
+                  </div>
+                </div>`;
+              }).join("") : empty("Keine Aktivitäten.")
+            , crmLink("Aktivitäten bearbeiten"))}
 
-            <!-- Aufgaben -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Offene Aufgaben</span>
-                <div class="fd-sec-right">
-                  <span class="fd-sec-count">${tasks.length}</span>
-                  <button class="fd-sec-btn" onclick="ctrl.openAufgabeForm(null,${id})">+ Neu</button>
-                </div>
-              </div>
-              <div class="fd-sec-bd">
-                ${tasks.length ? tasks.map(t => {
-                  const kont = state.data.contacts.find(c => c.id === t.kontaktId);
-                  const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
-                  const dl = h.toDate(t.deadline);
-                  const overdue = dl && dl < heute;
-                  const soon    = dl && !overdue && dl <= new Date(heute.getTime()+7*24*60*60*1000);
-                  const dotCls  = overdue?"fd-task-overdue":soon?"fd-task-soon":"fd-task-ok";
-                  return `<div class="fd-task">
-                    <div class="fd-task-dot ${dotCls}"></div>
-                    <div class="fd-task-main">
-                      <div style="font-size:13px;font-weight:500;color:#1a2332">${h.esc(t.title)}</div>
-                      <div style="font-size:11px;color:#8896a5">${dl?h.fmtDate(t.deadline):"Kein Datum"} · ${h.esc(kName)}</div>
-                      <div class="fd-task-actions">
-                        <button class="fd-sec-btn" onclick="ctrl.openAufgabeForm(${t.id},${id})">✎ Bearbeiten</button>
-                        <button class="fd-sec-btn" style="color:#1a6e40;border-color:#1a6e40" onclick="ctrl.aufgabeErledigen(${t.id},${id})">✓ Erledigt</button>
-                      </div>
-                    </div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine offenen Aufgaben.</div>`}
-              </div>
-            </div>
+            ${sec("Offene Aufgaben", tasks.length,
+              tasks.length ? tasks.map(t => {
+                const kont  = kontakte.find(c => c.id === t.kontaktId);
+                const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
+                const dl    = h.toDate(t.deadline);
+                const dotCls = dl && dl < heute ? "overdue" : dl && dl <= new Date(heute.getTime()+7*24*60*60*1000) ? "soon" : "ok";
+                return `<div class="fd-item">
+                  <div class="fd-item-dot ${dotCls}"></div>
+                  <div class="fd-item-main">
+                    <div class="fd-item-title">${h.esc(t.title)}</div>
+                    <div class="fd-item-meta">${dl?h.fmtDate(t.deadline):"Kein Datum"} · ${h.esc(kName)}</div>
+                  </div>
+                </div>`;
+              }).join("") : empty("Keine offenen Aufgaben.")
+            , crmLink("Aufgaben bearbeiten"))}
 
-          </div><!-- /linke Spalte -->
+          </div>
 
-          <!-- RECHTE SPALTE -->
+          <!-- RECHTE SPALTE: TM -->
           <div style="display:flex;flex-direction:column;gap:14px">
 
-            <!-- TM-Projekte -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">TM-Projekte</span>
-                <span class="fd-sec-count">${projekte.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${projekte.length ? projekte
-                  .sort((a,b) => {
-                    const ord = {aktiv:0,geplant:1,abgeschlossen:2};
-                    return (ord[a.status]??9)-(ord[b.status]??9);
-                  })
-                  .map(p => `
-                  <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
-                    <div class="fd-proj-name">${h.esc(p.title)}</div>
-                    <div class="fd-proj-meta">
-                      ${h.projStatusBadge(p.status)}
-                      ${p.projektNr?`<span>#${h.esc(p.projektNr)}</span>`:""}
-                      <span>CHF ${h.chf(p.totalBetrag)}</span>
-                      <span>${p.einsaetzeCount} Einsätze</span>
-                    </div>
-                  </div>`).join("") : `<div class="fd-empty">Keine Projekte.</div>`}
-              </div>
-            </div>
+            ${sec("TM-Projekte", projekte.length,
+              (projekte.length ? projekte.map(p => `
+                <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
+                  <div class="fd-proj-name">${h.esc(p.title)}</div>
+                  <div class="fd-proj-meta">
+                    ${h.projStatusBadge(p.status)}
+                    ${p.projektNr?`<span>#${h.esc(p.projektNr)}</span>`:""}
+                    <span>CHF ${h.chf(p.totalBetrag)}</span>
+                    <span>${p.einsaetzeCount} Einsätze</span>
+                  </div>
+                </div>`).join("") : empty("Noch keine Projekte."))
+              + `<div class="fd-new-proj" onclick="ctrl.openProjektForm(null)">＋ Neues Projekt erstellen</div>`
+            )}
 
-            <!-- Nächste Einsätze -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Nächste Einsätze</span>
-                <span class="fd-sec-count">${naechsteEinsaetze.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
-                  const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-                  return `<div class="fd-einsatz" onclick="ctrl.openEinsatzForm(${e.id})">
-                    <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
-                    <div style="flex:1;min-width:0">
-                      <div class="fd-einsatz-title">${h.esc(e.title||e.kategorie)}</div>
-                      <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
-                    </div>
-                    ${h.abrBadge(e.abrechnung)}
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine bevorstehenden Einsätze.</div>`}
-              </div>
-            </div>
+            ${sec("Nächste Einsätze", naechsteEinsaetze.length,
+              naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
+                const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                return `<div class="fd-einsatz" onclick="ctrl.openEinsatzForm(${e.id})">
+                  <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
+                  <div style="flex:1;min-width:0">
+                    <div class="fd-einsatz-title">${h.esc(e.title||e.kategorie)}</div>
+                    <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
+                  </div>
+                  ${h.abrBadge(e.abrechnung)}
+                </div>`;
+              }).join("") : empty("Keine bevorstehenden Einsätze.")
+            )}
 
-            <!-- Abrechnungen -->
-            <div class="fd-sec">
-              <div class="fd-sec-hd">
-                <span class="fd-sec-title">Abrechnungen</span>
-                <span class="fd-sec-count">${abrechnungen.length}</span>
-              </div>
-              <div class="fd-sec-bd">
-                ${abrechnungen.length ? abrechnungen.map(a => {
-                  const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-                  const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
-                  const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-                  const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
-                  const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-                  const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
-                  return `<div class="fd-row">
-                    <div>
-                      <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
-                      <div style="margin-top:2px">${abrStatusBadge(a.status)}</div>
-                    </div>
-                    <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
-                  </div>`;
-                }).join("") : `<div class="fd-empty">Keine Abrechnungen.</div>`}
-              </div>
-            </div>
+            ${sec("Letzte Konzeptionen", letzteKonzeptionen.length,
+              letzteKonzeptionen.length ? letzteKonzeptionen.map(k => {
+                const proj = state.enriched.projekte.find(p => p.id === k.projektLookupId);
+                return `<div class="fd-item">
+                  <div class="fd-item-dot"></div>
+                  <div class="fd-item-main">
+                    <div class="fd-item-title">${h.esc(k.title)}</div>
+                    <div class="fd-item-meta">${h.esc(k.datumFmt)} · ${h.esc(proj?.title||"")} · ${k.aufwandStunden?k.aufwandStunden+"h":""} ${k.anzeigeBetrag!==null?"CHF "+h.chf(k.anzeigeBetrag):""}</div>
+                  </div>
+                  ${h.verrBadge(k.verrechenbar)}
+                </div>`;
+              }).join("") : empty("Keine Konzeptionsaufwände.")
+            )}
 
-          </div><!-- /rechte Spalte -->
-        </div><!-- /fd-layout -->
+            ${sec("Abrechnungen", abrechnungen.length,
+              abrechnungen.length ? abrechnungen.map(a => {
+                const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+                const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
+                const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
+                const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+                const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
+                return `<div class="fd-row">
+                  <div>
+                    <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
+                    <div style="margin-top:3px">${abrBadge2(a.status)}</div>
+                  </div>
+                  <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
+                </div>`;
+              }).join("") : empty("Keine Abrechnungen.")
+            )}
+
+          </div>
+        </div>
       `);
     },
+
 
     abrechnungen() {
 
@@ -1617,218 +1594,6 @@
       state.filters.route = "firma-detail";
       this.render();
       window.scrollTo(0, 0);
-    },
-
-    openAktivitaetForm(id, firmaId) {
-      const a = id ? state.data.history.find(h2 => h2.id === id) : null;
-      const fi = state.data.firms.find(f => f.id === firmaId);
-      const kontakte = state.data.contacts
-        .filter(c => c.firmaLookupId === firmaId && !c.archiviert)
-        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
-
-      ui.renderModal(`<style>
-        .af-m{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,64,120,.18);width:100%;max-width:480px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:kfUp .2s cubic-bezier(.16,1,.3,1)}
-        .af-hd{background:#004078;padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
-        .af-hd-t{color:#fff;font-size:14px;font-weight:700}
-        .af-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
-        .af-cl{width:26px;height:26px;background:rgba(255,255,255,.1);border:none;border-radius:6px;color:rgba(255,255,255,.8);font-size:13px;cursor:pointer}
-        .af-bd{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
-        .af-s{display:flex;flex-direction:column;gap:5px}
-        .af-l{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5}
-        .af-iw input,.af-iw select,.af-iw textarea{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s;-webkit-appearance:none;box-sizing:border-box}
-        .af-iw input:focus,.af-iw select:focus,.af-iw textarea:focus{border-color:#0a5a9e;background:#fff}
-        .af-iw textarea{resize:vertical;min-height:70px}
-        .af-ft{padding:10px 18px 14px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dde4ec}
-        .af-btn-c{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
-        .af-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer}
-      </style>
-      <div class="af-m">
-        <div class="af-hd">
-          <div>
-            <div class="af-hd-t">${id ? "Aktivität bearbeiten" : "Neue Aktivität"}</div>
-            <div class="af-hd-s">${h.esc(fi?.title||"")}</div>
-          </div>
-          <button class="af-cl" data-close-modal>✕</button>
-        </div>
-        <div class="af-bd">
-          <input type="hidden" id="af-id" value="${id||""}">
-          <input type="hidden" id="af-firma-id" value="${firmaId||""}">
-          <div class="af-s"><div class="af-l">Titel *</div>
-            <div class="af-iw"><input type="text" id="af-title" value="${h.esc(a?.title||"")}" placeholder="z.B. Telefonat, Meeting…"></div>
-          </div>
-          <div class="af-s"><div class="af-l">Datum *</div>
-            <div class="af-iw"><input type="date" id="af-datum" value="${h.esc(a ? h.toDateInput(a.datum) : h.toDateInput(new Date().toISOString()))}"></div>
-          </div>
-          <div class="af-s"><div class="af-l">Kontakt</div>
-            <div class="af-iw"><select id="af-kontakt">
-              <option value="">— Kontakt wählen —</option>
-              ${kontakte.map(c => `<option value="${c.id}" ${a?.kontaktId===c.id?"selected":""}>${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
-            </select></div>
-          </div>
-          <div class="af-s"><div class="af-l">Typ</div>
-            <div class="af-iw"><input type="text" id="af-typ" value="${h.esc(a?.typ||"")}" placeholder="z.B. Telefon, E-Mail, Meeting…"></div>
-          </div>
-          <div class="af-s"><div class="af-l">Notizen</div>
-            <div class="af-iw"><textarea id="af-notizen">${h.esc(a?.notizen||"")}</textarea></div>
-          </div>
-        </div>
-        <div class="af-ft">
-          <button class="af-btn-c" data-close-modal>Abbrechen</button>
-          <button class="af-btn-s" onclick="ctrl.saveAktivitaet()">✓ Speichern</button>
-        </div>
-      </div>`);
-    },
-
-    async saveAktivitaet() {
-      const id      = document.getElementById("af-id")?.value;
-      const firmaId = Number(document.getElementById("af-firma-id")?.value)||null;
-      const title   = document.getElementById("af-title")?.value.trim();
-      const datum   = document.getElementById("af-datum")?.value;
-      const kontaktId = Number(document.getElementById("af-kontakt")?.value)||null;
-      const typ     = document.getElementById("af-typ")?.value.trim();
-      const notizen = document.getElementById("af-notizen")?.value.trim();
-
-      if (!title) { ui.setMsg("Titel ist Pflichtfeld.", "error"); return; }
-      if (!datum) { ui.setMsg("Datum ist Pflichtfeld.", "error"); return; }
-
-      ui.setMsg("Wird gespeichert…", "info");
-      try {
-        const fields = { Datum: datum+"T12:00:00Z" };
-        if (typ)    fields.Kontaktart = typ;
-        if (notizen) fields.Notizen   = notizen;
-
-        if (id) {
-          fields.Title = title;
-          await api.patch(CONFIG.lists.history, Number(id), fields);
-          if (kontaktId) await api.patchLookups(CONFIG.lists.history, Number(id), { NachnameLookupId: kontaktId });
-        } else {
-          const cr  = await api.post(CONFIG.lists.history, title);
-          const nid = Number(cr?.id || cr?.fields?.id);
-          if (!nid) throw new Error("ID fehlt.");
-          await api.patch(CONFIG.lists.history, nid, fields);
-          if (kontaktId) await api.patchLookups(CONFIG.lists.history, nid, { NachnameLookupId: kontaktId });
-        }
-
-        ui.closeModal();
-        ui.setMsg("Aktivität gespeichert.", "success");
-        await api.loadAll();
-        if (firmaId) ctrl.openFirma(firmaId); else ctrl.render();
-      } catch(e) {
-        debug.err("saveAktivitaet", e);
-        ui.setMsg("Fehler: " + e.message, "error");
-      }
-    },
-
-    openAufgabeForm(id, firmaId) {
-      const t = id ? state.data.tasks.find(t => t.id === id) : null;
-      const fi = state.data.firms.find(f => f.id === firmaId);
-      const kontakte = state.data.contacts
-        .filter(c => c.firmaLookupId === firmaId && !c.archiviert)
-        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
-      const statusOpts = ["offen","in Bearbeitung","erledigt"];
-
-      ui.renderModal(`<style>
-        .af-m{background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,64,120,.18);width:100%;max-width:480px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:kfUp .2s cubic-bezier(.16,1,.3,1)}
-        .af-hd{background:#004078;padding:14px 18px;display:flex;align-items:center;justify-content:space-between}
-        .af-hd-t{color:#fff;font-size:14px;font-weight:700}
-        .af-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
-        .af-cl{width:26px;height:26px;background:rgba(255,255,255,.1);border:none;border-radius:6px;color:rgba(255,255,255,.8);font-size:13px;cursor:pointer}
-        .af-bd{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
-        .af-s{display:flex;flex-direction:column;gap:5px}
-        .af-l{font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5}
-        .af-iw input,.af-iw select{width:100%;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;padding:8px 10px;outline:none;transition:border-color .15s;-webkit-appearance:none;box-sizing:border-box}
-        .af-iw input:focus,.af-iw select:focus{border-color:#0a5a9e;background:#fff}
-        .af-ft{padding:10px 18px 14px;display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #dde4ec}
-        .af-btn-c{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
-        .af-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer}
-      </style>
-      <div class="af-m">
-        <div class="af-hd">
-          <div>
-            <div class="af-hd-t">${id ? "Aufgabe bearbeiten" : "Neue Aufgabe"}</div>
-            <div class="af-hd-s">${h.esc(fi?.title||"")}</div>
-          </div>
-          <button class="af-cl" data-close-modal>✕</button>
-        </div>
-        <div class="af-bd">
-          <input type="hidden" id="tf-id" value="${id||""}">
-          <input type="hidden" id="tf-firma-id" value="${firmaId||""}">
-          <div class="af-s"><div class="af-l">Titel *</div>
-            <div class="af-iw"><input type="text" id="tf-title" value="${h.esc(t?.title||"")}" placeholder="z.B. Offerte senden…"></div>
-          </div>
-          <div class="af-s"><div class="af-l">Deadline</div>
-            <div class="af-iw"><input type="date" id="tf-deadline" value="${h.esc(t ? h.toDateInput(t.deadline) : "")}"></div>
-          </div>
-          <div class="af-s"><div class="af-l">Kontakt</div>
-            <div class="af-iw"><select id="tf-kontakt">
-              <option value="">— Kontakt wählen —</option>
-              ${kontakte.map(c => `<option value="${c.id}" ${t?.kontaktId===c.id?"selected":""}>${h.esc([c.nachname,c.vorname].filter(Boolean).join(", "))}</option>`).join("")}
-            </select></div>
-          </div>
-          <div class="af-s"><div class="af-l">Status</div>
-            <div class="af-iw"><select id="tf-status">
-              ${statusOpts.map(s => `<option value="${s}" ${(t?.status||"offen")===s?"selected":""}>${h.esc(s)}</option>`).join("")}
-            </select></div>
-          </div>
-        </div>
-        <div class="af-ft">
-          <button class="af-btn-c" data-close-modal>Abbrechen</button>
-          <button class="af-btn-s" onclick="ctrl.saveAufgabe()">✓ Speichern</button>
-        </div>
-      </div>`);
-    },
-
-    async saveAufgabe() {
-      const id      = document.getElementById("tf-id")?.value;
-      const firmaId = Number(document.getElementById("tf-firma-id")?.value)||null;
-      const title   = document.getElementById("tf-title")?.value.trim();
-      const deadline = document.getElementById("tf-deadline")?.value;
-      const kontaktId = Number(document.getElementById("tf-kontakt")?.value)||null;
-      const status  = document.getElementById("tf-status")?.value;
-
-      if (!title) { ui.setMsg("Titel ist Pflichtfeld.", "error"); return; }
-
-      ui.setMsg("Wird gespeichert…", "info");
-      try {
-        const fields = { Status: status||"offen" };
-        if (deadline) fields.Deadline = deadline+"T12:00:00Z";
-
-        if (id) {
-          fields.Title = title;
-          await api.patch(CONFIG.lists.tasks, Number(id), fields);
-          if (kontaktId) await api.patchLookups(CONFIG.lists.tasks, Number(id), { NameLookupId: kontaktId });
-        } else {
-          const cr  = await api.post(CONFIG.lists.tasks, title);
-          const nid = Number(cr?.id || cr?.fields?.id);
-          if (!nid) throw new Error("ID fehlt.");
-          await api.patch(CONFIG.lists.tasks, nid, fields);
-          if (kontaktId) await api.patchLookups(CONFIG.lists.tasks, nid, { NameLookupId: kontaktId });
-        }
-
-        ui.closeModal();
-        ui.setMsg("Aufgabe gespeichert.", "success");
-        await api.loadAll();
-        if (firmaId) ctrl.openFirma(firmaId); else ctrl.render();
-      } catch(e) {
-        debug.err("saveAufgabe", e);
-        ui.setMsg("Fehler: " + e.message, "error");
-      }
-    },
-
-    async aufgabeErledigen(id, firmaId) {
-      const t = state.data.tasks.find(t => t.id === id);
-      if (!t) return;
-      if (!confirm(`Aufgabe «${t.title}» als erledigt markieren?`)) return;
-      try {
-        ui.setMsg("Wird gespeichert…", "info");
-        await api.patch(CONFIG.lists.tasks, id, { Status: "erledigt" });
-        ui.setMsg("Aufgabe erledigt.", "success");
-        await api.loadAll();
-        ctrl.openFirma(firmaId);
-      } catch(e) {
-        debug.err("aufgabeErledigen", e);
-        ui.setMsg("Fehler: " + e.message, "error");
-      }
     },
 
     openProjekt(id) {
