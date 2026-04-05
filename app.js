@@ -1479,8 +1479,7 @@
           <button class="ef-cl" data-close-modal>✕</button>
         </div>
 
-        <div class="ef-bd">
-          <form id="einsatz-form" autocomplete="off" style="display:contents">
+        <form id="einsatz-form" autocomplete="off" class="ef-bd">
             <input type="hidden" name="itemId" value="${id || ""}">
             <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
             <input type="hidden" id="kat-hid" name="kategorie" value="${h.esc(selKat)}">
@@ -1678,8 +1677,7 @@
 
             </div><!-- /ef-col-r -->
 
-          </form>
-        </div><!-- /ef-bd -->
+          </form><!-- /ef-bd -->
 
         <div class="ef-ft">
           ${id && e?.abrechnung ? `<div class="ef-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(e.abrechnung)}</div>` : `<div></div>`}
@@ -2082,8 +2080,7 @@
           <button class="kf-cl" data-close-modal>✕</button>
         </div>
 
-        <div class="kf-bd">
-          <form id="konzeption-form" autocomplete="off" style="display:contents">
+        <form id="konzeption-form" autocomplete="off" class="kf-bd">
             <input type="hidden" name="itemId" value="${id || ""}">
             <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
             <input type="hidden" id="kf-kat-hid" name="kategorie" value="${h.esc(selKat)}">
@@ -2224,8 +2221,7 @@
 
             </div><!-- /kf-col-r -->
 
-          </form>
-        </div>
+          </form><!-- /kf-bd -->
 
         <div class="kf-ft">
           ${id && k?.abrechnung ? `<div class="kf-abr-info"><span style="width:6px;height:6px;border-radius:50%;background:#8896a5;display:inline-block"></span>Abrechnung: ${h.esc(k.abrechnung)}</div>` : `<div></div>`}
