@@ -63,13 +63,13 @@
     abr_projekt_w:     "ProjektLookupId",
 
     // EinsaetzeTM / KonzeptionTM → AbrechnungenTM — Lesen
-    abrechnung_r:      "AbrechnungLookupIDLookupId",
-    // Schreiben — SP hat internen Namen mit grossem D angelegt
-    abrechnung_w:      "AbrechnungLookupID",
+    abrechnung_r:      "AbrechnungLookupID0LookupId",
+    // Schreiben — SP interner Name: AbrechnungLookupID0 (SP fügte 0-Suffix wegen Namenskonflikt an)
+    abrechnung_w:      "AbrechnungLookupID0",
 
     // KonzeptionTM → AbrechnungenTM
-    konz_abrechnung_r: "AbrechnungLookupIDLookupId",
-    konz_abrechnung_w: "AbrechnungLookupID"
+    konz_abrechnung_r: "AbrechnungLookupID0LookupId",
+    konz_abrechnung_w: "AbrechnungLookupID0"
   };
 
   // ════════════════════════════════════════════════════════════════════════
