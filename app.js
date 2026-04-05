@@ -706,7 +706,7 @@
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
-        if (a(".tm-modal-backdrop") && !a(".tm-modal") && !a(".ef-m")) { ctrl.closeModal(); return; }
+        if (a(".tm-modal-backdrop") && !a(".tm-modal") && !a(".ef-m") && !a(".kf-m")) { ctrl.closeModal(); return; }
       });
     },
 
@@ -1476,7 +1476,7 @@
               <div class="ef-hd-s" id="ef-hd-sub">${selProjekt ? h.esc(selProjekt.title) + (selProjekt.firmaName ? " · " + h.esc(selProjekt.firmaName) : "") : "Projekt wählen"}</div>
             </div>
           </div>
-          <button class="ef-cl" data-close-modal>✕</button>
+          <button type="button" class="ef-cl" data-close-modal>✕</button>
         </div>
 
         <form id="einsatz-form" autocomplete="off" class="ef-bd">
@@ -2077,7 +2077,7 @@
               <div class="kf-hd-s">${selProjekt ? h.esc(selProjekt.title) + (selProjekt.firmaName ? " · " + h.esc(selProjekt.firmaName) : "") : "Projekt wählen"}</div>
             </div>
           </div>
-          <button class="kf-cl" data-close-modal>✕</button>
+          <button type="button" class="kf-cl" data-close-modal>✕</button>
         </div>
 
         <form id="konzeption-form" autocomplete="off" class="kf-bd">
