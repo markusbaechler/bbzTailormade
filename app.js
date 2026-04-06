@@ -1615,18 +1615,27 @@
         const toggle = "state.filters.konzeption['"+fkey+"']=(state.filters.konzeption['"+fkey+"']==='"+String(val).replace(/'/g,"\'")+"'?'':'"+String(val).replace(/'/g,"\'")+"');state.ui.selectedKonzId=null;ctrl.render()";
         return '<button class="kz-sb-chip'+(isActive?' active':'')+'" onclick="'+toggle+'">'+h.esc(lbl)+'</button>';
       };
-      const verrSec = '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle("collapsed")"><span class="kz-sb-lbl">Verrechenbar</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join("")+'</div></div>';
-      const personSec = personen.length ? '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle("collapsed")"><span class="kz-sb-lbl">Person</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+personen.map(n=>kzChip("person",n,n)).join("")+'</div></div>' : "";
+      const kzSec = (lbl, body) => '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span class="kz-sb-lbl">'+lbl+'</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+body+'</div></div>';
+      const verrSec   = kzSec("Verrechenbar", state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join(""));
+      const firmaSec  = firmen.length   ? kzSec("Firma",   firmen.map(n=>kzChip("firma",n,n)).join("")) : "";
+      const projektSec= projekte.length ? kzSec("Projekt", projekte.map(([id,t])=>kzChip("projekt",id,t)).join("")) : "";
+      const personSec = personen.length ? kzSec("Person",  personen.map(n=>kzChip("person",n,n)).join("")) : "";
       const tblHtml = list.length
-        ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Beschreibung / Projekt</th><th>Person</th><th>Kategorie</th><th>Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
-          +list.map(k=>'<tr class="'+(k.id===selId?"ef-row-sel":"")+'" data-action="select-konzeption" data-id="'+k.id+'">'
-            +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
-            +'<td><div style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+'</div></td>'
-            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.personName)+'</td>'
-            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</td>'
-            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</td>'
-            +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
-            +'</tr>').join("")
+        ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Firma / Projekt</th><th>Beschreibung</th><th>Person</th><th>Kat. / Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
+          +list.map(k=>{
+            const proj=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+            const fn=proj?.firmaName||"";
+            const fc=firmaColorMap[fn];
+            const fb=fn?'<span style="background:'+fc?.bg+';color:'+fc?.tx+';font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px">'+h.esc(fn)+'</span>':"";
+            return '<tr class="'+(k.id===selId?"ef-row-sel":"")+'" data-action="select-konzeption" data-id="'+k.id+'">'
+              +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
+              +'<td><div style="margin-bottom:2px">'+fb+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+(proj?.projektNr?' <span style="font-weight:400">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></td>'
+              +'<td style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</td>'
+              +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.personName)+'</td>'
+              +'<td><div style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></td>'
+              +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
+              +'</tr>';
+          }).join("")
           +'</tbody></table>'
         : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Konzeptionsaufwände gefunden.</div>';
       const detailHtml = sel
@@ -1661,7 +1670,7 @@
         .kz-tbl-scroll{flex:1;overflow-y:auto}
         .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
         .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
-        .kz-tbl thead th:nth-child(1){width:11%}.kz-tbl thead th:nth-child(2){width:22%}.kz-tbl thead th:nth-child(3){width:22%}.kz-tbl thead th:nth-child(4){width:15%}.kz-tbl thead th:nth-child(5){width:13%}.kz-tbl thead th:nth-child(6){width:17%}
+        .kz-tbl thead th:nth-child(1){width:11%}.kz-tbl thead th:nth-child(2){width:20%}.kz-tbl thead th:nth-child(3){width:24%}.kz-tbl thead th:nth-child(4){width:15%}.kz-tbl thead th:nth-child(5){width:13%}.kz-tbl thead th:nth-child(6){width:17%}
         .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
         .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
         .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
@@ -1697,12 +1706,12 @@
         <div class="kz-left">
           <div class="kz-sb-hdr">
             <span class="kz-sb-title">Filter</span>
-            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
+            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
           </div>
           <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
             <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
           </div>
-          ${verrSec}${personSec}
+          ${verrSec}${firmaSec}${projektSec}${personSec}
         </div>
         <div class="kz-main">
           <div class="kz-toolbar">
