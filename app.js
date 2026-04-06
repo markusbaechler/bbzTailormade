@@ -177,7 +177,12 @@
     },
     fmtDate(v) {
       const d = h.toDate(v);
-      return d ? d.toLocaleDateString("de-CH", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+      if (!d) return "";
+      const wd = ["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()];
+      const dd = String(d.getDate()).padStart(2,"0");
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const yy = String(d.getFullYear()).slice(2);
+      return `${wd} ${dd}.${mm}.${yy}`;
     },
     toDateInput(v) {
       const d = h.toDate(v);
@@ -1323,15 +1328,16 @@
               <div class="ef-detail-hdr">
                 <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
                 <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-                <div class="ef-detail-sub">${h.esc(sel.datumFmt)}${selProj?" · "+h.esc(selProj.title):""}</div>
+                <div class="ef-detail-sub">${h.esc(sel.datumFmt)}</div>
               </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Datum</div>
+                <div class="ef-detail-val">${h.esc(sel.datumFmt)}</div>
+              </div>
+              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Beschreibung</div>
                 <div class="ef-detail-val">${h.esc(sel.title||"—")}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Kategorie</div>
-                <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
               </div>
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Personen</div>
@@ -1348,8 +1354,12 @@
                 <div class="ef-detail-lbl">Status</div>
                 <div class="ef-detail-val">${h.statusBadge(sel)}</div>
               </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Kategorie</div>
+                <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
+              </div>
               ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
-              ${selProj?.firmaName ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Firma</div><div class="ef-detail-val">${h.esc(selProj.firmaName)}${selProj?.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
+              ${selProj?.firmaName ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Firma</div><div class="ef-detail-val">${h.esc(selProj.firmaName)}</div></div>` : ""}
               ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Betrag</div>
