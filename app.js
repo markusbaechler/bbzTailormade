@@ -504,7 +504,29 @@
     e.personName    = h.contactName(e.personLookupId);
     e.coPersonName  = h.contactName(e.coPersonLookupId);
     e.coAnzeigeBetrag = h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet);
+    e._spesenRaw = e.spesenBerechnet;
+    // spesenAnzeige wird in recalcEinsatzSpesen() gesetzt
+    e.spesenAnzeige = 0;
     return e;
+  }
+
+  function recalcEinsatzSpesen() {
+    // Für alle Einsätze: spesenAnzeige live aus Projektdaten berechnen
+    // abgerechnete Einsätze behalten den gespeicherten Wert (spesenFinal)
+    state.enriched.einsaetze.forEach(e => {
+      if (e.abrechnung === "abgerechnet" && e.spesenFinal != null) {
+        // abgerechnet: finaler Wert gilt
+        e.spesenAnzeige = e.spesenFinal;
+        return;
+      }
+      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+      if (!proj) { e.spesenAnzeige = 0; return; }
+      const wegAktiv = !!(e._spesenRaw || e.spesenBerechnet);
+      if (!wegAktiv) { e.spesenAnzeige = 0; return; }
+      const km = proj.kmZumKunden;
+      const ansatz = proj.ansatzKmSpesen;
+      e.spesenAnzeige = (km && ansatz) ? Math.round(km * ansatz * 100) / 100 : 0;
+    });
   }
 
   function enrichKonzeption(raw) {
@@ -550,6 +572,7 @@
   function enrichAll() {
     state.enriched.abrechnungen = state.data.abrechnungen.map(enrichAbrechnung);
     state.enriched.einsaetze    = state.data.einsaetze.map(enrichEinsatz);
+    recalcEinsatzSpesen();
     state.enriched.konzeption   = state.data.konzeption.map(enrichKonzeption);
     state.enriched.projekte     = state.data.projekte.map(enrichProjekt);
     // Nachträgliche Zuweisung: enriched items pro Projekt
@@ -1370,7 +1393,7 @@
                 <div class="ef-detail-lbl">Betrag</div>
                 <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
               </div>
-              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenBerechnet ? "CHF "+h.chf(sel.spesenBerechnet) : "CHF 0.00 (keine Verrechnung)"}</div></div>
+              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige ? "CHF "+h.chf(sel.spesenAnzeige) : "CHF 0.00 (keine Verrechnung)"}</div></div>
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Abrechnung</div>
                 <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
@@ -1792,7 +1815,7 @@
                 const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
                 const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
                 const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
+                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenAnzeige||0),0);
                 return `<div class="fd-row">
                   <div>
                     <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
@@ -1838,7 +1861,7 @@
         const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
         const eSum = einsaetze.reduce((t,e) => t+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
         const kSum = konz.reduce((t,k) => t+(k.anzeigeBetrag||0),0);
-        const wSum = einsaetze.reduce((t,e) => t+(e.spesenBerechnet||0),0);
+        const wSum = einsaetze.reduce((t,e) => t+(e.spesenAnzeige||0),0);
         const sSum = (a.spesenZusatzBetrag||0)+wSum;
         return { eSum, kSum, sSum, total: eSum+kSum+sSum, einsaetze, konz };
       };
@@ -2432,7 +2455,7 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet);
+      const hasSp       = !!(e?.spesenBerechnet || e?._spesenRaw);
       const kmGespeichert = kmVorbelegt || "";
       const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
@@ -3268,7 +3291,7 @@
               <tbody>
                 ${einsaetze.map(e => {
                   const betrag = (h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet) ?? 0);
-                  const spesen = e.spesenBerechnet || 0;
+                  const spesen = e.spesenAnzeige || 0;
                   return `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
                     <td><input type="checkbox" class="ad-cb ad-e-cb"
                       data-id="${e.id}" data-betrag="${betrag}" data-spesen="${spesen}"
@@ -3479,7 +3502,7 @@
 
       const einsaetze  = state.enriched.einsaetze.filter(e => checkedIds.includes(e.id));
       const konzeption = state.enriched.konzeption.filter(k => checkedKonzIds.includes(k.id));
-      const spesen     = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
+      const spesen     = einsaetze.filter(e => (e.spesenAnzeige || 0) > 0);
 
       const totalEinsatz = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
       const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenBerechnet || 0), 0) + (zusatzBetrag || 0);
@@ -3529,7 +3552,7 @@
           <div class="sm-sec">
             <div class="sm-sec-t">Spesen</div>
             ${spesen.length ? spesen.map(e => `
-              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · Wegspesen</span><span class="val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`).join("") : ""}
+              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · Wegspesen</span><span class="val">CHF ${h.chf(e.spesenAnzeige)}</span></div>`).join("") : ""}
             ${zusatzBetrag ? `<div class="sm-row"><span class="lbl">${h.esc(zusatzBem || "Zusatzspesen")}</span><span class="val">CHF ${h.chf(zusatzBetrag)}</span></div>` : ""}
             ${!spesen.length && !zusatzBetrag ? `<div class="sm-empty">Keine Spesen</div>` : ""}
             ${(spesen.length || zusatzBetrag) ? `<div class="sm-row" style="font-weight:700"><span class="lbl">Total Spesen</span><span class="val" style="color:#004078">CHF ${h.chf(totalSpesen)}</span></div>` : ""}
@@ -3635,8 +3658,8 @@
         .filter(k => (checkedKonzIds || []).includes(k.id));
 
       // Spesen: nur aus gewählten Einsätzen
-      const spesenEinsaetze = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
-      const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
+      const spesenEinsaetze = einsaetze.filter(e => (e.spesenAnzeige || 0) > 0);
+      const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenAnzeige || 0), 0);
 
       // Totals
       const einsatzTotal = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
@@ -3764,7 +3787,7 @@
           e.datumFmt,
           (e.title || e.kategorie) + " \u2014 " + (p.firmaName || ""),
           "Wegspesen",
-          h.chf(e.spesenBerechnet)
+          h.chf(e.spesenAnzeige)
         ]);
         if (spesenZusatzBetrag) {
           spesenRows.push([datum, spesenZusatzBem || "Zusatzspesen", "Spesen", h.chf(spesenZusatzBetrag)]);
