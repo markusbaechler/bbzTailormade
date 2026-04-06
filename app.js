@@ -1370,7 +1370,7 @@
                 <div class="ef-detail-lbl">Betrag</div>
                 <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
               </div>
-              ${sel.spesenBerechnet!=null ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">CHF ${h.chf(sel.spesenBerechnet)} ${sel.wegspesen==="verrechnen"?"(verrechnet)":"(nicht verrechnet)"}</div></div>` : ""}
+              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenBerechnet ? "CHF "+h.chf(sel.spesenBerechnet) : "CHF 0.00 (keine Verrechnung)"}</div></div>
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Abrechnung</div>
                 <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
@@ -2433,8 +2433,8 @@
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
       const hasSp       = !!(e?.spesenBerechnet);
-      const kmGespeichert = (hasSp && ansatzKm) ? Math.round(e.spesenBerechnet / ansatzKm) : (kmVorbelegt || "");
-      const spesenTotal = hasSp ? e.spesenBerechnet : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0);
+      const kmGespeichert = kmVorbelegt || "";
+      const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
       // Einsatz-Status berechnet (Geplant/Durchgeführt)
       const statusAnzeige = (() => {
