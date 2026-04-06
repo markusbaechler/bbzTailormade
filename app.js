@@ -1728,6 +1728,21 @@
         .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
         .kz-cs-chip .kz-cs-x{font-size:15px;opacity:.7;margin-left:2px}
         .kz-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px}
+        .ef-bs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
+        .ef-bs-overlay.open{display:flex}
+        .ef-bs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
+        @keyframes bsUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+        .ef-bs-handle{display:flex;justify-content:center;padding:10px 0 4px}
+        .ef-bs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
+        .ef-bs-hdr{padding:12px 16px 10px;border-bottom:1px solid var(--tm-border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+        .ef-bs-title{font-size:16px;font-weight:600;color:var(--tm-text);line-height:1.3}
+        .ef-bs-sub{font-size:12px;color:var(--tm-text-muted);margin-top:2px}
+        .ef-bs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+        .ef-bs-body{overflow-y:auto;flex:1;padding-bottom:env(safe-area-inset-bottom,16px)}
+        .ef-bs-sec{padding:11px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8)}
+        .ef-bs-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:3px}
+        .ef-bs-val{font-size:14px;color:var(--tm-text)}
+        .ef-bs-edit{width:calc(100% - 32px);height:48px;background:var(--tm-blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin:14px 16px 0}
         .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
         .ef-fs-overlay.open{display:flex}
         .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
@@ -1808,6 +1823,17 @@
                 +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
                 +'</div>';
             }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
+          </div>
+          <!-- MOBILE: Bottom Sheet -->
+          <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
+            <div class="ef-bs">
+              <div class="ef-bs-handle"><div></div></div>
+              <div class="ef-bs-hdr">
+                <div><div class="ef-bs-title" id="ef-bs-title">—</div><div class="ef-bs-sub" id="ef-bs-sub">—</div></div>
+                <div class="ef-bs-close" onclick="ctrl.closeBs()">×</div>
+              </div>
+              <div class="ef-bs-body" id="ef-bs-body"></div>
+            </div>
           </div>
           <!-- MOBILE: Filter-Sheet -->
           <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
