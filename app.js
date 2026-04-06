@@ -1707,7 +1707,32 @@
         .kz-detail-sec{padding:10px 14px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
         .kz-detail-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:4px}
         .kz-detail-val{font-size:13px;color:var(--tm-text)}
-        @media(max-width:700px){.tm-view-root{padding:0!important;overflow:auto!important}.kz-shell{flex-direction:column;height:auto}.kz-left,.kz-right,.kz-tbl-scroll{display:none}}
+        @media(max-width:700px){
+          .tm-view-root{padding:0!important;overflow:auto!important}
+          .kz-shell{flex-direction:column;height:auto}
+          .kz-left{display:none!important}
+          .kz-right{display:none!important}
+          .kz-tbl-scroll{display:none!important}
+          .kz-toolbar{padding:10px 14px 6px}
+          .kz-title{font-size:16px}
+          .kz-kpi{flex-wrap:wrap}
+          .kz-kpi-item{min-width:33%}
+          .kz-mobile-cards{display:flex!important}
+          .kz-chip-strip{display:flex!important}
+        }
+        .kz-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
+        .kz-chip-strip::-webkit-scrollbar{display:none}
+        .kz-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
+        .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
+        .kz-cs-chip .kz-cs-x{font-size:15px;opacity:.7;margin-left:2px}
+        .kz-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px}
+        .kz-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s}
+        .kz-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+        .kz-mc-date{font-size:12px;font-weight:600;color:var(--tm-text)}
+        .kz-mc-title{font-size:15px;font-weight:600;margin-bottom:2px}
+        .kz-mc-proj{font-size:12px;color:var(--tm-text-muted);margin-bottom:8px}
+        .kz-mc-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px}
+        .kz-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border);font-size:12px;color:var(--tm-text-muted)}
       </style>
       <div class="kz-shell">
         <div class="kz-left">
@@ -1742,7 +1767,46 @@
           <div class="kz-tbl-scroll">${tblHtml}</div>
         </div>
         <div class="kz-right">${detailHtml}</div>
-      </div>`);
+      </div>
+      ${window.innerWidth <= 700 ? `
+      <!-- MOBILE: Chip-Strip -->
+      <div class="kz-chip-strip">
+        ${[
+          ["verrechenbar", f.verrechenbar||"", "Verrechenbar"],
+          ["firma", f.firma||"", "Firma"],
+          ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
+          ["person", f.person||"", "Person"]
+        ].map(([key, activeVal, label]) => {
+          const isActive = !!activeVal;
+          return '<button class="kz-cs-chip'+(isActive?" active":"")+'\" onclick="ctrl.openKzFs(\''+key+'\')">'
+            +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
+            +(isActive?'<span class="kz-cs-x" onclick="event.stopPropagation();state.filters.konzeption[\''+key+'\']=\'\';state.ui.selectedKonzId=null;ctrl.render()">×</span>':"")
+            +'</button>';
+        }).join("")}
+      </div>
+      <!-- MOBILE: Cards -->
+      <div class="kz-mobile-cards">
+        ${list.length ? list.map(k => {
+          const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+          const fn = proj?.firmaName||"";
+          const fc = firmaColorMap[fn];
+          const fb = fn ? '<span class="kz-mc-badge" style="background:'+fc?.bg+';color:'+fc?.tx+'">'+h.esc(fn)+'</span>' : "";
+          return '<div class="kz-mc" onclick="ctrl.openKzBs('+k.id+')">'
+            +'<div class="kz-mc-top"><div class="kz-mc-date">'+h.esc(k.datumFmt)+'</div>'+h.verrBadge(k.verrechenbar)+'</div>'
+            +'<div class="kz-mc-title">'+h.esc(k.title)+'</div>'
+            +'<div class="kz-mc-proj">'+fb+' '+h.esc(k.projektTitle)+'</div>'
+            +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
+            +'</div>';
+        }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
+      </div>
+      <!-- MOBILE: Filter-Sheet -->
+      <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
+        <div class="ef-fs">
+          <div class="ef-fs-handle"><div></div></div>
+          <div class="ef-fs-hdr"><div class="ef-fs-title" id="kz-fs-title">Filter</div><div class="ef-fs-close" onclick="ctrl.closeKzFs()">×</div></div>
+          <div class="ef-fs-body" id="kz-fs-body"></div>
+        </div>
+      </div>` : ""}`);
     },
 
     firmen() {
@@ -3165,6 +3229,70 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    openKzFs(key) {
+      const overlay = document.getElementById("kz-fs-overlay");
+      const title   = document.getElementById("kz-fs-title");
+      const body    = document.getElementById("kz-fs-body");
+      if (!overlay||!title||!body) return;
+      const f = state.filters.konzeption;
+      const all = state.enriched.konzeption;
+      const chip = (fkey, val, lbl) => {
+        const isActive = f[fkey]===String(val);
+        return '<div class="ef-fs-opt'+(isActive?" active":"")+'" onclick="state.filters.konzeption[\''+fkey+'\']=(state.filters.konzeption[\''+fkey+'\']==='+(isActive?"'"+String(val).replace(/'/g,"\\'")+"'":'""')+' ? \'\' : \''+String(val).replace(/'/g,"\\'")+'\');state.ui.selectedKonzId=null;ctrl.closeKzFs();ctrl.render()"><span>'+h.esc(lbl)+'</span><span class="ef-fs-check">'+(isActive?"✓":"")+'</span></div>';
+      };
+      if (key==="verrechenbar") {
+        title.textContent="Verrechenbar";
+        body.innerHTML = chip("verrechenbar","","Alle")+state.choices.konzVerrechenbar.map(v=>chip("verrechenbar",v,v)).join("");
+      } else if (key==="firma") {
+        title.textContent="Firma";
+        const firmen=[...new Set(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
+        body.innerHTML=chip("firma","","Alle Firmen")+firmen.map(n=>chip("firma",n,n)).join("");
+      } else if (key==="projekt") {
+        title.textContent="Projekt";
+        const proj=[...new Map(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);const nr=p?.projektNr||"";return [k.projektLookupId,nr?"#"+nr+" "+k.projektTitle:k.projektTitle];})).entries()].filter(([,t])=>t);
+        body.innerHTML=chip("projekt","","Alle Projekte")+proj.map(([id,t])=>chip("projekt",id,t)).join("");
+      } else if (key==="person") {
+        title.textContent="Person";
+        const personen=[...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
+        body.innerHTML=chip("person","","Alle Personen")+personen.map(n=>chip("person",n,n)).join("");
+      }
+      overlay.classList.add("open");
+      document.body.style.overflow="hidden";
+    },
+
+    closeKzFs() {
+      const overlay=document.getElementById("kz-fs-overlay");
+      if(overlay) overlay.classList.remove("open");
+      document.body.style.overflow="";
+    },
+
+    openKzBs(id) {
+      const k = state.enriched.konzeption.find(x=>x.id===id);
+      if (!k) return;
+      const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+      // Reuse existing BS overlay
+      const overlay = document.getElementById("ef-bs-overlay");
+      const bsTitle = document.getElementById("ef-bs-title");
+      const bsSub   = document.getElementById("ef-bs-sub");
+      const bsBody  = document.getElementById("ef-bs-body");
+      if (!overlay||!bsTitle||!bsBody) return;
+      bsTitle.textContent = k.title;
+      bsSub.textContent   = proj?.firmaName||"";
+      bsBody.innerHTML =
+        '<div class="ef-bs-sec"><div class="ef-bs-lbl">Datum</div><div class="ef-bs-val">'+h.esc(k.datumFmt)+'</div></div>'
+        +(proj?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Projekt</div><div class="ef-bs-val">'+h.esc(proj.title)+(proj.projektNr?' <span style="color:var(--tm-text-muted);font-size:12px">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></div>':"")
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Person</div><div class="ef-bs-val">'+h.esc(k.personName)+'</div></div>'
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Kategorie</div><div class="ef-bs-val">'+h.esc(k.kategorie||"—")+'</div></div>'
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Dauer</div><div class="ef-bs-val">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">'+(k.anzeigeBetrag!==null?'CHF '+h.chf(k.anzeigeBetrag):'—')+'</div></div>'
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Verrechenbar</div><div class="ef-bs-val">'+h.verrBadge(k.verrechenbar)+'</div></div>'
+        +(k.bemerkungen?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Bemerkungen</div><div class="ef-bs-val" style="font-size:13px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(k.bemerkungen)+'</div></div>':"")
+        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">'+h.abrBadge(k.abrechnung)+'</div></div>'
+        +'<div style="padding:14px 16px 20px"><button class="ef-bs-edit" onclick="ctrl.closeBs();ctrl.openKonzeptionForm('+k.id+')">Bearbeiten</button></div>';
+      overlay.classList.add("open");
+      document.body.style.overflow="hidden";
+    },
+
     updateKonzDetailPanel() {
       const panel = document.querySelector(".kz-right");
       if (!panel) return;
