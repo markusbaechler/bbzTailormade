@@ -863,6 +863,9 @@
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='select-einsatz']"))        { const id = +a("[data-action='select-einsatz']").dataset.id; state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id; ctrl.render(); return; }
         if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
+        if (a("[data-action='open-filter-sheet']"))     { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
+        if (a("[data-action='open-search-sheet']"))     { ctrl.openFs("search"); return; }
+        if (a("[data-action='clear-filter']"))          { e.stopPropagation(); const k=a("[data-action='clear-filter']").dataset.fkey; state.filters.einsaetze[k]=""; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a(".ef-sb-chip[data-fkey]"))               { const c = a(".ef-sb-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='toggle-sb-sec']"))         { const sec = a("[data-action='toggle-sb-sec']").dataset.sec; const sb = state.ui.sbOpen; sb[sec] = sb[sec] === false ? true : false; ctrl.render(); return; }
         if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
@@ -1263,24 +1266,37 @@
           @media(max-width:700px){
             .tm-view-root{padding:0!important;overflow:auto!important}
             .ef-shell{flex-direction:column;height:auto;overflow:visible}
-            /* Sidebar → schmaler Filter-Strip oben */
-            .ef-sidebar{width:100%;border-right:none;border-bottom:0.5px solid var(--tm-border);max-height:none;overflow:visible}
-            .ef-sidebar-hdr{padding:10px 14px 8px}
-            .ef-sb-section{padding:0}
-            .ef-sb-sec-hdr{padding:8px 14px 6px}
-            .ef-sb-body{max-height:120px}
-            /* Detail-Panel: hidden auf Mobile (Bottom-Sheet stattdessen) */
-            .ef-detail{display:none}
-            /* Tabelle: hidden auf Mobile */
-            .ef-tbl-scroll{display:none}
-            /* Toolbar: kompakter */
-            .ef-toolbar{padding:10px 14px 8px}
+            .ef-sidebar{display:none!important}
+            .ef-detail{display:none!important}
+            .ef-tbl-scroll{display:none!important}
+            .ef-toolbar{padding:10px 14px 6px}
             .ef-zone-title{font-size:16px}
-            /* Cards: sichtbar auf Mobile */
             .ef-mobile-cards{display:flex!important}
-            /* FAB */
             .ef-fab{display:flex!important}
+            .ef-chip-strip{display:flex!important}
           }
+          /* ── Chip-Strip ── */
+          .ef-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
+          .ef-chip-strip::-webkit-scrollbar{display:none}
+          .ef-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
+          .ef-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
+          .ef-cs-chip .ef-cs-x{font-size:15px;opacity:.7;margin-left:2px;line-height:1}
+          .ef-cs-search{display:flex;align-items:center;width:32px;height:32px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-bg);cursor:pointer;justify-content:center;flex-shrink:0;font-size:15px;color:var(--tm-text-muted)}
+          /* ── Filter-Sheet (Mobile) ── */
+          .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
+          .ef-fs-overlay.open{display:flex}
+          .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
+          .ef-fs-handle{display:flex;justify-content:center;padding:10px 0 4px;flex-shrink:0}
+          .ef-fs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
+          .ef-fs-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:1px solid var(--tm-border);flex-shrink:0}
+          .ef-fs-title{font-size:16px;font-weight:600;color:var(--tm-text)}
+          .ef-fs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+          .ef-fs-body{overflow-y:auto;flex:1;padding:8px 0 env(safe-area-inset-bottom,16px)}
+          .ef-fs-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8);cursor:pointer;font-size:15px;color:var(--tm-text)}
+          .ef-fs-opt:active{background:var(--tm-surface)}
+          .ef-fs-opt.active{color:var(--tm-blue);font-weight:500}
+          .ef-fs-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--tm-border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+          .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
           /* Card-View: standardmässig hidden, mobile sichtbar */
           .ef-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px;overflow-y:auto}
           .ef-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
@@ -1385,6 +1401,35 @@
               <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
             </div>
             <div style="height:10px;background:var(--tm-bg);flex-shrink:0"></div>
+            <!-- ── MOBILE: Chip-Strip ── -->
+            <div class="ef-chip-strip" id="ef-chip-strip">
+              <div class="ef-cs-search" data-action="open-search-sheet" title="Suche">⌕</div>
+              ${[
+                ["jahr", f.jahr||"", "Jahr"],
+                ["firma", f.firma||"", "Firma"],
+                ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.projektNr ? "#"+(state.enriched.projekte.find(p=>p.id===+f.projekt)?.projektNr)+" "+(state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"") : state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
+                ["einsatzStatus", f.einsatzStatus ? {geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus]||"" : "", "Status"],
+                ["person", f.person||"", "Person"],
+                ["abrechnung", f.abrechnung||"", "Abrechnung"]
+              ].map(([key, activeVal, label]) => {
+                const isActive = !!activeVal;
+                return `<button class="ef-cs-chip${isActive?" active":""}" data-action="open-filter-sheet" data-filter-key="${key}">
+                  ${isActive ? h.esc(activeVal.length>18?activeVal.slice(0,18)+"…":activeVal) : h.esc(label)}
+                  ${isActive ? `<span class="ef-cs-x" data-action="clear-filter" data-fkey="${key}">×</span>` : ""}
+                </button>`;
+              }).join("")}
+            </div>
+            <!-- ── MOBILE: Filter-Sheet ── -->
+            <div class="ef-fs-overlay" id="ef-fs-overlay" onclick="if(event.target===this){ctrl.closeFs()}">
+              <div class="ef-fs">
+                <div class="ef-fs-handle"><div></div></div>
+                <div class="ef-fs-hdr">
+                  <div class="ef-fs-title" id="ef-fs-title">Filter</div>
+                  <div class="ef-fs-close" onclick="ctrl.closeFs()">×</div>
+                </div>
+                <div class="ef-fs-body" id="ef-fs-body"></div>
+              </div>
+            </div>
             <div class="ef-tbl-scroll">
               ${list.length ? `<table class="ef-tbl">
                 <thead><tr>
@@ -2979,6 +3024,81 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    openFs(key) {
+      const overlay = document.getElementById("ef-fs-overlay");
+      const title   = document.getElementById("ef-fs-title");
+      const body    = document.getElementById("ef-fs-body");
+      if (!overlay||!title||!body) return;
+      const f = state.filters.einsaetze;
+      const all = state.enriched.einsaetze;
+      const chip = (fkey, val, lbl) => {
+        const isActive = f[fkey]===String(val);
+        return `<div class="ef-fs-opt${isActive?" active":""}" data-action="fs-select" data-fkey="${fkey}" data-fval="${String(val).replace(/"/g,"&quot;")}">
+          <span>${h.esc(lbl)}</span>
+          <span class="ef-fs-check">${isActive?"✓":""}</span>
+        </div>`;
+      };
+      if (key==="search") {
+        title.textContent = "Suche";
+        body.innerHTML = `<div style="padding:14px 16px">
+          <input type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}"
+            style="width:100%;padding:12px 14px;font-size:16px;border:1.5px solid var(--tm-border);border-radius:10px;background:var(--tm-bg);color:var(--tm-text);outline:none;box-sizing:border-box"
+            oninput="h.searchInput('einsaetze.search',this.value);ctrl.render()" autofocus>
+        </div>`;
+      } else if (key==="jahr") {
+        title.textContent = "Jahr";
+        const jahre = [...new Set(all.map(e=>e.datum?new Date(e.datum).getFullYear():null).filter(Boolean))].sort((a,b)=>b-a);
+        body.innerHTML = chip("jahr","","Alle Jahre") + jahre.map(j=>chip("jahr",j,j)).join("");
+      } else if (key==="firma") {
+        title.textContent = "Firma";
+        const firmen = [...new Set(all.map(e=>{const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
+        body.innerHTML = chip("firma","","Alle Firmen") + firmen.map(n=>chip("firma",n,n)).join("");
+      } else if (key==="projekt") {
+        title.textContent = "Projekt";
+        const proj = [...new Map(all.map(e=>{
+          const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId);
+          const nr=p?.projektNr||""; const lbl=nr?`#${nr} ${e.projektTitle}`:e.projektTitle;
+          return [e.projektLookupId,lbl];
+        })).entries()].filter(([,t])=>t).sort((a,b)=>{
+          const na=a[1].match(/#(\d+)/)?.[1]||""; const nb=b[1].match(/#(\d+)/)?.[1]||"";
+          return na&&nb?+na - +nb:a[1].localeCompare(b[1]);
+        });
+        body.innerHTML = chip("projekt","","Alle Projekte") + proj.map(([id,t])=>chip("projekt",id,t)).join("");
+      } else if (key==="einsatzStatus") {
+        title.textContent = "Status";
+        body.innerHTML = chip("einsatzStatus","","Alle Status") +
+          [["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]].map(([v,l])=>chip("einsatzStatus",v,l)).join("");
+      } else if (key==="person") {
+        title.textContent = "Person";
+        const personen = [...new Set([
+          ...all.map(e=>e.personName).filter(n=>n&&n!=="—"),
+          ...all.map(e=>e.coPersonName).filter(n=>n&&n!=="—")
+        ])].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
+        body.innerHTML = chip("person","","Alle Personen") + personen.map(n=>chip("person",n,n)).join("");
+      } else if (key==="abrechnung") {
+        title.textContent = "Abrechnung";
+        body.innerHTML = chip("abrechnung","","Alle") + state.choices.einsatzAbrechnung.map(s=>chip("abrechnung",s,s)).join("");
+      }
+      // fs-select click delegation inside sheet
+      body.onclick = ev => {
+        const opt = ev.target.closest("[data-action='fs-select']");
+        if (!opt) return;
+        const fk=opt.dataset.fkey, fv=opt.dataset.fval;
+        state.filters.einsaetze[fk] = state.filters.einsaetze[fk]===fv ? "" : fv;
+        state.ui.selectedEinsatzId=null;
+        ctrl.closeFs();
+        ctrl.render();
+      };
+      overlay.classList.add("open");
+      document.body.style.overflow="hidden";
+    },
+
+    closeFs() {
+      const overlay = document.getElementById("ef-fs-overlay");
+      if (overlay) overlay.classList.remove("open");
+      document.body.style.overflow="";
+    },
+
     openBs(id) {
       const e = state.enriched.einsaetze.find(x=>x.id===id);
       if (!e) return;
