@@ -1297,7 +1297,7 @@
           .ef-mc-person{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tm-text-muted)}
           .ef-mc-ort{font-size:12px;color:var(--tm-text-muted);display:flex;align-items:center;gap:4px}
           .ef-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border)}
-          .ef-mc-betrag{font-size:14px;font-weight:600;color:var(--tm-blue);font-variant-numeric:tabular-nums}
+          .ef-mc-bem{font-size:11px;color:var(--tm-text-muted);font-style:italic;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
           /* FAB */
           .ef-fab{display:none;position:fixed;bottom:24px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--tm-blue);color:#fff;border:none;font-size:24px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,64,120,.35);z-index:100;line-height:1}
           .ef-fab:active{transform:scale(.95)}
@@ -1334,8 +1334,14 @@
             </div>
             ${(()=>{
               const sb = state.ui.sbOpen || {};
+              const isMobile = window.innerWidth <= 700;
               const sec = (key, label, items, renderItem) => {
-                const isOpen = sb[key] !== false;
+                const hasActive = items.some(([v])=>f[key]===String(v));
+                // Mobile: eingeklappt by default, ausser aktiver Filter oder explizit geöffnet
+                // Desktop: offen by default, ausser explizit geschlossen
+                const isOpen = isMobile
+                  ? (sb[key] === true || (hasActive && sb[key] !== false))
+                  : sb[key] !== false;
                 const activeCount = items.filter(([v])=>f[key]===String(v)).length;
                 return `<div class="ef-sb-section">
                   <div class="ef-sb-sec-hdr" data-action="toggle-sb-sec" data-sec="${key}">
@@ -1445,7 +1451,7 @@
                     <span>${h.esc(e.personName)}</span>
                   </div>
                   ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
-                  ${e.anzeigeBetrag!==null ? `<div class="ef-mc-betrag">CHF ${h.chf(e.anzeigeBetrag)}</div>` : ""}
+                  ${e.bemerkungen ? `<div class="ef-mc-bem">«${h.esc(e.bemerkungen.length>40?e.bemerkungen.slice(0,40)+"…":e.bemerkungen)}»</div>` : ""}
                 </div>
               </div>`;
             }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`}
