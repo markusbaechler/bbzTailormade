@@ -1155,11 +1155,12 @@
           .ef-tbl-scroll{flex:1;overflow-y:auto}
           /* ── Table ── */
           .ef-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-          .ef-tbl thead th:nth-child(1){width:30%}
-          .ef-tbl thead th:nth-child(2){width:26%}
-          .ef-tbl thead th:nth-child(3){width:22%}
-          .ef-tbl thead th:nth-child(4){width:12%}
-          .ef-tbl thead th:nth-child(5){width:10%}
+          .ef-tbl thead th:nth-child(1){width:13%}
+          .ef-tbl thead th:nth-child(2){width:24%}
+          .ef-tbl thead th:nth-child(3){width:23%}
+          .ef-tbl thead th:nth-child(4){width:18%}
+          .ef-tbl thead th:nth-child(5){width:12%}
+          .ef-tbl thead th:nth-child(6){width:10%}
           .ef-th-sort{cursor:pointer;user-select:none;position:relative}
           .ef-th-sort .ef-sort-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
           .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
@@ -1170,11 +1171,11 @@
           .ef-th-active{color:var(--tm-blue)!important;font-weight:500}
           .ef-th-active .ef-sort-arrow{opacity:1!important}
           .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
-          .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.018)}
-          .ef-tbl tbody tr:hover{background:rgba(0,64,120,.06)!important}
+          .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.038)}
+          .ef-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
           .ef-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
-          .ef-tbl tbody tr.cancelled{opacity:.45}
-          .ef-tbl td{padding:7px 10px;vertical-align:middle;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .ef-tbl tbody tr.cancelled{opacity:.45;box-shadow:inset 3px 0 0 var(--tm-red,#950e13)}
+          .ef-tbl td{padding:9px 10px;vertical-align:middle;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           .ef-c1{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           .ef-c2{font-size:11px;color:var(--tm-text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           .ef-av{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0;vertical-align:middle}
@@ -1186,9 +1187,9 @@
           .ef-td-betrag .ef-c2{text-align:right}
           /* ── Sidebar kollabierbare Sektionen ── */
           .ef-sb-section{padding:0;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-          .ef-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px 5px;cursor:pointer;user-select:none;gap:6px}
+          .ef-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 6px;cursor:pointer;user-select:none;gap:6px;border-top:1px solid var(--tm-border)}
           .ef-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
-          .ef-sb-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);flex:1}
+          .ef-sb-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);flex:1}
           .ef-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block;flex-shrink:0}
           .ef-sb-toggle.open{transform:rotate(90deg)}
           .ef-sb-count{font-size:9px;background:var(--tm-blue);color:#fff;border-radius:8px;padding:1px 5px;font-weight:700;flex-shrink:0}
@@ -1277,7 +1278,15 @@
           <div class="ef-main">
             <div class="ef-toolbar">
               <div style="flex:1">
-                <div class="ef-zone-title">Alle Einsätze</div>
+                <div class="ef-zone-title">${(()=>{
+                  const parts=[];
+                  if(f.firma) parts.push(h.esc(f.firma));
+                  else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
+                  if(f.einsatzStatus) parts.push({geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus]||"");
+                  if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
+                  if(f.jahr) parts.push(h.esc(String(f.jahr)));
+                  return parts.length ? parts.join(" · ")+" · Einsätze" : "Alle Einsätze";
+                })()}</div>
                 <div class="ef-zone-meta">${list.length} Einträge &nbsp;·&nbsp; Total CHF ${h.chf(totalBetrag)}</div>
               </div>
               <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
@@ -1286,7 +1295,7 @@
             <div class="ef-tbl-scroll">
               ${list.length ? `<table class="ef-tbl">
                 <thead><tr>
-                  ${[["title","Beschreibung"],["projekt","Projekt"],["person","Person"],["ort","Ort"],["status","Status"]].map(([col,lbl])=>
+                  ${[["datum","Datum"],["title","Beschreibung"],["firma","Projekt"],["person","Person"],["ort","Ort"],["status","Status"]].map(([col,lbl])=>
                     `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}">
                       ${lbl}<span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span>
                     </th>`).join("")}
@@ -1308,12 +1317,12 @@
                   const personLabel = e.coPersonName&&e.coPersonName!=="—"
                     ? `${e.personName.split(" ").pop()} · ${e.coPersonName.split(" ").pop()}`
                     : e.personName;
-                  const ortVal = h.esc(e.ort||"—");
                   return `<tr class="${[isCancelled?"cancelled":"",isSelected?"ef-row-sel":""].filter(Boolean).join(" ")}" data-action="select-einsatz" data-id="${e.id}">
-                    <td><div class="ef-c1">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.datumFmt)} · ${h.esc(e.kategorie)}</div></td>
-                    <td><div class="ef-c1">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` <span style="color:var(--tm-text-muted);font-weight:400">#${h.esc(proj.projektNr)}</span>`:""}</div></td>
+                    <td style="font-weight:600;font-size:13px;white-space:nowrap;color:var(--tm-text)">${h.esc(e.datumFmt)}</td>
+                    <td><div style="font-size:13px;color:var(--tm-text)">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.kategorie)}</div></td>
+                    <td><div style="margin-bottom:2px">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` <span style="font-weight:400">#${h.esc(proj.projektNr)}</span>`:""}</div></td>
                     <td><div class="ef-person-row">${personAv}${coAv}<span>${h.esc(personLabel)}</span></div></td>
-                    <td style="font-size:12px;color:var(--tm-text-muted)">${e.ort?h.esc(e.ort):"—"}</td>
+                    <td style="font-size:12px;color:var(--tm-text-muted)" title="${h.esc(e.ort||"")}">${e.ort?h.esc(e.ort):"—"}</td>
                     <td>${h.statusBadge(e)}</td>
                   </tr>`;
                 }).join("")}</tbody>
