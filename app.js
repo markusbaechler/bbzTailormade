@@ -2913,17 +2913,16 @@
                   ${hasSp ? "Wegspesen verrechnen ✓" : "Wegspesen verrechnen"}
                 </button>
                 <div class="ef-weg-detail${hasSp ? " show" : ""}" id="ef-weg-detail">
-                  ${ansatzKm ? `
-                  <div class="ef-weg-row">
+                  <div class="ef-weg-row" id="ef-weg-km-row" style="${ansatzKm ? "" : "display:none"}">
                     <input type="number" class="ef-weg-inp" id="ef-km-inp" name="kmAnzahl" min="0" step="1"
                       value="${kmGespeichert}" placeholder="km" oninput="ctrl.efCalcKm(this.value)">
                     <span class="ef-weg-hint">km (Hin &amp; Zurück)</span>
                   </div>
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <span class="ef-weg-hint" id="ef-weg-hint-ansatz">CHF ${h.chf(ansatzKm)}/km</span>
+                  <div style="display:flex;align-items:center;gap:6px;${ansatzKm ? "" : "display:none"}" id="ef-weg-ansatz-row">
+                    <span class="ef-weg-hint" id="ef-weg-hint-ansatz">CHF ${h.chf(ansatzKm||0)}/km</span>
                     <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
                   </div>
-                  ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
+                  <span class="ef-weg-noansatz" id="ef-weg-noansatz" style="${ansatzKm ? "display:none" : ""}">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>
                 </div>
                 <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${spesenTotal || ""}">
               </div>
@@ -3288,25 +3287,25 @@
       const kmVal    = p?.kmZumKunden || "";
       const wegHint  = document.getElementById("ef-weg-hint-ansatz");
       const kmInp    = document.getElementById("ef-km-inp");
-      const wegDetail = document.getElementById("ef-weg-detail");
+      const kmRow    = document.getElementById("ef-weg-km-row");
+      const ansatzRow = document.getElementById("ef-weg-ansatz-row");
+      const noansatz = document.getElementById("ef-weg-noansatz");
       const wegBtn   = document.getElementById("ef-weg-btn");
-      const wegNoansatz = document.querySelector(".ef-weg-noansatz");
 
       if (ansatzKm) {
-        // Ansatz vorhanden: km-Feld und Ansatz-Anzeige aktualisieren
         if (wegHint) wegHint.textContent = "CHF " + h.chf(ansatzKm) + "/km";
-        if (kmInp) { kmInp.value = kmVal; ctrl.efCalcKm(kmVal); }
-        if (wegNoansatz) wegNoansatz.style.display = "none";
-        if (wegDetail) {
-          // km-Feld einblenden, noansatz ausblenden
-          const kmRow = wegDetail.querySelector(".ef-weg-row");
-          if (kmRow) kmRow.style.display = "";
-        }
+        if (kmInp) { kmInp.value = String(kmVal); }
+        if (kmRow) kmRow.style.display = "";
+        if (ansatzRow) ansatzRow.style.display = "";
+        if (noansatz) noansatz.style.display = "none";
+        if (kmVal && kmInp) ctrl.efCalcKm(kmVal);
       } else {
-        // Kein Ansatz: Toggle deaktivieren
         if (wegBtn) { wegBtn.classList.remove("on"); wegBtn.textContent = "Wegspesen verrechnen"; }
-        if (wegDetail) wegDetail.classList.remove("show");
-        if (wegNoansatz) wegNoansatz.style.display = "";
+        const detail = document.getElementById("ef-weg-detail");
+        if (detail) detail.classList.remove("show");
+        if (kmRow) kmRow.style.display = "none";
+        if (ansatzRow) ansatzRow.style.display = "none";
+        if (noansatz) noansatz.style.display = "";
       }
     },
 
