@@ -2581,7 +2581,7 @@
     // - SpesenZusatz + SpesenFinal entfernt
     // - Beschreibung zwischen Projekt und Kategorie
     // - Desktop: 2-spaltig, kein Scroll
-    openEinsatzForm(id, projektId = null, preselectKat = null) {
+    openEinsatzForm(id, projektId = null, preselectKat = null, copy = null) {
       const e          = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
       const prefProjId = projektId || (e?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
@@ -2589,8 +2589,8 @@
       // preselectKat: beim Duplizieren Kategorie vorwählen (wenn vorhanden)
       const selKat     = e?.kategorie || (preselectKat && kats.includes(preselectKat) ? preselectKat : "");
       const defPerson  = h.defaultPerson();
-      const selPerson  = e ? e.personLookupId : (defPerson?.id || null);
-      const selCoPerson = e?.coPersonLookupId || null;
+      const selPerson  = e ? e.personLookupId : (copy?.personId || defPerson?.id || null);
+      const selCoPerson = e?.coPersonLookupId || copy?.coPersonId || null;
       const isTagKat   = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
       const betragBer   = selProjekt && selKat ? h.berechneBetrag(selProjekt, selKat, 1, e?.dauerStunden, e?.anzahlStueck) : null;
@@ -2623,7 +2623,7 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet);
+      const hasSp       = !!(e?.spesenBerechnet) || !!(copy?.spesenAktiv);
       const kmGespeichert = kmVorbelegt || "";
       const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
@@ -2638,6 +2638,8 @@
       ui.renderModal(`<style>
         .ef-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:efUp .25s cubic-bezier(.16,1,.3,1)}
         @media(min-width:700px){.ef-m{max-width:820px}}
+        @media(max-width:699px){.ef-m{max-width:100%;max-height:100vh;height:100vh;border-radius:0;animation:none}}
+        @media(max-width:699px){#tm-modal-bd{align-items:flex-end;padding:0}}
         @keyframes efUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
         .ef-hd{background:#004078;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
         .ef-hd-l{display:flex;align-items:center;gap:10px}
@@ -2759,7 +2761,7 @@
                 <div class="ef-l">Datum & Ort</div>
                 <div class="ef-r2">
                   <div class="ef-iw"><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
-                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || "")}" placeholder="Ort, Virtuell…"></div>
+                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || copy?.ort || "")}" placeholder="Ort, Virtuell…"></div>
                 </div>
               </div>
 
@@ -2794,7 +2796,7 @@
               <!-- Beschreibung -->
               <div class="ef-s">
                 <div class="ef-l">Beschreibung</div>
-                <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
+                <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || copy?.titel || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
               </div>
 
               <!-- Kategorie -->
@@ -2938,7 +2940,7 @@
               <!-- Bemerkungen -->
               <div class="ef-s">
                 <div class="ef-l">Bemerkungen</div>
-                <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || "")}</textarea></div>
+                <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || copy?.bemerkungen || "")}</textarea></div>
               </div>
 
             </div><!-- /ef-col-r -->
@@ -3258,14 +3260,23 @@
 
         debug.log("saveEinsatz:formData", { datum, kat, projId, mode, itemId });
 
-        if (!datum) {
-          document.querySelector("[name='datum']")?.focus();
-          throw new Error("Bitte Datum auswählen.");
-        }
-        if (!projId) throw new Error("Bitte Projekt wählen.");
-        if (!kat)    throw new Error("Bitte Kategorie wählen.");
+        const showFormErr = msg => {
+          let el = document.getElementById("ef-form-err");
+          if (!el) {
+            el = document.createElement("div");
+            el.id = "ef-form-err";
+            el.style.cssText = "background:#fce7f3;color:#950e13;border:1px solid #f4c0d1;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:500;margin:0 20px 12px;display:flex;align-items:center;gap:8px";
+            const bd = document.querySelector(".ef-bd");
+            if (bd) bd.insertBefore(el, bd.firstChild);
+          }
+          el.textContent = "⚠ " + msg;
+          el.scrollIntoView({behavior:"smooth",block:"nearest"});
+        };
+        if (!datum) { showFormErr("Datum fehlt — bitte auswählen."); document.querySelector("[name='datum']")?.focus(); return; }
+        if (!projId) { showFormErr("Bitte Projekt wählen."); return; }
+        if (!kat)    { showFormErr("Bitte Kategorie wählen."); return; }
         const personIdCheck = h.num(fd.get("personLookupId"));
-        if (!personIdCheck) throw new Error("Bitte Lead-Person wählen.");
+        if (!personIdCheck) { showFormErr("Bitte Lead-Person wählen."); return; }
 
         const p            = state.enriched.projekte.find(p => p.id === projId);
         const dauerTage    = h.num(fd.get("dauerTage"));
@@ -3442,11 +3453,19 @@
     },
 
     copyEinsatz(id) {
-      // Einsatz duplizieren: neues Formular öffnen mit Projekt und Kategorie vorbelegt,
-      // Datum leer damit der User bewusst ein neues Datum wählt.
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
-      ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
+      // Alle Felder ausser Datum übernehmen
+      ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie, {
+        ort:            e.ort||"",
+        titel:          e.title||"",
+        personId:       e.personLookupId||null,
+        coPersonId:     e.coPersonLookupId||null,
+        bemerkungen:    e.bemerkungen||"",
+        spesenAktiv:    !!(e.spesenBerechnet),
+        betragBerechnet: e.betragBerechnet||null,
+        betragFinal:    e.betragFinal||null
+      });
     },
 
     // ── Abrechnungsdialog ─────────────────────────────────────────────────
