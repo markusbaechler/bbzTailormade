@@ -831,6 +831,8 @@
         if (a("[data-action='new-projekt']"))      { ctrl.openProjektForm(null); return; }
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
+        if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
+        if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
       });
@@ -1073,9 +1075,10 @@
       const hasFilter = f.search||f.jahr||f.projekt||f.firma||f.projektNr||f.abrechnung||f.einsatzStatus||f.person;
 
       // ── Chip helper ────────────────────────────────────────────────────────
-      const chips = (key, opts, allLabel) => opts.map(([val,lbl]) => {
+      const chips = (key, opts) => opts.map(([val,lbl]) => {
         const active = f[key] === String(val);
-        return `<button class="ef-chip${active?" ef-chip-active":""}" onclick="state.filters.einsaetze['${key}']=state.filters.einsaetze['${key}']===${JSON.stringify(String(val))}?'':${JSON.stringify(String(val))};ctrl.render()">${h.esc(lbl)}</button>`;
+        const safeVal = String(val).replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+        return `<button class="ef-chip${active?" ef-chip-active":""}" data-fkey="${key}" data-fval="${safeVal}">${h.esc(lbl)}</button>`;
       }).join("");
 
       // ── Summaries ──────────────────────────────────────────────────────────
@@ -1121,7 +1124,7 @@
           <div class="ef-ds-row">
             <span class="ef-ds-label">Suche</span>
             <input class="ef-search" type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
-            ${hasFilter ? `<button class="ef-reset" onclick="state.filters.einsaetze={search:'',abrechnung:'',einsatzStatus:'',jahr:'',projekt:'',firma:'',projektNr:'',person:''};ctrl.render()">✕ Filter zurücksetzen</button>` : ""}
+            ${hasFilter ? `<button class="ef-reset" data-action="reset-einsatz-filters">✕ Filter zurücksetzen</button>` : ""}
           </div>
           ${jahre.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Jahr</span>${chips("jahr", jahre.map(j=>[j,j]), "Alle")}</div>` : ""}
           ${firmen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Firma</span>${chips("firma", firmen.map(n=>[n,n]), "Alle")}</div>` : ""}
