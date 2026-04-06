@@ -1155,12 +1155,11 @@
           .ef-tbl-scroll{flex:1;overflow-y:auto}
           /* ── Table ── */
           .ef-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-          .ef-tbl thead th:nth-child(1){width:10%}
-          .ef-tbl thead th:nth-child(2){width:24%}
-          .ef-tbl thead th:nth-child(3){width:24%}
-          .ef-tbl thead th:nth-child(4){width:18%}
-          .ef-tbl thead th:nth-child(5){width:12%}
-          .ef-tbl thead th:nth-child(6){width:12%}
+          .ef-tbl thead th:nth-child(1){width:30%}
+          .ef-tbl thead th:nth-child(2){width:26%}
+          .ef-tbl thead th:nth-child(3){width:22%}
+          .ef-tbl thead th:nth-child(4){width:12%}
+          .ef-tbl thead th:nth-child(5){width:10%}
           .ef-th-sort{cursor:pointer;user-select:none;position:relative}
           .ef-th-sort .ef-sort-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
           .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
@@ -1287,8 +1286,8 @@
             <div class="ef-tbl-scroll">
               ${list.length ? `<table class="ef-tbl">
                 <thead><tr>
-                  ${[["datum","Datum"],["title","Beschreibung"],["firma","Firma / Projekt"],["person","Person"],["betrag","Betrag"],["status","Status"]].map(([col,lbl],i)=>
-                    `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}"${col==="betrag"?' style="text-align:right"':""}>
+                  ${[["title","Beschreibung"],["projekt","Projekt"],["person","Person"],["ort","Ort"],["status","Status"]].map(([col,lbl])=>
+                    `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}">
                       ${lbl}<span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span>
                     </th>`).join("")}
                 </tr></thead>
@@ -1309,12 +1308,12 @@
                   const personLabel = e.coPersonName&&e.coPersonName!=="—"
                     ? `${e.personName.split(" ").pop()} · ${e.coPersonName.split(" ").pop()}`
                     : e.personName;
+                  const ortVal = h.esc(e.ort||"—");
                   return `<tr class="${[isCancelled?"cancelled":"",isSelected?"ef-row-sel":""].filter(Boolean).join(" ")}" data-action="select-einsatz" data-id="${e.id}">
-                    <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
-                    <td><div class="ef-c1">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.kategorie)}</div></td>
+                    <td><div class="ef-c1">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.datumFmt)} · ${h.esc(e.kategorie)}</div></td>
                     <td><div class="ef-c1">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` <span style="color:var(--tm-text-muted);font-weight:400">#${h.esc(proj.projektNr)}</span>`:""}</div></td>
                     <td><div class="ef-person-row">${personAv}${coAv}<span>${h.esc(personLabel)}</span></div></td>
-                    <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--tm-text-muted)">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
+                    <td style="font-size:12px;color:var(--tm-text-muted)">${e.ort?h.esc(e.ort):"—"}</td>
                     <td>${h.statusBadge(e)}</td>
                   </tr>`;
                 }).join("")}</tbody>
@@ -1328,12 +1327,9 @@
               <div class="ef-detail-hdr">
                 <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
                 <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-                <div class="ef-detail-sub">${h.esc(sel.datumFmt)}</div>
+                <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
               </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Datum</div>
-                <div class="ef-detail-val">${h.esc(sel.datumFmt)}</div>
-              </div>
+              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>` : `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>`}
               ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Beschreibung</div>
@@ -1359,7 +1355,7 @@
                 <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
               </div>
               ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
-              ${selProj?.firmaName ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Firma</div><div class="ef-detail-val">${h.esc(selProj.firmaName)}</div></div>` : ""}
+
               ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Betrag</div>
