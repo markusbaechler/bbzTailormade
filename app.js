@@ -1722,7 +1722,7 @@
           .kz-mobile-cards{display:flex!important}
           .kz-chip-strip{display:flex!important}
         }
-        .kz-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
+        .kz-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0;position:relative;z-index:10}
         .kz-chip-strip::-webkit-scrollbar{display:none}
         .kz-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
         .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
@@ -1766,49 +1766,49 @@
             <div class="kz-kpi-item"><div class="kz-kpi-lbl">In Klärung</div><div class="kz-kpi-val amber">CHF ${h.chf(sumK)}</div></div>
             <div class="kz-kpi-item"><div class="kz-kpi-lbl">Inklusive</div><div class="kz-kpi-val">CHF ${h.chf(sumI)}</div></div>
           </div>
+          <!-- MOBILE: Chip-Strip -->
+          <div class="kz-chip-strip">
+            ${[
+              ["verrechenbar", f.verrechenbar||"", "Verrechenbar"],
+              ["firma", f.firma||"", "Firma"],
+              ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
+              ["person", f.person||"", "Person"]
+            ].map(([key, activeVal, label]) => {
+              const isActive = !!activeVal;
+              return '<button class="kz-cs-chip'+(isActive?" active":"")+'" data-action="open-kz-filter-sheet" data-filter-key="'+key+'">'
+                +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
+                +(isActive?'<span class="kz-cs-x" data-action="clear-kz-filter" data-fkey="'+key+'">×</span>':"")
+                +'</button>';
+            }).join("")}
+          </div>
+          <!-- MOBILE: Cards -->
+          <div class="kz-mobile-cards">
+            ${list.length ? list.map(k => {
+              const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+              const fn = proj?.firmaName||"";
+              const fc = firmaColorMap[fn];
+              const fb = fn ? '<span class="kz-mc-badge" style="background:'+fc?.bg+';color:'+fc?.tx+'">'+h.esc(fn)+'</span>' : "";
+              return '<div class="kz-mc" onclick="ctrl.openKzBs('+k.id+')">'
+                +'<div class="kz-mc-top"><div class="kz-mc-date">'+h.esc(k.datumFmt)+'</div>'+h.verrBadge(k.verrechenbar)+'</div>'
+                +'<div class="kz-mc-title">'+h.esc(k.title)+'</div>'
+                +'<div class="kz-mc-proj">'+fb+' '+h.esc(k.projektTitle)+'</div>'
+                +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
+                +'</div>';
+            }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
+          </div>
+          <!-- MOBILE: Filter-Sheet -->
+          <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
+            <div class="ef-fs">
+              <div class="ef-fs-handle"><div></div></div>
+              <div class="ef-fs-hdr"><div class="ef-fs-title" id="kz-fs-title">Filter</div><div class="ef-fs-close" onclick="ctrl.closeKzFs()">×</div></div>
+              <div class="ef-fs-body" id="kz-fs-body"></div>
+            </div>
+          </div>
           <div class="kz-tbl-scroll">${tblHtml}</div>
         </div>
         <div class="kz-right">${detailHtml}</div>
       </div>
-      ${window.innerWidth <= 700 ? `
-      <!-- MOBILE: Chip-Strip -->
-      <div class="kz-chip-strip">
-        ${[
-          ["verrechenbar", f.verrechenbar||"", "Verrechenbar"],
-          ["firma", f.firma||"", "Firma"],
-          ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
-          ["person", f.person||"", "Person"]
-        ].map(([key, activeVal, label]) => {
-          const isActive = !!activeVal;
-          return '<button class="kz-cs-chip'+(isActive?" active":"")+'" data-action="open-kz-filter-sheet" data-filter-key="'+key+'">'
-            +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
-            +(isActive?'<span class="kz-cs-x" onclick="event.stopPropagation();state.filters.konzeption[\''+key+'\']=\'\';state.ui.selectedKonzId=null;ctrl.render()">×</span>':"")
-            +'</button>';
-        }).join("")}
-      </div>
-      <!-- MOBILE: Cards -->
-      <div class="kz-mobile-cards">
-        ${list.length ? list.map(k => {
-          const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-          const fn = proj?.firmaName||"";
-          const fc = firmaColorMap[fn];
-          const fb = fn ? '<span class="kz-mc-badge" style="background:'+fc?.bg+';color:'+fc?.tx+'">'+h.esc(fn)+'</span>' : "";
-          return '<div class="kz-mc" onclick="ctrl.openKzBs('+k.id+')">'
-            +'<div class="kz-mc-top"><div class="kz-mc-date">'+h.esc(k.datumFmt)+'</div>'+h.verrBadge(k.verrechenbar)+'</div>'
-            +'<div class="kz-mc-title">'+h.esc(k.title)+'</div>'
-            +'<div class="kz-mc-proj">'+fb+' '+h.esc(k.projektTitle)+'</div>'
-            +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
-            +'</div>';
-        }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
-      </div>
-      <!-- MOBILE: Filter-Sheet -->
-      <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
-        <div class="ef-fs">
-          <div class="ef-fs-handle"><div></div></div>
-          <div class="ef-fs-hdr"><div class="ef-fs-title" id="kz-fs-title">Filter</div><div class="ef-fs-close" onclick="ctrl.closeKzFs()">×</div></div>
-          <div class="ef-fs-body" id="kz-fs-body"></div>
-        </div>
-      </div>` : ""}`);
+`);
     },
 
     firmen() {
