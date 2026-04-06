@@ -856,7 +856,17 @@
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
-        if (a("[data-action='select-einsatz']"))        { const id = +a("[data-action='select-einsatz']").dataset.id; state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id; ctrl.render(); return; }
+        if (a("[data-action='select-einsatz']"))        {
+          const id = +a("[data-action='select-einsatz']").dataset.id;
+          state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id;
+          // Zeilen-Highlight aktualisieren
+          document.querySelectorAll("[data-action='select-einsatz']").forEach(tr => {
+            tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedEinsatzId);
+          });
+          // Detail-Panel direkt updaten (kein Full-Render)
+          ctrl.updateDetailPanel();
+          return;
+        }
         if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
         if (a("[data-action='open-filter-sheet']"))     { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
         if (a("[data-action='open-search-sheet']"))     { ctrl.openFs("search"); return; }
@@ -3033,6 +3043,45 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    updateDetailPanel() {
+      const panel = document.querySelector(".ef-detail");
+      if (!panel) return;
+      const selId = state.ui.selectedEinsatzId;
+      const sel = selId ? state.enriched.einsaetze.find(e => e.id === selId) : null;
+      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
+      if (!sel) {
+        panel.innerHTML = `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`;
+        return;
+      }
+      panel.innerHTML = `
+        <div class="ef-detail-hdr">
+          <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
+          <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
+          <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
+        </div>
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>
+        ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Beschreibung</div><div class="ef-detail-val">${h.esc(sel.title||"—")}</div></div>
+        <div class="ef-detail-sec">
+          <div class="ef-detail-lbl">Personen</div>
+          <div class="ef-detail-person">
+            <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
+            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
+          </div>
+          ${sel.coPersonName&&sel.coPersonName!=="—"?`<div class="ef-detail-person" style="margin-top:6px">
+            <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
+            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
+          </div>`:""}
+        </div>
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Status</div><div class="ef-detail-val">${h.statusBadge(sel)}</div></div>
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Kategorie</div><div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div></div>
+        ${sel.bemerkungen?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>`:""}
+        ${sel.ort?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>`:""}
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Betrag</div><div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div></div>
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige?"CHF "+h.chf(sel.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
+        <div class="ef-detail-sec"><div class="ef-detail-lbl">Abrechnung</div><div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div></div>`;
+    },
+
     openFs(key) {
       const overlay = document.getElementById("ef-fs-overlay");
       const title   = document.getElementById("ef-fs-title");
