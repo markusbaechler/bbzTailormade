@@ -1179,7 +1179,7 @@
           /* ── View-root override für Shell-Layout ── */
           .tm-view-root{padding:0!important;overflow:hidden!important}
           /* ── 3-Panel Shell ── */
-          .ef-shell{display:flex;height:calc(100vh - 52px);overflow:hidden;gap:0}
+          .ef-shell{display:flex;height:calc(100vh - 52px);overflow:hidden;gap:0;min-width:0}
           .ef-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
           .ef-sidebar-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
           .ef-sidebar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
@@ -1242,7 +1242,7 @@
           .ef-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
           .ef-sb-chip.active-red{background:var(--tm-red,#950e13);color:#fff!important;border-color:var(--tm-red,#950e13);font-weight:600}
           /* ── Detail Panel ── */
-          .ef-detail{width:240px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
+          .ef-detail{width:240px;min-width:240px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
           .ef-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
           .ef-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
           .ef-detail-title{font-size:15px;font-weight:600;color:var(--tm-text)}
@@ -1473,6 +1473,55 @@
             </div>
           </div>
 
+          <!-- ── DETAIL PANEL ── -->
+          <div class="ef-detail">
+            ${sel ? `
+              <div class="ef-detail-hdr">
+                <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
+                <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
+                <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
+              </div>
+              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>` : `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>`}
+              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Beschreibung</div>
+                <div class="ef-detail-val">${h.esc(sel.title||"—")}</div>
+              </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Personen</div>
+                <div class="ef-detail-person">
+                  <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
+                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
+                </div>
+                ${sel.coPersonName&&sel.coPersonName!=="—" ? `<div class="ef-detail-person" style="margin-top:6px">
+                  <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
+                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
+                </div>` : ""}
+              </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Status</div>
+                <div class="ef-detail-val">${h.statusBadge(sel)}</div>
+              </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Kategorie</div>
+                <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
+              </div>
+              ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
+
+              ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Betrag</div>
+                <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
+              </div>
+              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige ? "CHF "+h.chf(sel.spesenAnzeige) : "CHF 0.00 (keine Verrechnung)"}</div></div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Abrechnung</div>
+                <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
+              </div>
+            ` : `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`}
+          </div>
+
+
           <!-- ── MOBILE: Card-View ── -->
           <div class="ef-mobile-cards" id="ef-mobile-cards">
             ${list.length ? list.map(e => {
@@ -1525,54 +1574,6 @@
               </div>
               <div class="ef-bs-body" id="ef-bs-body"></div>
             </div>
-          </div>
-
-          <!-- ── DETAIL PANEL ── -->
-          <div class="ef-detail">
-            ${sel ? `
-              <div class="ef-detail-hdr">
-                <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
-                <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-                <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
-              </div>
-              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>` : `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>`}
-              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Beschreibung</div>
-                <div class="ef-detail-val">${h.esc(sel.title||"—")}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Personen</div>
-                <div class="ef-detail-person">
-                  <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
-                </div>
-                ${sel.coPersonName&&sel.coPersonName!=="—" ? `<div class="ef-detail-person" style="margin-top:6px">
-                  <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
-                </div>` : ""}
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Status</div>
-                <div class="ef-detail-val">${h.statusBadge(sel)}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Kategorie</div>
-                <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
-              </div>
-              ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
-
-              ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Betrag</div>
-                <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
-              </div>
-              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige ? "CHF "+h.chf(sel.spesenAnzeige) : "CHF 0.00 (keine Verrechnung)"}</div></div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Abrechnung</div>
-                <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
-              </div>
-            ` : `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`}
           </div>
 
         </div>
