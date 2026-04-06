@@ -143,13 +143,13 @@
       route:        "projekte",
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "" },
+      konzeption:   { search: "", verrechenbar: "", person: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedEinsatzId: null, sbOpen: {} },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {} },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -868,6 +868,7 @@
           return;
         }
         if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
+        if (a("[data-action='select-konzeption']"))     { const id = +a("[data-action='select-konzeption']").dataset.id; state.ui.selectedKonzId = state.ui.selectedKonzId===id ? null : id; document.querySelectorAll("[data-action='select-konzeption']").forEach(tr => tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedKonzId)); ctrl.updateKonzDetailPanel(); return; }
         if (a("[data-action='open-filter-sheet']"))     { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
         if (a("[data-action='open-search-sheet']"))     { ctrl.openFs("search"); return; }
         if (a("[data-action='clear-filter']"))          { e.stopPropagation(); const k=a("[data-action='clear-filter']").dataset.fkey; state.filters.einsaetze[k]=""; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
@@ -1583,45 +1584,129 @@
 
     konzeption() {
       const f = state.filters.konzeption;
-      let list = [...state.enriched.konzeption];
-      if (f.search)       list = list.filter(k => h.inc(k.title, f.search) || h.inc(k.projektTitle, f.search));
+      const selId = state.ui.selectedKonzId;
+      const all = state.enriched.konzeption;
+      const personen = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
+      let list = [...all];
+      if (f.search)       list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search)||h.inc(k.personName,f.search));
       if (f.verrechenbar) list = list.filter(k => k.verrechenbar === f.verrechenbar);
+      if (f.person)       list = list.filter(k => k.personName === f.person);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+      const sumF = list.filter(k=>k.verrechenbar==="zur Abrechnung").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumK = list.filter(k=>k.verrechenbar==="Klärung nötig").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumI = list.filter(k=>k.verrechenbar==="Inklusive").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sel = selId ? list.find(k=>k.id===selId)||all.find(k=>k.id===selId) : null;
+      const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
+      const hasFilter = !!(f.search||f.verrechenbar||f.person);
 
-      const sumF = list.filter(k => k.verrechenbar === "zur Abrechnung").reduce((s,k) => s + (k.anzeigeBetrag||0), 0);
-      const sumK = list.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k)  => s + (k.anzeigeBetrag||0), 0);
-      const sumI = list.filter(k => k.verrechenbar === "Inklusive").reduce((s,k)      => s + (k.anzeigeBetrag||0), 0);
+      const kzChip = (fkey, val, lbl) => {
+        const isActive = f[fkey]===String(val);
+        const toggle = "state.filters.konzeption['"+fkey+"']=(state.filters.konzeption['"+fkey+"']==='"+String(val).replace(/'/g,"\'")+"'?'':'"+String(val).replace(/'/g,"\'")+"');state.ui.selectedKonzId=null;ctrl.render()";
+        return '<button class="kz-sb-chip'+(isActive?' active':'')+'" onclick="'+toggle+'">'+h.esc(lbl)+'</button>';
+      };
+      const verrSec = '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle("collapsed")"><span class="kz-sb-lbl">Verrechenbar</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join("")+'</div></div>';
+      const personSec = personen.length ? '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle("collapsed")"><span class="kz-sb-lbl">Person</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+personen.map(n=>kzChip("person",n,n)).join("")+'</div></div>' : "";
+      const tblHtml = list.length
+        ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Beschreibung / Projekt</th><th>Person</th><th>Kategorie</th><th>Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
+          +list.map(k=>'<tr class="'+(k.id===selId?"ef-row-sel":"")+'" data-action="select-konzeption" data-id="'+k.id+'">'
+            +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
+            +'<td><div style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+'</div></td>'
+            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.personName)+'</td>'
+            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</td>'
+            +'<td style="font-size:12px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</td>'
+            +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
+            +'</tr>').join("")
+          +'</tbody></table>'
+        : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Konzeptionsaufwände gefunden.</div>';
+      const detailHtml = sel
+        ? '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
+          +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
+          +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
+          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>'
+        : '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>';
 
-      ui.render(`
-        <div class="tm-page-header">
-          <div><div class="tm-page-title">Konzeption & Admin</div><div class="tm-page-meta">${list.length} Einträge</div></div>
-          <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button></div>
+      ui.render(`<style>
+        .tm-view-root{padding:0!important;overflow:hidden!important}
+        .kz-shell{display:flex;height:calc(100vh - 52px);overflow:hidden}
+        .kz-left{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
+        .kz-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+        .kz-right{width:260px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
+        .kz-toolbar{padding:10px 16px 8px;background:var(--tm-bg);flex-shrink:0;border-bottom:1px solid var(--tm-border);display:flex;align-items:center;gap:10px}
+        .kz-title{font-size:18px;font-weight:600;color:var(--tm-text);letter-spacing:-.3px}
+        .kz-meta{font-size:12px;color:var(--tm-text-muted);margin-top:1px}
+        .kz-kpi{display:flex;flex-shrink:0;border-bottom:1px solid var(--tm-border)}
+        .kz-kpi-item{flex:1;padding:8px 14px;border-right:1px solid var(--tm-border)}
+        .kz-kpi-item:last-child{border-right:none}
+        .kz-kpi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);margin-bottom:2px}
+        .kz-kpi-val{font-size:14px;font-weight:700}
+        .kz-kpi-val.green{color:#1a6e40}
+        .kz-kpi-val.amber{color:#b45309}
+        .kz-tbl-scroll{flex:1;overflow-y:auto}
+        .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+        .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
+        .kz-tbl thead th:nth-child(1){width:12%}.kz-tbl thead th:nth-child(2){width:30%}.kz-tbl thead th:nth-child(3){width:16%}.kz-tbl thead th:nth-child(4){width:14%}.kz-tbl thead th:nth-child(5){width:10%}.kz-tbl thead th:nth-child(6){width:18%}
+        .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
+        .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
+        .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
+        .kz-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
+        .kz-tbl td{padding:9px 10px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .kz-sb-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
+        .kz-sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
+        .kz-sb-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
+        .kz-sb-reset:hover{text-decoration:underline}
+        .kz-sb-sec{border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
+        .kz-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;cursor:pointer;user-select:none;border-top:1px solid var(--tm-border)}
+        .kz-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
+        .kz-sb-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);flex:1}
+        .kz-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block}
+        .kz-sb-toggle.open{transform:rotate(90deg)}
+        .kz-sb-body{padding:0 8px 8px;max-height:150px;overflow-y:auto}
+        .kz-sb-body.collapsed{display:none}
+        .kz-sb-chip{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;display:block;transition:all .1s}
+        .kz-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
+        .kz-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
+        .kz-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
+        .kz-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
+        .kz-detail-title{font-size:15px;font-weight:600;color:var(--tm-text);line-height:1.3}
+        .kz-detail-sub{font-size:11px;color:var(--tm-text-muted);margin-top:2px}
+        .kz-detail-edit{float:right;font-size:11px;padding:3px 10px;border:1px solid var(--tm-blue);color:var(--tm-blue);border-radius:6px;background:none;cursor:pointer}
+        .kz-detail-edit:hover{background:var(--tm-blue);color:#fff}
+        .kz-detail-sec{padding:10px 14px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
+        .kz-detail-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:4px}
+        .kz-detail-val{font-size:13px;color:var(--tm-text)}
+        @media(max-width:700px){.tm-view-root{padding:0!important;overflow:auto!important}.kz-shell{flex-direction:column;height:auto}.kz-left,.kz-right,.kz-tbl-scroll{display:none}}
+      </style>
+      <div class="kz-shell">
+        <div class="kz-left">
+          <div class="kz-sb-hdr">
+            <span class="kz-sb-title">Filter</span>
+            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
+          </div>
+          <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
+            <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
+          </div>
+          ${verrSec}${personSec}
         </div>
-        <div class="tm-kpi-row" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-          <div class="tm-kpi"><div class="tm-kpi-label">Zur Abrechnung</div><div class="tm-kpi-value green tm-chf">CHF ${h.chf(sumF)}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">In Klärung</div><div class="tm-kpi-value amber tm-chf">CHF ${h.chf(sumK)}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">Inklusive</div><div class="tm-kpi-value tm-chf">CHF ${h.chf(sumI)}</div></div>
+        <div class="kz-main">
+          <div class="kz-toolbar">
+            <div style="flex:1"><div class="kz-title">Konzeption & Admin</div><div class="kz-meta">${list.length} Einträge</div></div>
+            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
+          </div>
+          <div class="kz-kpi">
+            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Zur Abrechnung</div><div class="kz-kpi-val green">CHF ${h.chf(sumF)}</div></div>
+            <div class="kz-kpi-item"><div class="kz-kpi-lbl">In Klärung</div><div class="kz-kpi-val amber">CHF ${h.chf(sumK)}</div></div>
+            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Inklusive</div><div class="kz-kpi-val">CHF ${h.chf(sumI)}</div></div>
+          </div>
+          <div class="kz-tbl-scroll">${tblHtml}</div>
         </div>
-        <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)">
-          <select onchange="state.filters.konzeption.verrechenbar=this.value;ctrl.render()">
-            <option value="">Verrechenbar: alle</option>
-            ${state.choices.konzVerrechenbar.map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
-          </select>
-        </div>
-        ${list.length ? `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung / Projekt</th><th>Kategorie</th><th>Person</th><th>Stunden</th><th>Betrag</th><th>Verrechenbar</th><th></th></tr></thead>
-          <tbody>${list.map(k => `<tr>
-            <td class="tm-nowrap">${h.esc(k.datumFmt)}</td>
-            <td><div style="font-weight:500">${h.esc(k.title)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(k.projektTitle)}</div></td>
-            <td class="tm-muted">${h.esc(k.kategorie)}</td>
-            <td class="tm-muted">${h.esc(k.personName)}</td>
-            <td class="tm-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-            <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
-            <td>${h.verrBadge(k.verrechenbar)}</td>
-            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button><button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" title="Löschen" style="color:var(--tm-red)">🗑</button></div></td>
-          </tr>`).join("")}</tbody></table></div>` : ui.empty("Keine Konzeptionsaufwände gefunden.")}
-      `);
+        <div class="kz-right">${detailHtml}</div>
+      </div>`);
     },
 
     firmen() {
@@ -3044,6 +3129,26 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    updateKonzDetailPanel() {
+      const panel = document.querySelector(".kz-right");
+      if (!panel) return;
+      const selId = state.ui.selectedKonzId;
+      const sel = selId ? state.enriched.konzeption.find(k => k.id === selId) : null;
+      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
+      if (!sel) { panel.innerHTML = '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>'; return; }
+      panel.innerHTML =
+        '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
+        +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
+        +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
+        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>';
+    },
+
     updateDetailPanel() {
       const panel = document.querySelector(".ef-detail");
       if (!panel) return;
