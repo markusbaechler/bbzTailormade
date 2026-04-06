@@ -149,7 +149,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" } },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -835,6 +835,7 @@
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; ctrl.render(); return; }
         if (a("[data-action='toggle-einsatz-filter']"))  { state.ui.einsatzFilterOpen = !state.ui.einsatzFilterOpen; ctrl.render(); return; }
+        if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
       });
@@ -1072,7 +1073,40 @@
       if (f.abrechnung)    list = list.filter(e => e.abrechnung===f.abrechnung);
       if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus===f.einsatzStatus);
       if (f.person)        list = list.filter(e => e.personName===f.person || e.coPersonName===f.person);
-      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+
+      // ── Sort ──────────────────────────────────────────────────────────────
+      const sort = state.ui.einsatzSort;
+      const firmaOf = e => state.enriched.projekte.find(p=>p.id===e.projektLookupId)?.firmaName||"";
+      list.sort((a,b) => {
+        let va, vb;
+        switch(sort.col) {
+          case "datum":       va=h.toDate(a.datum);     vb=h.toDate(b.datum);     break;
+          case "title":       va=a.title.toLowerCase(); vb=b.title.toLowerCase(); break;
+          case "projekt":     va=a.projektTitle.toLowerCase(); vb=b.projektTitle.toLowerCase(); break;
+          case "firma":       va=firmaOf(a).toLowerCase(); vb=firmaOf(b).toLowerCase(); break;
+          case "betrag":      va=a.anzeigeBetrag??-1;   vb=b.anzeigeBetrag??-1;   break;
+          case "status":      va=a.einsatzStatus;       vb=b.einsatzStatus;       break;
+          case "abrechnung":  va=a.abrechnung;          vb=b.abrechnung;          break;
+          case "person":      va=a.personName.toLowerCase(); vb=b.personName.toLowerCase(); break;
+          default:            va=h.toDate(a.datum);     vb=h.toDate(b.datum);
+        }
+        if (va===null||va===undefined) va = sort.col==="betrag"?-1:"";
+        if (vb===null||vb===undefined) vb = sort.col==="betrag"?-1:"";
+        const cmp = va<vb?-1:va>vb?1:0;
+        return sort.dir==="asc" ? cmp : -cmp;
+      });
+
+      // ── Firma colour palette (deterministic hash → one of 8 muted hues) ───
+      const FIRMA_COLORS = [
+        "#3b82f6","#10b981","#f59e0b","#ef4444",
+        "#8b5cf6","#06b6d4","#f97316","#ec4899"
+      ];
+      const firmaColorMap = {};
+      let firmaIdx = 0;
+      list.forEach(e => {
+        const fn = firmaOf(e);
+        if (fn && !(fn in firmaColorMap)) firmaColorMap[fn] = FIRMA_COLORS[firmaIdx++ % FIRMA_COLORS.length];
+      });
 
       const hasFilter = f.search||f.jahr||f.projekt||f.firma||f.projektNr||f.abrechnung||f.einsatzStatus||f.person;
 
@@ -1126,6 +1160,11 @@
           .ef-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--tm-border)}
           .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
           .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:6px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
+          .ef-th-sort{cursor:pointer;user-select:none}
+          .ef-th-sort:hover{color:var(--tm-blue)}
+          .ef-th-active{color:var(--tm-blue)!important}
+          .ef-sort-arrow{font-size:10px;opacity:.5;margin-left:2px}
+          .ef-th-active .ef-sort-arrow{opacity:1}
           .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s;cursor:pointer}
           .ef-tbl tbody tr:last-child{border-bottom:none}
           .ef-tbl tbody tr:hover{background:var(--tm-surface)}
@@ -1195,16 +1234,21 @@
           <div class="ef-desktop-only">
             <div class="ef-tbl-wrap"><table class="ef-tbl">
               <thead><tr>
-                <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th>
+                ${[["datum","Datum"],["title","Beschreibung"],["projekt","Projekt"],["firma","Firma"],["","Nr."],["","Kategorie"],["person","Person"],["betrag","Betrag"],["status","Status"],["abrechnung","Abrechnung"]].map(([col,lbl])=>
+                  col ? `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}" style="${col==="betrag"?"text-align:right":""}">${lbl} <span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>`
+                      : `<th>${lbl}</th>`
+                ).join("")}
               </tr></thead>
               <tbody>${list.map(e => {
                 const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
                 const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
+                const firmaName = proj?.firmaName||"";
+                const stripeColor = firmaColorMap[firmaName]||"transparent";
+                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})" style="border-left:3px solid ${stripeColor}">
                   <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
                   <td class="ef-td-title">${h.esc(e.title)}</td>
                   <td class="ef-td-meta">${h.esc(e.projektTitle)}</td>
-                  <td class="ef-td-meta">${h.esc(proj?.firmaName||"—")}</td>
+                  <td class="ef-td-meta">${h.esc(firmaName||"—")}</td>
                   <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
                   <td class="ef-td-kat">${h.esc(e.kategorie)}</td>
                   <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="font-size:10px;color:var(--tm-text-muted)"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
