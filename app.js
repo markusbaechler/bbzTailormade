@@ -1728,6 +1728,19 @@
         .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
         .kz-cs-chip .kz-cs-x{font-size:15px;opacity:.7;margin-left:2px}
         .kz-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px}
+        .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
+        .ef-fs-overlay.open{display:flex}
+        .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
+        .ef-fs-handle{display:flex;justify-content:center;padding:10px 0 4px;flex-shrink:0}
+        .ef-fs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
+        .ef-fs-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:1px solid var(--tm-border);flex-shrink:0}
+        .ef-fs-title{font-size:16px;font-weight:600;color:var(--tm-text)}
+        .ef-fs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+        .ef-fs-body{overflow-y:auto;flex:1;padding:8px 0 env(safe-area-inset-bottom,16px)}
+        .ef-fs-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8);cursor:pointer;font-size:15px;color:var(--tm-text)}
+        .ef-fs-opt.active{color:var(--tm-blue);font-weight:500}
+        .ef-fs-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--tm-border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
         .kz-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s}
         .kz-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
         .kz-mc-date{font-size:12px;font-weight:600;color:var(--tm-text)}
