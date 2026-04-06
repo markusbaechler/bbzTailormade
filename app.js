@@ -1183,8 +1183,6 @@
           .ef-tbl thead th:nth-child(4){width:18%}
           .ef-tbl thead th:nth-child(5){width:12%}
           .ef-tbl thead th:nth-child(6){width:10%}
-          .ef-th-sort{cursor:pointer;user-select:none;position:relative}
-          .ef-th-sort .ef-sort-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
           .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
           .ef-th-sort:hover{color:var(--tm-text)}
