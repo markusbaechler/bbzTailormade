@@ -3207,7 +3207,16 @@
       const on = btn.classList.toggle("on");
       detail.classList.toggle("show", on);
       btn.textContent = on ? "Wegspesen verrechnen \u2713" : "Wegspesen verrechnen";
-      if (!on) {
+      if (on) {
+        // Km aus Projekt vorbelegen wenn Feld noch leer
+        const kmInp = document.getElementById("ef-km-inp");
+        if (kmInp && !kmInp.value) {
+          const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
+          const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
+          const kmVal = proj?.kmZumKunden || "";
+          if (kmVal) { kmInp.value = String(kmVal); ctrl.efCalcKm(kmVal); }
+        }
+      } else {
         // Felder zurücksetzen
         const km  = document.getElementById("ef-km-inp");    if (km) km.value = "";
         const ber = document.getElementById("ef-sp-ber");    if (ber) ber.value = "";
