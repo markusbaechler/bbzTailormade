@@ -2916,9 +2916,9 @@
                     <span class="ef-weg-hint">CHF ${h.chf(ansatzKm)}/km</span>
                     <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
                   </div>
-                  <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${spesenTotal || ""}">
                   ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
                 </div>
+                <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${spesenTotal || ""}">
               </div>
 
               <div class="ef-dv"></div>
