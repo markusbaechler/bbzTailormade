@@ -1305,6 +1305,7 @@
           .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
           /* Card-View: standardmässig hidden, mobile sichtbar */
           .ef-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px;overflow-y:auto}
+          @media(min-width:701px){.ef-mobile-cards{display:none!important}.ef-fab{display:none!important}}
           .ef-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
           .ef-mc:active{box-shadow:0 0 0 2px var(--tm-blue)}
           .ef-mc.cancelled{opacity:.45;border-left:3px solid var(--tm-red,#950e13)}
@@ -1721,7 +1722,17 @@
         </div>
         <div class="kz-main">
           <div class="kz-toolbar">
-            <div style="flex:1"><div class="kz-title">Konzeption & Admin</div><div class="kz-meta">${list.length} Einträge</div></div>
+            <div style="flex:1">
+              <div class="kz-title">${(()=>{
+                const parts=[];
+                if(f.firma) parts.push(h.esc(f.firma));
+                else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
+                if(f.verrechenbar) parts.push(h.esc(f.verrechenbar));
+                if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
+                return parts.length ? parts.join(" · ")+" · Konzeption" : "Konzeption & Admin";
+              })()}</div>
+              <div class="kz-meta">${list.length} Einträge</div>
+            </div>
             <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
           </div>
           <div class="kz-kpi">
