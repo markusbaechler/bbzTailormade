@@ -1095,7 +1095,7 @@
           .ef-search:focus{border-color:var(--tm-blue)}
           .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
           .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:4px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1}
-          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s}
+          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s;cursor:pointer}
           .ef-tbl tbody tr:hover{background:var(--tm-surface)}
           .ef-tbl tbody tr.cancelled{opacity:.55}
           .ef-tbl td{padding:3px 8px;vertical-align:middle;line-height:1.3}
@@ -1140,12 +1140,12 @@
 
         ${list.length ? `<div class="tm-table-wrap"><table class="ef-tbl">
           <thead><tr>
-            <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th><th></th>
+            <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th>
           </tr></thead>
           <tbody>${list.map(e => {
             const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
             const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-            return `<tr class="${isCancelled?"cancelled":""}">
+            return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
               <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
               <td class="ef-td-title" title="${h.esc(e.title)}">${h.esc(e.title)}</td>
               <td class="ef-td-proj" title="${h.esc(e.projektTitle)}">${h.esc(e.projektTitle)}</td>
@@ -1156,11 +1156,6 @@
               <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
               <td>${h.statusBadge(e)}</td>
               <td>${h.abrBadge(e.abrechnung)}</td>
-              <td class="ef-td-actions"><div class="tm-actions">
-                <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}" title="Bearbeiten">✎</button>
-                <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
-                <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" title="Löschen" style="color:var(--tm-red)">🗑</button>
-              </div></td>
             </tr>`;
           }).join("")}</tbody>
         </table></div>` : ui.empty("Keine Einsätze gefunden.")}
@@ -2552,7 +2547,12 @@
                 ⚠ Abrechnung zurücksetzen
               </button>` : ""}
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            ${id ? `
+              <button type="button" class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${id}" title="Duplizieren" style="margin-right:4px">⧉ Duplizieren</button>
+              <button type="button" class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${id}" title="Löschen" style="color:var(--tm-red)">🗑 Löschen</button>
+            ` : ""}
+            <span style="flex:1"></span>
             <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
               <span>✓</span> Speichern
