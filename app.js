@@ -3351,6 +3351,40 @@
       document.body.style.overflow="hidden";
     },
 
+    updateMobileCards() {
+      const container = document.getElementById("ef-mobile-cards");
+      if (!container) return;
+      const f = state.filters.einsaetze;
+      const firmaColorMap = state.ui._firmaColorMap || {};
+      let list = [...state.enriched.einsaetze];
+      if (f.search)       list = list.filter(e => h.inc(e.title,f.search)||h.inc(e.projektTitle,f.search)||h.inc(e.personName,f.search));
+      if (f.jahr)         list = list.filter(e => e.datum && new Date(e.datum).getFullYear()===+f.jahr);
+      if (f.firma)        list = list.filter(e => { const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.projekt)      list = list.filter(e => e.projektLookupId===+f.projekt);
+      if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus===f.einsatzStatus);
+      if (f.person)       list = list.filter(e => e.personName===f.person);
+      if (f.abrechnung)   list = list.filter(e => e.abrechnung===f.abrechnung);
+      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+      const initials = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
+      container.innerHTML = list.length ? list.map(e => {
+        const proj = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
+        const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+        const fn = proj?.firmaName||"";
+        const fc = firmaColorMap[fn];
+        const fb = fn ? `<span class="ef-mc-badge" style="background:${fc?.bg||"var(--tm-surface)"};color:${fc?.tx||"var(--tm-text-muted)"}">${h.esc(fn)}</span>` : "";
+        return `<div class="ef-mc${isCancelled?" cancelled":""}" data-action="open-bs" data-id="${e.id}">
+          <div class="ef-mc-top"><div class="ef-mc-date">${h.esc(e.datumFmt)}</div><div class="ef-mc-status">${h.statusBadge(e)}</div></div>
+          <div class="ef-mc-title">${h.esc(e.title||e.kategorie)}</div>
+          <div class="ef-mc-kat">${h.esc(e.kategorie)}</div>
+          <div class="ef-mc-row">${fb}<span class="ef-mc-proj">${h.esc(e.projektTitle||"")}${proj?.projektNr?` #${h.esc(proj.projektNr)}`:""}</span></div>
+          <div class="ef-mc-foot">
+            <div class="ef-mc-person"><span class="ef-av" style="width:20px;height:20px;font-size:8px">${initials(e.personName||"?")}</span>${e.coPersonName&&e.coPersonName!=="—"?`<span class="ef-av" style="width:20px;height:20px;font-size:8px;margin-left:-6px">${initials(e.coPersonName)}</span>`:""}<span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName.split(" ").pop())}`:""}</span></div>
+            ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
+          </div>
+        </div>`;
+      }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`;
+    },
+
     updateKonzDetailPanel() {
       const panel = document.querySelector(".kz-right");
       if (!panel) return;
@@ -3429,7 +3463,7 @@
         body.innerHTML = `<div style="padding:14px 16px">
           <input type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}"
             style="width:100%;padding:12px 14px;font-size:16px;border:1.5px solid var(--tm-border);border-radius:10px;background:var(--tm-bg);color:var(--tm-text);outline:none;box-sizing:border-box"
-            oninput="h.searchInput('einsaetze.search',this.value);ctrl.render()" autofocus>
+            oninput="h.searchInput('einsaetze.search',this.value);ctrl.updateMobileCards()" autofocus>
         </div>`;
       } else if (key==="jahr") {
         title.textContent = "Jahr";
