@@ -510,21 +510,16 @@
   }
 
   function recalcEinsatzSpesen() {
-    // Für alle Einsätze: spesenAnzeige live aus Projektdaten berechnen
-    // abgerechnete Einsätze behalten den gespeicherten Wert (spesenFinal)
+    // spesenAnzeige = gespeicherter SpesenBerechnet-Wert aus SP
+    // (enthält den effektiv berechneten Betrag zum Zeitpunkt des Speicherns)
+    // abgerechnete Einsätze: spesenFinal hat Vorrang
     state.enriched.einsaetze.forEach(e => {
       if (e.abrechnung === "abgerechnet" && e.spesenFinal != null) {
-        // abgerechnet: finaler Wert gilt
         e.spesenAnzeige = e.spesenFinal;
         return;
       }
-      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-      if (!proj) { e.spesenAnzeige = 0; return; }
-      const wegAktiv = !!(e.spesenBerechnet);
-      if (!wegAktiv) { e.spesenAnzeige = 0; return; }
-      const km = proj.kmZumKunden;
-      const ansatz = proj.ansatzKmSpesen;
-      e.spesenAnzeige = (km && ansatz) ? Math.round(km * ansatz * 100) / 100 : 0;
+      if (!e.spesenBerechnet) { e.spesenAnzeige = 0; return; }
+      e.spesenAnzeige = e.spesenBerechnet;
     });
   }
 
