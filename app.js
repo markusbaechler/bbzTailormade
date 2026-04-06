@@ -1140,11 +1140,13 @@
 
           /* ── Main area ── */
           .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-          .ef-toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
+          .ef-toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px 0;background:var(--tm-bg);flex-shrink:0;border-bottom:none}
+          .ef-zone-title{font-size:18px;font-weight:600;color:var(--tm-text);letter-spacing:-.3px}
+          .ef-zone-meta{font-size:12px;color:var(--tm-text-muted);margin-top:1px}
           .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:4px 10px;font-size:13px;background:var(--tm-bg);color:var(--tm-text);flex:1;min-width:0;outline:none}
           .ef-search:focus{border-color:var(--tm-blue)}
-          .ef-summary{font-size:11px;color:var(--tm-text-muted);white-space:nowrap}
-          .ef-summary strong{color:var(--tm-blue)}
+          .ef-summary{font-size:12px;color:var(--tm-text-muted);white-space:nowrap}
+          .ef-summary strong{color:var(--tm-text);font-weight:500}
           .ef-tbl-scroll{flex:1;overflow-y:auto}
           /* ── Table ── */
           .ef-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
@@ -1156,12 +1158,13 @@
           .ef-tbl thead th:nth-child(6){width:12%}
           .ef-th-sort{cursor:pointer;user-select:none;position:relative}
           .ef-th-sort .ef-sort-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
-          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:7px 10px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
+          .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
-          .ef-th-sort:hover{color:var(--tm-blue)}
-          .ef-th-active{color:var(--tm-blue)!important}
-          .ef-sort-arrow{font-size:10px;opacity:.5;margin-left:2px}
-          .ef-th-active .ef-sort-arrow{opacity:1}
+          .ef-th-sort:hover{color:var(--tm-text)}
+          .ef-th-sort .ef-sort-arrow{opacity:0;font-size:10px;margin-left:3px;transition:opacity .1s}
+          .ef-th-sort:hover .ef-sort-arrow{opacity:.4}
+          .ef-th-active{color:var(--tm-blue)!important;font-weight:500}
+          .ef-th-active .ef-sort-arrow{opacity:1!important}
           .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
           .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.018)}
           .ef-tbl tbody tr:hover{background:rgba(0,64,120,.06)!important}
@@ -1269,19 +1272,20 @@
           <!-- ── MAIN: Toolbar + Tabelle ── -->
           <div class="ef-main">
             <div class="ef-toolbar">
-              <div class="ef-summary"><strong>${list.length}</strong> Einsätze &nbsp;·&nbsp; Total <strong>CHF ${h.chf(totalBetrag)}</strong></div>
-              <div style="flex:1"></div>
+              <div style="flex:1">
+                <div class="ef-zone-title">Alle Einsätze</div>
+                <div class="ef-zone-meta">${list.length} Einträge &nbsp;·&nbsp; Total CHF ${h.chf(totalBetrag)}</div>
+              </div>
               <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
             </div>
+            <div style="height:10px;background:var(--tm-bg);flex-shrink:0"></div>
             <div class="ef-tbl-scroll">
               ${list.length ? `<table class="ef-tbl">
                 <thead><tr>
-                  <th class="ef-th-sort${sort.col==="datum"?" ef-th-active":""}" data-sort-col="datum" style="padding-right:20px">Datum ${sort.col==="datum"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
-                  <th class="ef-th-sort${sort.col==="title"?" ef-th-active":""}" data-sort-col="title" style="padding-right:20px">Beschreibung ${sort.col==="title"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
-                  <th class="ef-th-sort${sort.col==="firma"?" ef-th-active":""}" data-sort-col="firma" style="padding-right:20px">Firma / Projekt ${sort.col==="firma"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
-                  <th class="ef-th-sort${sort.col==="person"?" ef-th-active":""}" data-sort-col="person" style="padding-right:20px">Person ${sort.col==="person"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
-                  <th class="ef-th-sort${sort.col==="betrag"?" ef-th-active":""}" data-sort-col="betrag" style="text-align:right;padding-right:20px">Betrag ${sort.col==="betrag"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
-                  <th class="ef-th-sort${sort.col==="status"?" ef-th-active":""}" data-sort-col="status" style="padding-right:20px">Status ${sort.col==="status"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  ${[["datum","Datum"],["title","Beschreibung"],["firma","Firma / Projekt"],["person","Person"],["betrag","Betrag"],["status","Status"]].map(([col,lbl],i)=>
+                    `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}"${col==="betrag"?' style="text-align:right"':""}>
+                      ${lbl}<span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span>
+                    </th>`).join("")}
                 </tr></thead>
                 <tbody>${list.map(e => {
                   const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
