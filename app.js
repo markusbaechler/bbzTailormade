@@ -143,7 +143,7 @@
       route:        "projekte",
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "", person: "" },
+      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       activeTab:    {}
@@ -1587,17 +1587,28 @@
       const selId = state.ui.selectedKonzId;
       const all = state.enriched.konzeption;
       const personen = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
+      const projekte = [...new Map(all.map(k=>{
+        const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+        const nr=p?.projektNr||""; const lbl=nr?"#"+nr+" "+k.projektTitle:k.projektTitle;
+        return [k.projektLookupId,lbl];
+      })).entries()].filter(([,t])=>t).sort((a,b)=>{const na=a[1].match(/#(d+)/)?.[1]||"";const nb=b[1].match(/#(d+)/)?.[1]||"";return na&&nb?+na - +nb:a[1].localeCompare(b[1]);});
+      const firmen = [...new Set(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
+      const FIRMA_COLORS=[{bg:"#dbeafe",tx:"#185FA5"},{bg:"#dcfce7",tx:"#3B6D11"},{bg:"#fef3c7",tx:"#854F0B"},{bg:"#fce7f3",tx:"#993556"},{bg:"#ede9fe",tx:"#534AB7"},{bg:"#ccfbf1",tx:"#0F6E56"},{bg:"#ffedd5",tx:"#854F0B"},{bg:"#fce7f3",tx:"#72243E"}];
+      const firmaColorMap={};let firmaIdx=0;
+      all.forEach(k=>{const fn=state.enriched.projekte.find(p=>p.id===k.projektLookupId)?.firmaName||"";if(fn&&!(fn in firmaColorMap))firmaColorMap[fn]=FIRMA_COLORS[firmaIdx++%FIRMA_COLORS.length];});
       let list = [...all];
       if (f.search)       list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search)||h.inc(k.personName,f.search));
       if (f.verrechenbar) list = list.filter(k => k.verrechenbar === f.verrechenbar);
       if (f.person)       list = list.filter(k => k.personName === f.person);
+      if (f.projekt)      list = list.filter(k => k.projektLookupId === +f.projekt);
+      if (f.firma)        list = list.filter(k => { const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-      const sumF = list.filter(k=>k.verrechenbar==="zur Abrechnung").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumF = list.filter(k=>k.verrechenbar==="verrechenbar" && k.abrechnung!=="abgerechnet").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sumK = list.filter(k=>k.verrechenbar==="Klärung nötig").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sumI = list.filter(k=>k.verrechenbar==="Inklusive").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumI = list.filter(k=>k.verrechenbar==="Inklusive (ohne Verrechnung)").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sel = selId ? list.find(k=>k.id===selId)||all.find(k=>k.id===selId) : null;
       const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
-      const hasFilter = !!(f.search||f.verrechenbar||f.person);
+      const hasFilter = !!(f.search||f.verrechenbar||f.person||f.projekt||f.firma);
 
       const kzChip = (fkey, val, lbl) => {
         const isActive = f[fkey]===String(val);
@@ -1650,7 +1661,7 @@
         .kz-tbl-scroll{flex:1;overflow-y:auto}
         .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
         .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
-        .kz-tbl thead th:nth-child(1){width:12%}.kz-tbl thead th:nth-child(2){width:30%}.kz-tbl thead th:nth-child(3){width:16%}.kz-tbl thead th:nth-child(4){width:14%}.kz-tbl thead th:nth-child(5){width:10%}.kz-tbl thead th:nth-child(6){width:18%}
+        .kz-tbl thead th:nth-child(1){width:11%}.kz-tbl thead th:nth-child(2){width:22%}.kz-tbl thead th:nth-child(3){width:22%}.kz-tbl thead th:nth-child(4){width:15%}.kz-tbl thead th:nth-child(5){width:13%}.kz-tbl thead th:nth-child(6){width:17%}
         .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
         .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
         .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
