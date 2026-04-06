@@ -149,7 +149,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedEinsatzId: null },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedEinsatzId: null, sbOpen: {} },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -836,6 +836,7 @@
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='select-einsatz']"))        { const id = +a("[data-action='select-einsatz']").dataset.id; state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id; ctrl.render(); return; }
         if (a(".ef-sb-chip[data-fkey]"))               { const c = a(".ef-sb-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
+        if (a("[data-action='toggle-sb-sec']"))         { const sec = a("[data-action='toggle-sb-sec']").dataset.sec; const sb = state.ui.sbOpen; sb[sec] = sb[sec] === false ? true : false; ctrl.render(); return; }
         if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
@@ -1136,13 +1137,7 @@
           .ef-sidebar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
           .ef-sidebar-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
           .ef-sidebar-reset:hover{text-decoration:underline}
-          .ef-sb-section{padding:8px 12px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-          .ef-sb-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:5px}
-          .ef-sb-chips{display:flex;flex-direction:column;gap:3px}
-          .ef-sb-chip{font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .1s}
-          .ef-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
-          .ef-sb-chip.active{background:var(--tm-blue);color:#fff;border-color:var(--tm-blue);font-weight:600}
-          .ef-sb-chip.active-red{background:var(--tm-red,#950e13);color:#fff;border-color:var(--tm-red,#950e13);font-weight:600}
+
           /* ── Main area ── */
           .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
           .ef-toolbar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
@@ -1164,10 +1159,11 @@
           .ef-th-active{color:var(--tm-blue)!important}
           .ef-sort-arrow{font-size:10px;opacity:.5;margin-left:2px}
           .ef-th-active .ef-sort-arrow{opacity:1}
-          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);cursor:pointer;transition:background .1s}
-          .ef-tbl tbody tr:hover{background:var(--tm-surface)}
-          .ef-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important}
-          .ef-tbl tbody tr.cancelled{opacity:.5}
+          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
+          .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.018)}
+          .ef-tbl tbody tr:hover{background:rgba(0,64,120,.06)!important}
+          .ef-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
+          .ef-tbl tbody tr.cancelled{opacity:.45}
           .ef-tbl td{padding:7px 10px;vertical-align:middle;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           .ef-c1{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
           .ef-c2{font-size:11px;color:var(--tm-text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1177,6 +1173,21 @@
           .ef-td-betrag{text-align:right}
           .ef-td-betrag .ef-c1{font-variant-numeric:tabular-nums;color:var(--tm-blue);font-weight:600}
           .ef-td-betrag .ef-c2{text-align:right}
+          /* ── Sidebar kollabierbare Sektionen ── */
+          .ef-sb-section{padding:0;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
+          .ef-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px 5px;cursor:pointer;user-select:none;gap:6px}
+          .ef-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
+          .ef-sb-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);flex:1}
+          .ef-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block;flex-shrink:0}
+          .ef-sb-toggle.open{transform:rotate(90deg)}
+          .ef-sb-count{font-size:9px;background:var(--tm-blue);color:#fff;border-radius:8px;padding:1px 5px;font-weight:700;flex-shrink:0}
+          .ef-sb-body{padding:0 8px 8px;max-height:150px;overflow-y:auto}
+          .ef-sb-body.collapsed{display:none}
+          .ef-sb-chips{display:flex;flex-direction:column;gap:2px}
+          .ef-sb-chip{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;transition:all .1s}
+          .ef-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
+          .ef-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
+          .ef-sb-chip.active-red{background:var(--tm-red,#950e13);color:#fff!important;border-color:var(--tm-red,#950e13);font-weight:600}
           /* ── Detail Panel ── */
           .ef-detail{width:240px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
           .ef-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
@@ -1219,17 +1230,36 @@
               <span class="ef-sidebar-title">Filter</span>
               ${hasFilter ? `<button class="ef-sidebar-reset" data-action="reset-einsatz-filters">Alle löschen</button>` : ""}
             </div>
-            <div class="ef-sb-section">
+            <div class="ef-sb-section" style="padding:8px 12px">
               <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
             </div>
-            ${jahre.length ? `<div class="ef-sb-section"><div class="ef-sb-label">Jahr</div><div class="ef-sb-chips">${jahre.map(j=>`<button class="ef-sb-chip${f.jahr===String(j)?" active":""}" data-fkey="jahr" data-fval="${j}">${j}</button>`).join("")}</div></div>` : ""}
-            ${firmen.length ? `<div class="ef-sb-section"><div class="ef-sb-label">Firma</div><div class="ef-sb-chips">${firmen.map(n=>`<button class="ef-sb-chip${f.firma===n?" active":""}" data-fkey="firma" data-fval="${h.esc(n)}">${h.esc(n)}</button>`).join("")}</div></div>` : ""}
-            ${projekte.length ? `<div class="ef-sb-section"><div class="ef-sb-label">Projekt</div><div class="ef-sb-chips">${projekte.map(([id,t])=>`<button class="ef-sb-chip${f.projekt===String(id)?" active":""}" data-fkey="projekt" data-fval="${id}">${h.esc(t)}</button>`).join("")}</div></div>` : ""}
-            <div class="ef-sb-section"><div class="ef-sb-label">Status</div><div class="ef-sb-chips">
-              ${[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]].map(([v,l])=>`<button class="ef-sb-chip${f.einsatzStatus===v?(v.startsWith("abg")?" active-red":" active"):""}" data-fkey="einsatzStatus" data-fval="${v}">${l}</button>`).join("")}
-            </div></div>
-            ${state.choices.einsatzAbrechnung.length ? `<div class="ef-sb-section"><div class="ef-sb-label">Abrechnung</div><div class="ef-sb-chips">${state.choices.einsatzAbrechnung.map(s=>`<button class="ef-sb-chip${f.abrechnung===s?" active":""}" data-fkey="abrechnung" data-fval="${h.esc(s)}">${h.esc(s)}</button>`).join("")}</div></div>` : ""}
-            ${personen.length ? `<div class="ef-sb-section"><div class="ef-sb-label">Person</div><div class="ef-sb-chips">${personen.map(n=>`<button class="ef-sb-chip${f.person===n?" active":""}" data-fkey="person" data-fval="${h.esc(n)}">${h.esc(n.split(" ").pop())}</button>`).join("")}</div></div>` : ""}
+            ${(()=>{
+              const sb = state.ui.sbOpen || {};
+              const sec = (key, label, items, renderItem) => {
+                const isOpen = sb[key] !== false;
+                const activeCount = items.filter(([v])=>f[key]===String(v)).length;
+                return `<div class="ef-sb-section">
+                  <div class="ef-sb-sec-hdr" data-action="toggle-sb-sec" data-sec="${key}">
+                    <span class="ef-sb-label">${label}</span>
+                    ${activeCount ? `<span class="ef-sb-count">${activeCount}</span>` : ""}
+                    <span class="ef-sb-toggle${isOpen?" open":""}">▶</span>
+                  </div>
+                  <div class="ef-sb-body${isOpen?"":" collapsed"}">
+                    <div class="ef-sb-chips">${items.map(renderItem).join("")}</div>
+                  </div>
+                </div>`;
+              };
+              const chip = (fkey, val, lbl, extraClass="") =>
+                `<button class="ef-sb-chip${f[fkey]===String(val)?(extraClass?" "+extraClass:" active"):""}" data-fkey="${fkey}" data-fval="${String(val).replace(/"/g,'&quot;')}">${h.esc(lbl)}</button>`;
+              return [
+                jahre.length ? sec("jahr","Jahr",jahre.map(j=>[j,j]),([v,l])=>chip("jahr",v,l)) : "",
+                firmen.length ? sec("firma","Firma",firmen.map(n=>[n,n]),([v,l])=>chip("firma",v,l)) : "",
+                projekte.length ? sec("projekt","Projekt",projekte.map(([id,t])=>[id,t]),([v,l])=>chip("projekt",v,l)) : "",
+                sec("einsatzStatus","Status",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]],([v,l])=>chip("einsatzStatus",v,l,v.startsWith("abg")?"active-red":"")),
+                state.choices.einsatzAbrechnung.length ? sec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),([v,l])=>chip("abrechnung",v,l)) : "",
+                personen.length ? sec("person","Person",personen.map(n=>[n,n.split(" ").pop()]),([v,l])=>chip("person",v,l)) : ""
+              ].join("");
+            })()}
           </div>
 
           <!-- ── MAIN: Toolbar + Tabelle ── -->
