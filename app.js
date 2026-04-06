@@ -2995,7 +2995,12 @@
       if (!ta || !pill) return;
       pill.style.display = "none";
       ta.style.display = "block";
-      ta.querySelector(".tm-ta-input")?.focus();
+      const inp = ta.querySelector(".tm-ta-input");
+      if (inp) {
+        inp.value = "";  // leeren damit sofort alle Optionen sichtbar
+        inp.focus();
+        h.taOpen(inp);   // Dropdown sofort öffnen
+      }
     },
 
     efToggleCo(show) {
@@ -3321,9 +3326,11 @@
         if (ort) fields.Ort = ort;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
-        // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag aus hidden field
+        // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag direkt aus DOM (nicht FormData)
         const wegAktiv = document.getElementById("ef-weg-btn")?.classList.contains("on");
-        fields.SpesenBerechnet = wegAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
+        const spBerEl  = document.getElementById("ef-sp-ber");
+        const spBerVal = spBerEl ? h.num(spBerEl.value) : null;
+        fields.SpesenBerechnet = wegAktiv ? (spBerVal ?? 0) : 0;
         // SpesenZusatz + SpesenFinal nicht mehr im Modal gesetzt — bestehende Werte erhalten
         // (werden im späteren Abrechnungsdialog verwaltet)
         const status = fd.get("status");
