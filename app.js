@@ -870,6 +870,8 @@
         if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
         if (a("[data-action='select-konzeption']"))     { const id = +a("[data-action='select-konzeption']").dataset.id; state.ui.selectedKonzId = state.ui.selectedKonzId===id ? null : id; document.querySelectorAll("[data-action='select-konzeption']").forEach(tr => tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedKonzId)); ctrl.updateKonzDetailPanel(); return; }
         if (a("[data-action='open-filter-sheet']"))     { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
+        if (a("[data-action='open-kz-filter-sheet']"))  { const k=a("[data-action='open-kz-filter-sheet']").dataset.filterKey; ctrl.openKzFs(k); return; }
+        if (a("[data-action='clear-kz-filter']"))        { e.stopPropagation(); const k=a("[data-action='clear-kz-filter']").dataset.fkey; state.filters.konzeption[k]=""; state.ui.selectedKonzId=null; ctrl.render(); return; }
         if (a("[data-action='open-search-sheet']"))     { ctrl.openFs("search"); return; }
         if (a("[data-action='clear-filter']"))          { e.stopPropagation(); const k=a("[data-action='clear-filter']").dataset.fkey; state.filters.einsaetze[k]=""; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a(".ef-sb-chip[data-fkey]"))               { const c = a(".ef-sb-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
@@ -1778,7 +1780,7 @@
           ["person", f.person||"", "Person"]
         ].map(([key, activeVal, label]) => {
           const isActive = !!activeVal;
-          return '<button class="kz-cs-chip'+(isActive?" active":"")+'" onclick="ctrl.openKzFs(\''+key+'\')">'
+          return '<button class="kz-cs-chip'+(isActive?" active":"")+'" data-action="open-kz-filter-sheet" data-filter-key="'+key+'">'
             +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
             +(isActive?'<span class="kz-cs-x" onclick="event.stopPropagation();state.filters.konzeption[\''+key+'\']=\'\';state.ui.selectedKonzId=null;ctrl.render()">×</span>':"")
             +'</button>';
@@ -3230,9 +3232,9 @@
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
     openKzFs(key) {
-      const overlay = document.getElementById("kz-fs-overlay");
-      const title   = document.getElementById("kz-fs-title");
-      const body    = document.getElementById("kz-fs-body");
+      const overlay = document.getElementById("kz-fs-overlay") || document.getElementById("ef-fs-overlay");
+      const title   = document.getElementById("kz-fs-title")   || document.getElementById("ef-fs-title");
+      const body    = document.getElementById("kz-fs-body")    || document.getElementById("ef-fs-body");
       if (!overlay||!title||!body) return;
       const f = state.filters.konzeption;
       const all = state.enriched.konzeption;
@@ -3267,14 +3269,12 @@
         const personen=[...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
         body.innerHTML=chip("person","","Alle Personen")+personen.map(n=>chip("person",n,n)).join("");
       }
-      requestAnimationFrame(() => {
-        overlay.classList.add("open");
-        document.body.style.overflow="hidden";
-      });
+      overlay.classList.add("open");
+      document.body.style.overflow="hidden";
     },
 
     closeKzFs() {
-      const overlay=document.getElementById("kz-fs-overlay");
+      const overlay=document.getElementById("kz-fs-overlay")||document.getElementById("ef-fs-overlay");
       if(overlay) overlay.classList.remove("open");
       document.body.style.overflow="";
     },
