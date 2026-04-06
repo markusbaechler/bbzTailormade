@@ -1098,8 +1098,14 @@
 
       // ── Firma colour palette (deterministic hash → one of 8 muted hues) ───
       const FIRMA_COLORS = [
-        "#3b82f6","#10b981","#f59e0b","#ef4444",
-        "#8b5cf6","#06b6d4","#f97316","#ec4899"
+        {bg:"#dbeafe",tx:"#185FA5"},
+        {bg:"#dcfce7",tx:"#3B6D11"},
+        {bg:"#fef3c7",tx:"#854F0B"},
+        {bg:"#fce7f3",tx:"#993556"},
+        {bg:"#ede9fe",tx:"#534AB7"},
+        {bg:"#ccfbf1",tx:"#0F6E56"},
+        {bg:"#ffedd5",tx:"#854F0B"},
+        {bg:"#fce7f3",tx:"#72243E"}
       ];
       const firmaColorMap = {};
       let firmaIdx = 0;
@@ -1243,12 +1249,15 @@
                 const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
                 const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
                 const firmaName = proj?.firmaName||"";
-                const stripeColor = firmaColorMap[firmaName]||"transparent";
-                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})" style="border-left:3px solid ${stripeColor}">
+                const firmaClr = firmaColorMap[firmaName];
+                const firmaBadge = firmaName
+                  ? `<span style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"};font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(firmaName)}</span>`
+                  : "—";
+                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
                   <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
                   <td class="ef-td-title">${h.esc(e.title)}</td>
                   <td class="ef-td-meta">${h.esc(e.projektTitle)}</td>
-                  <td class="ef-td-meta">${h.esc(firmaName||"—")}</td>
+                  <td style="padding:4px 8px;vertical-align:middle">${firmaBadge}</td>
                   <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
                   <td class="ef-td-kat">${h.esc(e.kategorie)}</td>
                   <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="font-size:10px;color:var(--tm-text-muted)"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
