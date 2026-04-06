@@ -2920,7 +2920,7 @@
                     <span class="ef-weg-hint">km (Hin &amp; Zurück)</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:6px">
-                    <span class="ef-weg-hint">CHF ${h.chf(ansatzKm)}/km</span>
+                    <span class="ef-weg-hint" id="ef-weg-hint-ansatz">CHF ${h.chf(ansatzKm)}/km</span>
                     <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
                   </div>
                   ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
@@ -3273,6 +3273,32 @@
       // Betrag-Anzeige zurücksetzen
       const bvl = document.getElementById("ef-bval-lead");
       if (bvl) { bvl.textContent = "Kategorie wählen"; bvl.className = "ef-betrag-val warn"; }
+
+      // Wegspesen: Km und Ansatz aus neuem Projekt laden
+      const ansatzKm = p?.ansatzKmSpesen || null;
+      const kmVal    = p?.kmZumKunden || "";
+      const wegHint  = document.getElementById("ef-weg-hint-ansatz");
+      const kmInp    = document.getElementById("ef-km-inp");
+      const wegDetail = document.getElementById("ef-weg-detail");
+      const wegBtn   = document.getElementById("ef-weg-btn");
+      const wegNoansatz = document.querySelector(".ef-weg-noansatz");
+
+      if (ansatzKm) {
+        // Ansatz vorhanden: km-Feld und Ansatz-Anzeige aktualisieren
+        if (wegHint) wegHint.textContent = "CHF " + h.chf(ansatzKm) + "/km";
+        if (kmInp) { kmInp.value = kmVal; ctrl.efCalcKm(kmVal); }
+        if (wegNoansatz) wegNoansatz.style.display = "none";
+        if (wegDetail) {
+          // km-Feld einblenden, noansatz ausblenden
+          const kmRow = wegDetail.querySelector(".ef-weg-row");
+          if (kmRow) kmRow.style.display = "";
+        }
+      } else {
+        // Kein Ansatz: Toggle deaktivieren
+        if (wegBtn) { wegBtn.classList.remove("on"); wegBtn.textContent = "Wegspesen verrechnen"; }
+        if (wegDetail) wegDetail.classList.remove("show");
+        if (wegNoansatz) wegNoansatz.style.display = "";
+      }
     },
 
     onKatChange(kat) {
