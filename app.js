@@ -504,7 +504,6 @@
     e.personName    = h.contactName(e.personLookupId);
     e.coPersonName  = h.contactName(e.coPersonLookupId);
     e.coAnzeigeBetrag = h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet);
-    e._spesenRaw = e.spesenBerechnet;
     // spesenAnzeige wird in recalcEinsatzSpesen() gesetzt
     e.spesenAnzeige = 0;
     return e;
@@ -521,7 +520,7 @@
       }
       const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
       if (!proj) { e.spesenAnzeige = 0; return; }
-      const wegAktiv = !!(e._spesenRaw || e.spesenBerechnet);
+      const wegAktiv = !!(e.spesenBerechnet);
       if (!wegAktiv) { e.spesenAnzeige = 0; return; }
       const km = proj.kmZumKunden;
       const ansatz = proj.ansatzKmSpesen;
@@ -2455,7 +2454,7 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet || e?._spesenRaw);
+      const hasSp       = !!(e?.spesenBerechnet);
       const kmGespeichert = kmVorbelegt || "";
       const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
@@ -3505,7 +3504,7 @@
       const spesen     = einsaetze.filter(e => (e.spesenAnzeige || 0) > 0);
 
       const totalEinsatz = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
-      const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenBerechnet || 0), 0) + (zusatzBetrag || 0);
+      const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenAnzeige || 0), 0) + (zusatzBetrag || 0);
       const totalKonz    = konzeption.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
       const grandTotal   = totalEinsatz + totalSpesen + totalKonz;
 
