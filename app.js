@@ -1526,7 +1526,7 @@
         </div><!-- /ef-shell -->
 
           <!-- ── MOBILE: Card-View ── -->
-          <div class="ef-mobile-cards" id="ef-mobile-cards">
+          ${window.innerWidth <= 700 ? `<div class="ef-mobile-cards" id="ef-mobile-cards">
             ${list.length ? list.map(e => {
               const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
               const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
@@ -1562,7 +1562,7 @@
           </div>
 
           <!-- ── FAB ── -->
-          <button class="ef-fab" data-action="new-einsatz" data-projekt-id="" aria-label="Einsatz erfassen">+</button>
+          <button class="ef-fab" data-action="new-einsatz" data-projekt-id="" aria-label="Einsatz erfassen">+</button>` : ""}
 
           <!-- ── BOTTOM SHEET ── -->
           <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
@@ -1727,9 +1727,8 @@
                 const parts=[];
                 if(f.firma) parts.push(h.esc(f.firma));
                 else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
-                if(f.verrechenbar) parts.push(h.esc(f.verrechenbar));
                 if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
-                return parts.length ? parts.join(" · ")+" · Konzeption" : "Konzeption & Admin";
+                return parts.length ? parts.join(" · ")+" · Konzeption & Admin" : "Konzeption & Admin";
               })()}</div>
               <div class="kz-meta">${list.length} Einträge</div>
             </div>
