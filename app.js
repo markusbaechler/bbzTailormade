@@ -1183,6 +1183,14 @@
           .ef-td-kat{font-size:10px;color:var(--tm-text-muted)}
           .ef-td-person{font-size:11px}
           .ef-td-chf{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--tm-blue);font-weight:600;white-space:nowrap}
+          .ef-td-compound{min-width:0}
+          .ef-td-compound .ef-c1{font-weight:500;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .ef-td-compound .ef-c2{font-size:11px;color:var(--tm-text-muted);margin-top:1px;white-space:nowrap}
+          .ef-td-betrag{text-align:right;white-space:nowrap}
+          .ef-td-betrag .ef-c1{font-variant-numeric:tabular-nums;font-size:13px;color:var(--tm-blue);font-weight:600}
+          .ef-td-betrag .ef-c2{margin-top:2px;text-align:right}
+          .ef-av{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:600;flex-shrink:0;vertical-align:middle}
+          .ef-person-row{display:flex;align-items:center;gap:4px;font-size:12px}
           .ef-cards{display:flex;flex-direction:column;gap:8px}
           .ef-card{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;padding:11px 14px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:block}
           .ef-card:hover{border-color:var(--tm-blue);box-shadow:0 2px 8px rgba(0,64,120,.08)}
@@ -1240,10 +1248,11 @@
           <div class="ef-desktop-only">
             <div class="ef-tbl-wrap"><table class="ef-tbl">
               <thead><tr>
-                ${[["datum","Datum"],["title","Beschreibung"],["projekt","Projekt"],["firma","Firma"],["","Nr."],["","Kategorie"],["person","Person"],["betrag","Betrag"],["status","Status"],["abrechnung","Abrechnung"]].map(([col,lbl])=>
-                  col ? `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}" style="${col==="betrag"?"text-align:right":""}">${lbl} <span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>`
-                      : `<th>${lbl}</th>`
-                ).join("")}
+                <th class="ef-th-sort${sort.col==="datum"?" ef-th-active":""}" data-sort-col="datum">Einsatz <span class="ef-sort-arrow">${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
+                <th class="ef-th-sort${sort.col==="firma"?" ef-th-active":""}" data-sort-col="firma">Firma / Projekt <span class="ef-sort-arrow">${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
+                <th class="ef-th-sort${sort.col==="person"?" ef-th-active":""}" data-sort-col="person">Person <span class="ef-sort-arrow">${sort.col==="person"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
+                <th class="ef-th-sort${sort.col==="betrag"?" ef-th-active":""}" data-sort-col="betrag" style="text-align:right">Betrag <span class="ef-sort-arrow">${sort.col==="betrag"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
+                <th class="ef-th-sort${sort.col==="status"?" ef-th-active":""}" data-sort-col="status">Status <span class="ef-sort-arrow">${sort.col==="status"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
               </tr></thead>
               <tbody>${list.map(e => {
                 const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
@@ -1251,19 +1260,33 @@
                 const firmaName = proj?.firmaName||"";
                 const firmaClr = firmaColorMap[firmaName];
                 const firmaBadge = firmaName
-                  ? `<span style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"};font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(firmaName)}</span>`
+                  ? `<span style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"};font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px;white-space:nowrap">${h.esc(firmaName)}</span>`
                   : "—";
+                const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+                const personAv = `<span class="ef-av" title="${h.esc(e.personName)}">${initials(e.personName||"?")}</span>`;
+                const coAv = e.coPersonName&&e.coPersonName!=="—"
+                  ? `<span class="ef-av" title="${h.esc(e.coPersonName)}" style="margin-left:-4px">${initials(e.coPersonName)}</span>`
+                  : "";
+                const personLabel = e.coPersonName&&e.coPersonName!=="—"
+                  ? e.personName.split(" ").pop()
+                  : e.personName;
                 return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
-                  <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
-                  <td class="ef-td-title">${h.esc(e.title)}</td>
-                  <td class="ef-td-meta">${h.esc(e.projektTitle)}</td>
-                  <td style="padding:4px 8px;vertical-align:middle">${firmaBadge}</td>
-                  <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
-                  <td class="ef-td-kat">${h.esc(e.kategorie)}</td>
-                  <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="font-size:10px;color:var(--tm-text-muted)"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
-                  <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
+                  <td class="ef-td-compound">
+                    <div class="ef-c1">${h.esc(e.title||e.kategorie)}</div>
+                    <div class="ef-c2">${h.esc(e.datumFmt)} · ${h.esc(e.kategorie)}${proj?.projektNr?` · #${h.esc(proj.projektNr)}`:""}</div>
+                  </td>
+                  <td class="ef-td-compound">
+                    <div class="ef-c1">${firmaBadge}</div>
+                    <div class="ef-c2">${h.esc(e.projektTitle)||"—"}</div>
+                  </td>
+                  <td>
+                    <div class="ef-person-row">${personAv}${coAv}<span style="font-size:12px">${h.esc(personLabel)}</span></div>
+                  </td>
+                  <td class="ef-td-betrag">
+                    <div class="ef-c1">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</div>
+                    <div class="ef-c2">${h.abrBadge(e.abrechnung)}</div>
+                  </td>
                   <td>${h.statusBadge(e)}</td>
-                  <td>${h.abrBadge(e.abrechnung)}</td>
                 </tr>`;
               }).join("")}</tbody>
             </table></div>
