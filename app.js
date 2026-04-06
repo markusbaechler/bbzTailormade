@@ -1148,11 +1148,14 @@
           .ef-tbl-scroll{flex:1;overflow-y:auto}
           /* ── Table ── */
           .ef-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-          .ef-tbl thead th:nth-child(1){width:28%}
-          .ef-tbl thead th:nth-child(2){width:26%}
-          .ef-tbl thead th:nth-child(3){width:20%}
-          .ef-tbl thead th:nth-child(4){width:14%}
+          .ef-tbl thead th:nth-child(1){width:10%}
+          .ef-tbl thead th:nth-child(2){width:24%}
+          .ef-tbl thead th:nth-child(3){width:24%}
+          .ef-tbl thead th:nth-child(4){width:18%}
           .ef-tbl thead th:nth-child(5){width:12%}
+          .ef-tbl thead th:nth-child(6){width:12%}
+          .ef-th-sort{cursor:pointer;user-select:none;position:relative}
+          .ef-th-sort .ef-sort-arrow{position:absolute;right:6px;top:50%;transform:translateY(-50%)}
           .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:7px 10px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
           .ef-th-sort:hover{color:var(--tm-blue)}
@@ -1170,6 +1173,7 @@
           .ef-av{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0;vertical-align:middle}
           .ef-person-row{display:flex;align-items:center;gap:4px;overflow:hidden}
           .ef-person-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+          .ef-td-date{white-space:nowrap;font-size:12px;color:var(--tm-text-muted);font-variant-numeric:tabular-nums}
           .ef-td-betrag{text-align:right}
           .ef-td-betrag .ef-c1{font-variant-numeric:tabular-nums;color:var(--tm-blue);font-weight:600}
           .ef-td-betrag .ef-c2{text-align:right}
@@ -1272,11 +1276,12 @@
             <div class="ef-tbl-scroll">
               ${list.length ? `<table class="ef-tbl">
                 <thead><tr>
-                  <th class="ef-th-sort${sort.col==="datum"?" ef-th-active":""}" data-sort-col="datum">Einsatz <span class="ef-sort-arrow">${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
-                  <th class="ef-th-sort${sort.col==="firma"?" ef-th-active":""}" data-sort-col="firma">Firma / Projekt <span class="ef-sort-arrow">${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
-                  <th class="ef-th-sort${sort.col==="person"?" ef-th-active":""}" data-sort-col="person">Person <span class="ef-sort-arrow">${sort.col==="person"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
-                  <th class="ef-th-sort${sort.col==="betrag"?" ef-th-active":""}" data-sort-col="betrag" style="text-align:right">Betrag <span class="ef-sort-arrow">${sort.col==="betrag"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
-                  <th class="ef-th-sort${sort.col==="status"?" ef-th-active":""}" data-sort-col="status">Status <span class="ef-sort-arrow">${sort.col==="status"?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>
+                  <th class="ef-th-sort${sort.col==="datum"?" ef-th-active":""}" data-sort-col="datum" style="padding-right:20px">Datum ${sort.col==="datum"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  <th class="ef-th-sort${sort.col==="title"?" ef-th-active":""}" data-sort-col="title" style="padding-right:20px">Beschreibung ${sort.col==="title"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  <th class="ef-th-sort${sort.col==="firma"?" ef-th-active":""}" data-sort-col="firma" style="padding-right:20px">Firma / Projekt ${sort.col==="firma"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  <th class="ef-th-sort${sort.col==="person"?" ef-th-active":""}" data-sort-col="person" style="padding-right:20px">Person ${sort.col==="person"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  <th class="ef-th-sort${sort.col==="betrag"?" ef-th-active":""}" data-sort-col="betrag" style="text-align:right;padding-right:20px">Betrag ${sort.col==="betrag"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
+                  <th class="ef-th-sort${sort.col==="status"?" ef-th-active":""}" data-sort-col="status" style="padding-right:20px">Status ${sort.col==="status"?`<span class="ef-sort-arrow">${sort.dir==="asc"?"↑":"↓"}</span>`:'<span class="ef-sort-arrow">↕</span>'}</th>
                 </tr></thead>
                 <tbody>${list.map(e => {
                   const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
@@ -1296,10 +1301,11 @@
                     ? `${e.personName.split(" ").pop()} · ${e.coPersonName.split(" ").pop()}`
                     : e.personName;
                   return `<tr class="${[isCancelled?"cancelled":"",isSelected?"ef-row-sel":""].filter(Boolean).join(" ")}" data-action="select-einsatz" data-id="${e.id}">
-                    <td><div class="ef-c1">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.datumFmt)} · ${h.esc(e.kategorie)}${proj?.projektNr?` · #${h.esc(proj.projektNr)}`:""}</div></td>
-                    <td><div class="ef-c1">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle)||"—"}</div></td>
+                    <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
+                    <td><div class="ef-c1">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.kategorie)}</div></td>
+                    <td><div class="ef-c1">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` <span style="color:var(--tm-text-muted);font-weight:400">#${h.esc(proj.projektNr)}</span>`:""}</div></td>
                     <td><div class="ef-person-row">${personAv}${coAv}<span>${h.esc(personLabel)}</span></div></td>
-                    <td class="ef-td-betrag"><div class="ef-c1">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</div><div class="ef-c2">${h.abrBadge(e.abrechnung)}</div></td>
+                    <td style="text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--tm-text-muted)">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
                     <td>${h.statusBadge(e)}</td>
                   </tr>`;
                 }).join("")}</tbody>
@@ -1316,21 +1322,12 @@
                 <div class="ef-detail-sub">${h.esc(sel.datumFmt)}${selProj?" · "+h.esc(selProj.title):""}</div>
               </div>
               <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Betrag</div>
-                <div class="ef-detail-val big">CHF ${sel.anzeigeBetrag!==null?h.chf(sel.anzeigeBetrag):"—"}</div>
+                <div class="ef-detail-lbl">Beschreibung</div>
+                <div class="ef-detail-val">${h.esc(sel.title||"—")}</div>
               </div>
-              ${selProj?.firmaName ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Firma</div><div class="ef-detail-val">${h.esc(selProj.firmaName)}</div></div>` : ""}
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Kategorie</div>
                 <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Status</div>
-                <div class="ef-detail-val">${h.statusBadge(sel)}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Abrechnung</div>
-                <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
               </div>
               <div class="ef-detail-sec">
                 <div class="ef-detail-lbl">Personen</div>
@@ -1343,9 +1340,22 @@
                   <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
                 </div>` : ""}
               </div>
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Status</div>
+                <div class="ef-detail-val">${h.statusBadge(sel)}</div>
+              </div>
+              ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
+              ${selProj?.firmaName ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Firma</div><div class="ef-detail-val">${h.esc(selProj.firmaName)}${selProj?.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
               ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
-              ${sel.spesenBerechnet!=null ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val">CHF ${h.chf(sel.spesenBerechnet)} ${sel.wegspesen==="verrechnen"?"(verrechnet)":"(nicht verrechnet)"}</div></div>` : ""}
-              ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px">${h.esc(sel.bemerkungen)}</div></div>` : ""}
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Betrag</div>
+                <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
+              </div>
+              ${sel.spesenBerechnet!=null ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">CHF ${h.chf(sel.spesenBerechnet)} ${sel.wegspesen==="verrechnen"?"(verrechnet)":"(nicht verrechnet)"}</div></div>` : ""}
+              <div class="ef-detail-sec">
+                <div class="ef-detail-lbl">Abrechnung</div>
+                <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
+              </div>
             ` : `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`}
           </div>
 
