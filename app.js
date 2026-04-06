@@ -2429,7 +2429,10 @@
       if (route !== "projekt-detail") state.selection.projektId = null;
       if (route !== "firma-detail")   state.selection.firmaId   = null;
       // Alle offenen Sheets schliessen
-      document.querySelectorAll('.ef-fs-overlay.open, .ef-bs-overlay.open').forEach(el => el.classList.remove('open'));
+      document.querySelectorAll('.ef-fs-overlay.open, .ef-bs-overlay.open').forEach(el => {
+        el.classList.remove('open');
+        el.style.display = 'none';
+      });
       document.body.style.overflow = "";
       this.render();
       window.scrollTo(0, 0);
