@@ -1496,8 +1496,9 @@
                     ${e.coPersonName&&e.coPersonName!=="—"?`<span class="ef-av" style="width:20px;height:20px;font-size:8px;margin-left:-6px">${initials(e.coPersonName)}</span>`:""}
                     <span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName.split(" ").pop())}`:""}</span>
                   </div>
-                  ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
-                  ${e.bemerkungen ? `<div class="ef-mc-bem">«${h.esc(e.bemerkungen.length>40?e.bemerkungen.slice(0,40)+"…":e.bemerkungen)}»</div>` : ""}
+                  ${e.ort ? `<div class="ef-mc-ort" style="margin-left:auto">${h.esc(e.ort)}</div>` : ""}
+                </div>
+                ${e.bemerkungen ? `<div style="font-size:11px;color:var(--tm-text-muted);font-style:italic;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">«${h.esc(e.bemerkungen.length>50?e.bemerkungen.slice(0,50)+"…":e.bemerkungen)}»</div>` : ""}
                 </div>
               </div>`;
             }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`}
@@ -2623,7 +2624,7 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet) || !!(copy?.spesenAktiv);
+      const hasSp       = id ? !!(e?.spesenBerechnet) : !!(copy?.spesenAktiv);
       const kmGespeichert = kmVorbelegt || "";
       const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
@@ -2684,6 +2685,11 @@
         .ef-addco{display:inline-flex;align-items:center;gap:5px;background:none;border:1.5px dashed #dde4ec;border-radius:100px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;cursor:pointer;transition:all .15s}
         .ef-addco:hover{border-color:#0a5a9e;color:#0a5a9e}
         .ef-ta-wrap{display:none}
+        .ef-ta-wrap .tm-typeahead{position:relative}
+        .ef-ta-wrap .tm-ta-input{width:100%;padding:8px 12px;font-size:14px;border:1.5px solid var(--tm-blue);border-radius:8px;background:var(--tm-bg);color:var(--tm-text);outline:none;font-family:inherit}
+        .ef-ta-wrap .tm-ta-dd{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;max-height:180px;overflow-y:auto}
+        .ef-ta-wrap .tm-ta-item{padding:10px 14px;font-size:14px;cursor:pointer;color:var(--tm-text)}
+        .ef-ta-wrap .tm-ta-item:hover{background:var(--tm-surface)}
         /* Betrag */
         .ef-betrag-box{background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden}
         .ef-betrag-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;gap:8px}
@@ -3364,6 +3370,8 @@
       if (!confirm(`Einsatz "${label}" wirklich löschen?`)) return;
       try {
         await api.deleteItem(CONFIG.lists.einsaetze, id);
+        ui.closeModal();
+        state.ui.selectedEinsatzId = null;
         ui.setMsg("Einsatz gelöscht.", "success");
         await api.loadAll();
         ctrl.render();
