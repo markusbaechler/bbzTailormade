@@ -2389,6 +2389,9 @@
       state.filters.route = route;
       if (route !== "projekt-detail") state.selection.projektId = null;
       if (route !== "firma-detail")   state.selection.firmaId   = null;
+      // Alle offenen Sheets schliessen
+      document.querySelectorAll('.ef-fs-overlay.open, .ef-bs-overlay.open').forEach(el => el.classList.remove('open'));
+      document.body.style.overflow = "";
       this.render();
       window.scrollTo(0, 0);
     },
@@ -3232,9 +3235,9 @@
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
     openKzFs(key) {
-      const overlay = document.getElementById("kz-fs-overlay") || document.getElementById("ef-fs-overlay");
-      const title   = document.getElementById("kz-fs-title")   || document.getElementById("ef-fs-title");
-      const body    = document.getElementById("kz-fs-body")    || document.getElementById("ef-fs-body");
+      const overlay = document.getElementById("kz-fs-overlay");
+      const title   = document.getElementById("kz-fs-title");
+      const body    = document.getElementById("kz-fs-body");
       if (!overlay||!title||!body) return;
       const f = state.filters.konzeption;
       const all = state.enriched.konzeption;
@@ -3274,7 +3277,7 @@
     },
 
     closeKzFs() {
-      const overlay=document.getElementById("kz-fs-overlay")||document.getElementById("ef-fs-overlay");
+      const overlay=document.getElementById("kz-fs-overlay");
       if(overlay) overlay.classList.remove("open");
       document.body.style.overflow="";
     },
