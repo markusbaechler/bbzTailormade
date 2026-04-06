@@ -1164,7 +1164,12 @@
           .ef-summary{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--tm-text-muted);padding:3px 2px 5px}
           .ef-summary strong{color:var(--tm-blue);font-variant-numeric:tabular-nums}
           .ef-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--tm-border)}
-          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
+          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+          .ef-tbl thead th:nth-child(1){width:30%}
+          .ef-tbl thead th:nth-child(2){width:25%}
+          .ef-tbl thead th:nth-child(3){width:20%}
+          .ef-tbl thead th:nth-child(4){width:14%}
+          .ef-tbl thead th:nth-child(5){width:11%}
           .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:6px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
           .ef-th-sort:hover{color:var(--tm-blue)}
@@ -1268,7 +1273,7 @@
                   ? `<span class="ef-av" title="${h.esc(e.coPersonName)}" style="margin-left:-4px">${initials(e.coPersonName)}</span>`
                   : "";
                 const personLabel = e.coPersonName&&e.coPersonName!=="—"
-                  ? e.personName.split(" ").pop()
+                  ? `${e.personName.split(" ").pop()} · ${e.coPersonName.split(" ").pop()}`
                   : e.personName;
                 return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
                   <td class="ef-td-compound">
