@@ -3267,8 +3267,10 @@
         const personen=[...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
         body.innerHTML=chip("person","","Alle Personen")+personen.map(n=>chip("person",n,n)).join("");
       }
-      overlay.classList.add("open");
-      document.body.style.overflow="hidden";
+      requestAnimationFrame(() => {
+        overlay.classList.add("open");
+        document.body.style.overflow="hidden";
+      });
     },
 
     closeKzFs() {
