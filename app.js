@@ -143,7 +143,7 @@
       route:        "projekte",
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "" },
+      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", kategorie: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       activeTab:    {}
@@ -1587,6 +1587,8 @@
       const selId = state.ui.selectedKonzId;
       const all = state.enriched.konzeption;
       const personen = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
+      const jahre = [...new Set(all.map(k=>k.datum?new Date(k.datum).getFullYear():null).filter(Boolean))].sort((a,b)=>b-a);
+      const kategorien = [...new Set(all.map(k=>k.kategorie).filter(Boolean))].sort();
       const projekte = [...new Map(all.map(k=>{
         const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
         const nr=p?.projektNr||""; const lbl=nr?"#"+nr+" "+k.projektTitle:k.projektTitle;
@@ -1602,13 +1604,15 @@
       if (f.person)       list = list.filter(k => k.personName === f.person);
       if (f.projekt)      list = list.filter(k => k.projektLookupId === +f.projekt);
       if (f.firma)        list = list.filter(k => { const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.jahr)         list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.jahr);
+      if (f.kategorie)    list = list.filter(k => k.kategorie === f.kategorie);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
       const sumF = list.filter(k=>k.verrechenbar==="verrechenbar" && k.abrechnung!=="abgerechnet").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sumK = list.filter(k=>k.verrechenbar==="Klärung nötig").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sumI = list.filter(k=>k.verrechenbar==="Inklusive (ohne Verrechnung)").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sel = selId ? list.find(k=>k.id===selId)||all.find(k=>k.id===selId) : null;
       const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
-      const hasFilter = !!(f.search||f.verrechenbar||f.person||f.projekt||f.firma);
+      const hasFilter = !!(f.search||f.verrechenbar||f.person||f.projekt||f.firma||f.jahr||f.kategorie);
 
       const kzChip = (fkey, val, lbl) => {
         const isActive = f[fkey]===String(val);
@@ -1616,10 +1620,12 @@
         return '<button class="kz-sb-chip'+(isActive?' active':'')+'" onclick="'+toggle+'">'+h.esc(lbl)+'</button>';
       };
       const kzSec = (lbl, body) => '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span class="kz-sb-lbl">'+lbl+'</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+body+'</div></div>';
-      const verrSec   = kzSec("Verrechenbar", state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join(""));
-      const firmaSec  = firmen.length   ? kzSec("Firma",   firmen.map(n=>kzChip("firma",n,n)).join("")) : "";
-      const projektSec= projekte.length ? kzSec("Projekt", projekte.map(([id,t])=>kzChip("projekt",id,t)).join("")) : "";
-      const personSec = personen.length ? kzSec("Person",  personen.map(n=>kzChip("person",n,n)).join("")) : "";
+      const jahrSec    = jahre.length     ? kzSec("Jahr",        jahre.map(j=>kzChip("jahr",j,j)).join("")) : "";
+      const verrSec    = kzSec("Verrechenbar", state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join(""));
+      const firmaSec   = firmen.length    ? kzSec("Firma",       firmen.map(n=>kzChip("firma",n,n)).join("")) : "";
+      const projektSec = projekte.length  ? kzSec("Projekt",     projekte.map(([id,t])=>kzChip("projekt",id,t)).join("")) : "";
+      const personSec  = personen.length  ? kzSec("Person",      personen.map(n=>kzChip("person",n,n)).join("")) : "";
+      const katSec     = kategorien.length? kzSec("Kategorie",   kategorien.map(k=>kzChip("kategorie",k,k)).join("")) : "";
       const tblHtml = list.length
         ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Firma / Projekt</th><th>Beschreibung</th><th>Person</th><th>Kat. / Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
           +list.map(k=>{
@@ -1631,7 +1637,7 @@
               +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
               +'<td><div style="margin-bottom:2px">'+fb+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+(proj?.projektNr?' <span style="font-weight:400">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></td>'
               +'<td style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</td>'
-              +'<td style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.personName)+'</td>'
+              +'<td><div style="display:flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0">'+k.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()+'</span><span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+h.esc(k.personName)+'</span></div></td>'
               +'<td><div style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></td>'
               +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
               +'</tr>';
@@ -1670,7 +1676,7 @@
         .kz-tbl-scroll{flex:1;overflow-y:auto}
         .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
         .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
-        .kz-tbl thead th:nth-child(1){width:11%}.kz-tbl thead th:nth-child(2){width:20%}.kz-tbl thead th:nth-child(3){width:24%}.kz-tbl thead th:nth-child(4){width:15%}.kz-tbl thead th:nth-child(5){width:13%}.kz-tbl thead th:nth-child(6){width:17%}
+        .kz-tbl thead th:nth-child(1){width:10%}.kz-tbl thead th:nth-child(2){width:22%}.kz-tbl thead th:nth-child(3){width:26%}.kz-tbl thead th:nth-child(4){width:17%}.kz-tbl thead th:nth-child(5){width:12%}.kz-tbl thead th:nth-child(6){width:13%}
         .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
         .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
         .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
@@ -1706,12 +1712,12 @@
         <div class="kz-left">
           <div class="kz-sb-hdr">
             <span class="kz-sb-title">Filter</span>
-            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
+            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\',jahr:\'\',kategorie:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
           </div>
           <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
             <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
           </div>
-          ${verrSec}${firmaSec}${projektSec}${personSec}
+          ${jahrSec}${verrSec}${firmaSec}${projektSec}${personSec}${katSec}
         </div>
         <div class="kz-main">
           <div class="kz-toolbar">
