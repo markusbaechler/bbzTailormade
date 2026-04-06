@@ -1778,7 +1778,7 @@
           ["person", f.person||"", "Person"]
         ].map(([key, activeVal, label]) => {
           const isActive = !!activeVal;
-          return '<button class="kz-cs-chip'+(isActive?" active":"")+'\" onclick="ctrl.openKzFs(\''+key+'\')">'
+          return '<button class="kz-cs-chip'+(isActive?" active":"")+'" onclick="ctrl.openKzFs(\''+key+'\')">'
             +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
             +(isActive?'<span class="kz-cs-x" onclick="event.stopPropagation();state.filters.konzeption[\''+key+'\']=\'\';state.ui.selectedKonzId=null;ctrl.render()">×</span>':"")
             +'</button>';
@@ -3238,7 +3238,18 @@
       const all = state.enriched.konzeption;
       const chip = (fkey, val, lbl) => {
         const isActive = f[fkey]===String(val);
-        return '<div class="ef-fs-opt'+(isActive?" active":"")+'" onclick="state.filters.konzeption[\''+fkey+'\']=(state.filters.konzeption[\''+fkey+'\']==='+(isActive?"'"+String(val).replace(/'/g,"\\'")+"'":'""')+' ? \'\' : \''+String(val).replace(/'/g,"\\'")+'\');state.ui.selectedKonzId=null;ctrl.closeKzFs();ctrl.render()"><span>'+h.esc(lbl)+'</span><span class="ef-fs-check">'+(isActive?"✓":"")+'</span></div>';
+        return `<div class="ef-fs-opt${isActive?" active":""}" data-kz-fkey="${fkey}" data-kz-fval="${String(val).replace(/"/g,'&quot;')}">
+          <span>${h.esc(lbl)}</span><span class="ef-fs-check">${isActive?"✓":""}</span>
+        </div>`;
+      };
+      body.onclick = ev => {
+        const opt = ev.target.closest("[data-kz-fkey]");
+        if (!opt) return;
+        const fk=opt.dataset.kzFkey, fv=opt.dataset.kzFval;
+        state.filters.konzeption[fk] = state.filters.konzeption[fk]===fv ? "" : fv;
+        state.ui.selectedKonzId=null;
+        ctrl.closeKzFs();
+        ctrl.render();
       };
       if (key==="verrechenbar") {
         title.textContent="Verrechenbar";
