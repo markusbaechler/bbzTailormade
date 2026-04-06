@@ -149,6 +149,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
+    ui: { einsatzFilterOpen: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -833,6 +834,7 @@
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; ctrl.render(); return; }
+        if (a("[data-action='toggle-einsatz-filter']"))  { state.ui.einsatzFilterOpen = !state.ui.einsatzFilterOpen; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
       });
@@ -1081,38 +1083,78 @@
         return `<button class="ef-chip${active?" ef-chip-active":""}" data-fkey="${key}" data-fval="${safeVal}">${h.esc(lbl)}</button>`;
       }).join("");
 
+      // ── Panel state + active filter summary ───────────────────────────────
+      const isOpen = state.ui.einsatzFilterOpen;
+      const activeSummary = [
+        f.search ? `«${f.search}»` : "",
+        f.jahr || "",
+        f.firma || "",
+        f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"") : "",
+        f.projektNr ? `#${f.projektNr}` : "",
+        f.einsatzStatus ? {geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus] : "",
+        f.abrechnung || "",
+        f.person ? f.person.split(" ").pop() : ""
+      ].filter(Boolean).join(" · ");
+
       // ── Summaries ──────────────────────────────────────────────────────────
       const totalBetrag = list.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>(s+(e.anzeigeBetrag||0)),0);
 
       ui.render(`
         <style>
-          .ef-dataschnitt{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;flex-direction:column;gap:8px}
-          .ef-ds-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-          .ef-ds-label{font-size:10px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;min-width:64px}
-          .ef-chip{font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);cursor:pointer;transition:all .15s;line-height:1.6;white-space:nowrap}
+          .ef-dataschnitt{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+          .ef-ds-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none;min-height:40px}
+          .ef-ds-header:hover{background:rgba(0,0,0,.03)}
+          .ef-ds-toggle{font-size:10px;color:var(--tm-text-muted);flex-shrink:0;transition:transform .2s;display:inline-block;width:12px}
+          .ef-ds-toggle.open{transform:rotate(90deg)}
+          .ef-ds-htitle{font-size:11px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;flex-shrink:0}
+          .ef-ds-summary{font-size:11px;color:var(--tm-blue);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:2px}
+          .ef-ds-body{display:flex;flex-direction:column;gap:6px;padding:0 12px 10px}
+          .ef-ds-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;row-gap:4px}
+          .ef-ds-label{font-size:10px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;width:68px;flex-shrink:0}
+          .ef-ds-chips{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+          .ef-chip{font-size:11px;padding:2px 9px;border-radius:12px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);cursor:pointer;transition:all .15s;line-height:1.7;white-space:nowrap}
           .ef-chip:hover{border-color:var(--tm-blue);color:var(--tm-blue)}
           .ef-chip-active{background:var(--tm-blue)!important;color:#fff!important;border-color:var(--tm-blue)!important;font-weight:600}
-          .ef-reset{font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid var(--tm-red);color:var(--tm-red);background:transparent;cursor:pointer;margin-left:auto;white-space:nowrap}
-          .ef-reset:hover{background:var(--tm-red);color:#fff}
-          .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:5px 10px;font-size:12px;background:var(--tm-bg);color:var(--tm-text);width:100%;max-width:280px;outline:none}
+          .ef-search-row{display:flex;align-items:center;gap:8px;padding-bottom:4px}
+          .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:5px 10px;font-size:13px;background:var(--tm-bg);color:var(--tm-text);flex:1;min-width:0;outline:none}
           .ef-search:focus{border-color:var(--tm-blue)}
-          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
-          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:4px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1}
-          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s;cursor:pointer}
-          .ef-tbl tbody tr:hover{background:var(--tm-surface)}
-          .ef-tbl tbody tr.cancelled{opacity:.55}
-          .ef-tbl td{padding:3px 8px;vertical-align:middle;line-height:1.3}
-          .ef-td-date{white-space:nowrap;color:var(--tm-text-muted);font-size:11px;font-variant-numeric:tabular-nums;min-width:68px}
-          .ef-td-title{font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .ef-td-proj{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
-          .ef-td-firma{color:var(--tm-text-muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-          .ef-td-nr{color:var(--tm-text-muted);font-size:10px;white-space:nowrap}
-          .ef-td-kat{color:var(--tm-text-muted);font-size:10px;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
-          .ef-td-person{font-size:11px;white-space:nowrap}
-          .ef-td-chf{text-align:right;font-variant-numeric:tabular-nums;font-size:11px;white-space:nowrap;color:var(--tm-blue);font-weight:600}
-          .ef-td-actions{white-space:nowrap;text-align:right}
-          .ef-summary{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--tm-text-muted);padding:4px 2px}
+          .ef-reset{font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid var(--tm-red);color:var(--tm-red);background:transparent;cursor:pointer;white-space:nowrap;flex-shrink:0}
+          .ef-reset:hover{background:var(--tm-red);color:#fff}
+          .ef-ds-divider{border:none;border-top:1px solid var(--tm-border);margin:2px 0 4px}
+          .ef-summary{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--tm-text-muted);padding:3px 2px 5px}
           .ef-summary strong{color:var(--tm-blue);font-variant-numeric:tabular-nums}
+          .ef-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--tm-border)}
+          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
+          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:6px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
+          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s;cursor:pointer}
+          .ef-tbl tbody tr:last-child{border-bottom:none}
+          .ef-tbl tbody tr:hover{background:var(--tm-surface)}
+          .ef-tbl tbody tr.cancelled{opacity:.5}
+          .ef-tbl td{padding:4px 8px;vertical-align:middle;line-height:1.35}
+          .ef-td-date{white-space:nowrap;color:var(--tm-text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+          .ef-td-title{font-weight:500}
+          .ef-td-meta{font-size:11px;color:var(--tm-text-muted)}
+          .ef-td-nr{font-size:10px;color:var(--tm-text-muted);white-space:nowrap}
+          .ef-td-kat{font-size:10px;color:var(--tm-text-muted)}
+          .ef-td-person{font-size:11px}
+          .ef-td-chf{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--tm-blue);font-weight:600;white-space:nowrap}
+          .ef-cards{display:flex;flex-direction:column;gap:8px}
+          .ef-card{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;padding:11px 14px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:block}
+          .ef-card:hover{border-color:var(--tm-blue);box-shadow:0 2px 8px rgba(0,64,120,.08)}
+          .ef-card.cancelled{opacity:.5}
+          .ef-card-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+          .ef-card-date{font-size:11px;color:var(--tm-text-muted);white-space:nowrap;font-variant-numeric:tabular-nums;padding-top:1px}
+          .ef-card-title{font-weight:600;font-size:13px;flex:1;min-width:0}
+          .ef-card-chf{font-size:13px;font-weight:700;color:var(--tm-blue);white-space:nowrap;font-variant-numeric:tabular-nums}
+          .ef-card-meta{font-size:11px;color:var(--tm-text-muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-bottom:6px}
+          .ef-card-badges{display:flex;flex-wrap:wrap;gap:4px}
+          .ef-mobile-only{display:none}
+          .ef-desktop-only{display:block}
+          @media(max-width:699px){
+            .ef-mobile-only{display:block}
+            .ef-desktop-only{display:none}
+            .ef-ds-label{width:60px}
+          }
         </style>
 
         <div class="tm-page-header">
@@ -1121,18 +1163,25 @@
         </div>
 
         <div class="ef-dataschnitt">
-          <div class="ef-ds-row">
-            <span class="ef-ds-label">Suche</span>
-            <input class="ef-search" type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
-            ${hasFilter ? `<button class="ef-reset" data-action="reset-einsatz-filters">✕ Filter zurücksetzen</button>` : ""}
+          <div class="ef-ds-header" data-action="toggle-einsatz-filter">
+            <span class="ef-ds-toggle${isOpen?" open":""}">▶</span>
+            <span class="ef-ds-htitle">Filter</span>
+            ${activeSummary ? `<span class="ef-ds-summary">${h.esc(activeSummary)}</span>` : ""}
+            ${hasFilter ? `<button class="ef-reset" data-action="reset-einsatz-filters" style="margin-left:auto">✕ Alle löschen</button>` : ""}
           </div>
-          ${jahre.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Jahr</span>${chips("jahr", jahre.map(j=>[j,j]), "Alle")}</div>` : ""}
-          ${firmen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Firma</span>${chips("firma", firmen.map(n=>[n,n]), "Alle")}</div>` : ""}
-          ${projekte.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Projekt</span>${chips("projekt", projekte.map(([id,t])=>[id,t]), "Alle")}</div>` : ""}
-          ${projNummern.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Proj.-Nr.</span>${chips("projektNr", projNummern.map(n=>[n,"#"+n]), "Alle")}</div>` : ""}
-          <div class="ef-ds-row"><span class="ef-ds-label">Status</span>${chips("einsatzStatus",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]],"Alle")}</div>
-          <div class="ef-ds-row"><span class="ef-ds-label">Abrechnung</span>${chips("abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),"Alle")}</div>
-          ${personen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Person</span>${chips("person", personen.map(n=>[n,n.split(" ").pop()]), "Alle")}</div>` : ""}
+          ${isOpen ? `<div class="ef-ds-body">
+            <div class="ef-search-row">
+              <input class="ef-search" type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
+            </div>
+            <hr class="ef-ds-divider">
+            ${jahre.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Jahr</span><div class="ef-ds-chips">${chips("jahr", jahre.map(j=>[j,j]))}</div></div>` : ""}
+            ${firmen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Firma</span><div class="ef-ds-chips">${chips("firma", firmen.map(n=>[n,n]))}</div></div>` : ""}
+            ${projekte.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Projekt</span><div class="ef-ds-chips">${chips("projekt", projekte.map(([id,t])=>[id,t]))}</div></div>` : ""}
+            ${projNummern.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Proj.-Nr.</span><div class="ef-ds-chips">${chips("projektNr", projNummern.map(n=>[n,"#"+n]))}</div></div>` : ""}
+            <div class="ef-ds-row"><span class="ef-ds-label">Status</span><div class="ef-ds-chips">${chips("einsatzStatus",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]])}</div></div>
+            <div class="ef-ds-row"><span class="ef-ds-label">Abrechnung</span><div class="ef-ds-chips">${chips("abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]))}</div></div>
+            ${personen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Person</span><div class="ef-ds-chips">${chips("person", personen.map(n=>[n,n.split(" ").pop()]))}</div></div>` : ""}
+          </div>` : ""}
         </div>
 
         <div class="ef-summary">
@@ -1141,27 +1190,57 @@
           <span>Total <strong>CHF ${h.chf(totalBetrag)}</strong></span>
         </div>
 
-        ${list.length ? `<div class="tm-table-wrap"><table class="ef-tbl">
-          <thead><tr>
-            <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th>
-          </tr></thead>
-          <tbody>${list.map(e => {
-            const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-            const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-            return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
-              <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
-              <td class="ef-td-title" title="${h.esc(e.title)}">${h.esc(e.title)}</td>
-              <td class="ef-td-proj" title="${h.esc(e.projektTitle)}">${h.esc(e.projektTitle)}</td>
-              <td class="ef-td-firma" title="${h.esc(proj?.firmaName||"")}">${h.esc(proj?.firmaName||"—")}</td>
-              <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
-              <td class="ef-td-kat" title="${h.esc(e.kategorie)}">${h.esc(e.kategorie)}</td>
-              <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="color:var(--tm-text-muted);font-size:10px"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
-              <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
-              <td>${h.statusBadge(e)}</td>
-              <td>${h.abrBadge(e.abrechnung)}</td>
-            </tr>`;
-          }).join("")}</tbody>
-        </table></div>` : ui.empty("Keine Einsätze gefunden.")}
+        ${list.length ? `
+          <!-- ── DESKTOP: Tabelle ── -->
+          <div class="ef-desktop-only">
+            <div class="ef-tbl-wrap"><table class="ef-tbl">
+              <thead><tr>
+                <th>Datum</th><th>Beschreibung</th><th>Projekt</th><th>Firma</th><th>Nr.</th><th>Kategorie</th><th>Person</th><th style="text-align:right">Betrag</th><th>Status</th><th>Abrechnung</th>
+              </tr></thead>
+              <tbody>${list.map(e => {
+                const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
+                  <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
+                  <td class="ef-td-title">${h.esc(e.title)}</td>
+                  <td class="ef-td-meta">${h.esc(e.projektTitle)}</td>
+                  <td class="ef-td-meta">${h.esc(proj?.firmaName||"—")}</td>
+                  <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
+                  <td class="ef-td-kat">${h.esc(e.kategorie)}</td>
+                  <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="font-size:10px;color:var(--tm-text-muted)"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
+                  <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
+                  <td>${h.statusBadge(e)}</td>
+                  <td>${h.abrBadge(e.abrechnung)}</td>
+                </tr>`;
+              }).join("")}</tbody>
+            </table></div>
+          </div>
+
+          <!-- ── MOBILE: Cards ── -->
+          <div class="ef-mobile-only">
+            <div class="ef-cards">${list.map(e => {
+              const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+              const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+              const meta = [
+                proj?.firmaName||"",
+                e.projektTitle ? (proj?.projektNr ? `${e.projektTitle} #${proj.projektNr}` : e.projektTitle) : "",
+                e.kategorie||""
+              ].filter(Boolean).join(" · ");
+              return `<div class="ef-card${isCancelled?" cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
+                <div class="ef-card-top">
+                  <span class="ef-card-date">${h.esc(e.datumFmt)}</span>
+                  <span class="ef-card-title">${h.esc(e.title||e.kategorie)}</span>
+                  <span class="ef-card-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</span>
+                </div>
+                <div class="ef-card-meta">
+                  ${meta?`<span>${h.esc(meta)}</span>`:""}
+                  <span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
+                </div>
+                <div class="ef-card-badges">${h.statusBadge(e)} ${h.abrBadge(e.abrechnung)}</div>
+              </div>`;
+            }).join("")}</div>
+          </div>
+        ` : ui.empty("Keine Einsätze gefunden.")}
       `);
     },
 
