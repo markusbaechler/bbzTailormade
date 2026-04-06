@@ -862,6 +862,7 @@
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='select-einsatz']"))        { const id = +a("[data-action='select-einsatz']").dataset.id; state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id; ctrl.render(); return; }
+        if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
         if (a(".ef-sb-chip[data-fkey]"))               { const c = a(".ef-sb-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='toggle-sb-sec']"))         { const sec = a("[data-action='toggle-sb-sec']").dataset.sec; const sb = state.ui.sbOpen; sb[sec] = sb[sec] === false ? true : false; ctrl.render(); return; }
         if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
@@ -1258,12 +1259,66 @@
           .ef-card-chf{font-size:13px;font-weight:700;color:var(--tm-blue);white-space:nowrap;font-variant-numeric:tabular-nums}
           .ef-card-meta{font-size:11px;color:var(--tm-text-muted);display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
           .ef-card-badges{display:flex;gap:4px;flex-wrap:wrap}
+          /* ── Mobile: alles neu ── */
           @media(max-width:700px){
-            .ef-shell{flex-direction:column;height:auto}
-            .ef-sidebar{width:100%;border-right:none;border-bottom:1px solid var(--tm-border);max-height:none}
+            .tm-view-root{padding:0!important;overflow:auto!important}
+            .ef-shell{flex-direction:column;height:auto;overflow:visible}
+            /* Sidebar → schmaler Filter-Strip oben */
+            .ef-sidebar{width:100%;border-right:none;border-bottom:0.5px solid var(--tm-border);max-height:none;overflow:visible}
+            .ef-sidebar-hdr{padding:10px 14px 8px}
+            .ef-sb-section{padding:0}
+            .ef-sb-sec-hdr{padding:8px 14px 6px}
+            .ef-sb-body{max-height:120px}
+            /* Detail-Panel: hidden auf Mobile (Bottom-Sheet stattdessen) */
             .ef-detail{display:none}
-            .ef-tbl-scroll{overflow:visible}
+            /* Tabelle: hidden auf Mobile */
+            .ef-tbl-scroll{display:none}
+            /* Toolbar: kompakter */
+            .ef-toolbar{padding:10px 14px 8px}
+            .ef-zone-title{font-size:16px}
+            /* Cards: sichtbar auf Mobile */
+            .ef-mobile-cards{display:flex!important}
+            /* FAB */
+            .ef-fab{display:flex!important}
           }
+          /* Card-View: standardmässig hidden, mobile sichtbar */
+          .ef-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px;overflow-y:auto}
+          .ef-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
+          .ef-mc:active{box-shadow:0 0 0 2px var(--tm-blue)}
+          .ef-mc.cancelled{opacity:.45;border-left:3px solid var(--tm-red,#950e13)}
+          .ef-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+          .ef-mc-date{font-size:12px;font-weight:600;color:var(--tm-text);white-space:nowrap}
+          .ef-mc-status{flex-shrink:0}
+          .ef-mc-title{font-size:15px;font-weight:600;color:var(--tm-text);margin-bottom:2px;line-height:1.3}
+          .ef-mc-kat{font-size:12px;color:var(--tm-text-muted);margin-bottom:8px}
+          .ef-mc-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+          .ef-mc-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;flex-shrink:0}
+          .ef-mc-proj{font-size:12px;color:var(--tm-text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+          .ef-mc-person{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tm-text-muted)}
+          .ef-mc-ort{font-size:12px;color:var(--tm-text-muted);display:flex;align-items:center;gap:4px}
+          .ef-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border)}
+          .ef-mc-betrag{font-size:14px;font-weight:600;color:var(--tm-blue);font-variant-numeric:tabular-nums}
+          /* FAB */
+          .ef-fab{display:none;position:fixed;bottom:24px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--tm-blue);color:#fff;border:none;font-size:24px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,64,120,.35);z-index:100;line-height:1}
+          .ef-fab:active{transform:scale(.95)}
+          /* Bottom-Sheet */
+          .ef-bs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
+          .ef-bs-overlay.open{display:flex}
+          .ef-bs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
+          @keyframes bsUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+          .ef-bs-handle{display:flex;justify-content:center;padding:10px 0 4px}
+          .ef-bs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
+          .ef-bs-hdr{padding:12px 16px 10px;border-bottom:1px solid var(--tm-border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+          .ef-bs-title{font-size:16px;font-weight:600;color:var(--tm-text);line-height:1.3}
+          .ef-bs-sub{font-size:12px;color:var(--tm-text-muted);margin-top:2px}
+          .ef-bs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+          .ef-bs-body{overflow-y:auto;flex:1;padding-bottom:env(safe-area-inset-bottom,16px)}
+          .ef-bs-sec{padding:11px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8)}
+          .ef-bs-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:3px}
+          .ef-bs-val{font-size:14px;color:var(--tm-text)}
+          .ef-bs-person{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+          .ef-bs-av{width:32px;height:32px;border-radius:50%;background:var(--tm-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+          .ef-bs-edit{width:100%;height:48px;background:var(--tm-blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin:14px 16px 0;width:calc(100% - 32px)}
         </style>
 
         <div class="ef-shell">
@@ -1359,6 +1414,58 @@
                   </tr>`;
                 }).join("")}</tbody>
               </table>` : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Einsätze gefunden.</div>`}
+            </div>
+          </div>
+
+          <!-- ── MOBILE: Card-View ── -->
+          <div class="ef-mobile-cards" id="ef-mobile-cards">
+            ${list.length ? list.map(e => {
+              const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+              const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+              const firmaName = proj?.firmaName||"";
+              const firmaClr = firmaColorMap[firmaName];
+              const firmaBadge = firmaName
+                ? `<span class="ef-mc-badge" style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"}">${h.esc(firmaName)}</span>`
+                : "";
+              const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+              return `<div class="ef-mc${isCancelled?" cancelled":""}" data-action="open-bs" data-id="${e.id}">
+                <div class="ef-mc-top">
+                  <div class="ef-mc-date">${h.esc(e.datumFmt)}</div>
+                  <div class="ef-mc-status">${h.statusBadge(e)}</div>
+                </div>
+                <div class="ef-mc-title">${h.esc(e.title||e.kategorie)}</div>
+                <div class="ef-mc-kat">${h.esc(e.kategorie)}</div>
+                <div class="ef-mc-row">
+                  ${firmaBadge}
+                  <span class="ef-mc-proj">${h.esc(e.projektTitle||"")}${proj?.projektNr?` #${h.esc(proj.projektNr)}`:""}</span>
+                </div>
+                <div class="ef-mc-foot">
+                  <div class="ef-mc-person">
+                    <span class="ef-av" style="width:20px;height:20px;font-size:8px">${initials(e.personName||"?")}</span>
+                    <span>${h.esc(e.personName)}</span>
+                  </div>
+                  ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
+                  ${e.anzeigeBetrag!==null ? `<div class="ef-mc-betrag">CHF ${h.chf(e.anzeigeBetrag)}</div>` : ""}
+                </div>
+              </div>`;
+            }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`}
+          </div>
+
+          <!-- ── FAB ── -->
+          <button class="ef-fab" data-action="new-einsatz" data-projekt-id="" aria-label="Einsatz erfassen">+</button>
+
+          <!-- ── BOTTOM SHEET ── -->
+          <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
+            <div class="ef-bs">
+              <div class="ef-bs-handle"><div></div></div>
+              <div class="ef-bs-hdr" id="ef-bs-hdr">
+                <div>
+                  <div class="ef-bs-title" id="ef-bs-title">—</div>
+                  <div class="ef-bs-sub" id="ef-bs-sub">—</div>
+                </div>
+                <div class="ef-bs-close" onclick="ctrl.closeBs()">×</div>
+              </div>
+              <div class="ef-bs-body" id="ef-bs-body"></div>
             </div>
           </div>
 
@@ -2866,6 +2973,47 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
+    openBs(id) {
+      const e = state.enriched.einsaetze.find(x=>x.id===id);
+      if (!e) return;
+      const proj = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
+      const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      const overlay = document.getElementById("ef-bs-overlay");
+      const bsTitle = document.getElementById("ef-bs-title");
+      const bsSub   = document.getElementById("ef-bs-sub");
+      const bsBody  = document.getElementById("ef-bs-body");
+      if (!overlay||!bsTitle||!bsBody) return;
+      bsTitle.textContent = e.title||e.kategorie;
+      bsSub.textContent   = proj?.firmaName||"";
+      const av = n => `<div class="ef-bs-av">${initials(n||"?")}</div>`;
+      bsBody.innerHTML = `
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Datum</div><div class="ef-bs-val">${h.esc(e.datumFmt)}</div></div>
+        ${proj?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Projekt</div><div class="ef-bs-val">${h.esc(proj.title)}${proj.projektNr?` <span style="color:var(--tm-text-muted);font-size:12px">#${h.esc(proj.projektNr)}</span>`:""}</div></div>`:""}
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Beschreibung</div><div class="ef-bs-val">${h.esc(e.title||"—")}</div></div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Kategorie</div><div class="ef-bs-val">${h.esc(e.kategorie||"—")}</div></div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Personen</div>
+          <div class="ef-bs-person">${av(e.personName)}<div><div style="font-size:14px;font-weight:500">${h.esc(e.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div></div>
+          ${e.coPersonName&&e.coPersonName!=="—"?`<div class="ef-bs-person" style="margin-top:6px">${av(e.coPersonName)}<div><div style="font-size:14px;font-weight:500">${h.esc(e.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div></div>`:""}
+        </div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Status</div><div class="ef-bs-val">${h.statusBadge(e)}</div></div>
+        ${e.ort?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Ort</div><div class="ef-bs-val">${h.esc(e.ort)}</div></div>`:""}
+        ${e.bemerkungen?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Bemerkungen</div><div class="ef-bs-val" style="font-size:13px;color:var(--tm-text-muted);white-space:pre-wrap">${h.esc(e.bemerkungen)}</div></div>`:""}
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.anzeigeBetrag!==null?"CHF "+h.chf(e.anzeigeBetrag):"—"}</div></div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Wegspesen</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.spesenAnzeige?"CHF "+h.chf(e.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">${h.abrBadge(e.abrechnung)}</div></div>
+        <div style="padding:14px 16px 20px">
+          <button class="ef-bs-edit" onclick="ctrl.closeBs();ctrl.openEinsatzForm(${e.id})">Bearbeiten</button>
+        </div>`;
+      overlay.classList.add("open");
+      document.body.style.overflow = "hidden";
+    },
+
+    closeBs() {
+      const overlay = document.getElementById("ef-bs-overlay");
+      if (overlay) overlay.classList.remove("open");
+      document.body.style.overflow = "";
+    },
+
     efToggleWeg() {
       const btn    = document.getElementById("ef-weg-btn");
       const detail = document.getElementById("ef-weg-detail");
