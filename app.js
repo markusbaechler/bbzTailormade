@@ -1085,12 +1085,24 @@
       const all = state.enriched.einsaetze;
 
       const jahre = [...new Set(all.map(e => e.datum ? new Date(e.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
-      const projekte = [...new Map(all.map(e => [e.projektLookupId, e.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
+      const projekte = [...new Map(all.map(e => {
+        const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
+        const nr = p?.projektNr||"";
+        const lbl = nr ? `#${nr} ${e.projektTitle}` : e.projektTitle;
+        return [e.projektLookupId, lbl];
+      })).entries()].filter(([,t])=>t).sort((a,b)=>{
+        const na = a[1].match(/^#(\d+)/)?.[1]||""; const nb = b[1].match(/^#(\d+)/)?.[1]||"";
+        if(na&&nb) return +na - +nb;
+        return a[1].localeCompare(b[1]);
+      });
       const firmen  = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
       const personen = [...new Set([
         ...all.map(e=>e.personName).filter(n=>n&&n!=="—"),
         ...all.map(e=>e.coPersonName).filter(n=>n&&n!=="—")
-      ])].sort();
+      ])].sort((a,b)=>{
+        const la = a.split(" ").pop(); const lb = b.split(" ").pop();
+        return la.localeCompare(lb) || a.localeCompare(b);
+      });
       const projNummern = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.projektNr||""; }).filter(Boolean))].sort();
 
       // ── Apply filters ──────────────────────────────────────────────────────
@@ -1288,8 +1300,8 @@
                 firmen.length ? sec("firma","Firma",firmen.map(n=>[n,n]),([v,l])=>chip("firma",v,l)) : "",
                 projekte.length ? sec("projekt","Projekt",projekte.map(([id,t])=>[id,t]),([v,l])=>chip("projekt",v,l)) : "",
                 sec("einsatzStatus","Status",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]],([v,l])=>chip("einsatzStatus",v,l,v.startsWith("abg")?"active-red":"")),
-                state.choices.einsatzAbrechnung.length ? sec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),([v,l])=>chip("abrechnung",v,l)) : "",
-                personen.length ? sec("person","Person",personen.map(n=>[n,n.split(" ").pop()]),([v,l])=>chip("person",v,l)) : ""
+                personen.length ? sec("person","Person",personen.map(n=>[n,n]),([v,l])=>chip("person",v,l)) : "",
+                state.choices.einsatzAbrechnung.length ? sec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),([v,l])=>chip("abrechnung",v,l)) : ""
               ].join("");
             })()}
           </div>
@@ -1303,7 +1315,7 @@
                   if(f.firma) parts.push(h.esc(f.firma));
                   else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
                   if(f.einsatzStatus) parts.push({geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus]||"");
-                  if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
+                  if(f.person) parts.push(h.esc(f.person));
                   if(f.jahr) parts.push(h.esc(String(f.jahr)));
                   return parts.length ? parts.join(" · ")+" · Einsätze" : "Alle Einsätze";
                 })()}</div>
