@@ -1493,7 +1493,8 @@
                 <div class="ef-mc-foot">
                   <div class="ef-mc-person">
                     <span class="ef-av" style="width:20px;height:20px;font-size:8px">${initials(e.personName||"?")}</span>
-                    <span>${h.esc(e.personName)}</span>
+                    ${e.coPersonName&&e.coPersonName!=="—"?`<span class="ef-av" style="width:20px;height:20px;font-size:8px;margin-left:-6px">${initials(e.coPersonName)}</span>`:""}
+                    <span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName.split(" ").pop())}`:""}</span>
                   </div>
                   ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
                   ${e.bemerkungen ? `<div class="ef-mc-bem">«${h.esc(e.bemerkungen.length>40?e.bemerkungen.slice(0,40)+"…":e.bemerkungen)}»</div>` : ""}
