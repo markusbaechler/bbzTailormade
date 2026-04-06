@@ -3463,7 +3463,7 @@
         body.innerHTML = `<div style="padding:14px 16px">
           <input type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}"
             style="width:100%;padding:12px 14px;font-size:16px;border:1.5px solid var(--tm-border);border-radius:10px;background:var(--tm-bg);color:var(--tm-text);outline:none;box-sizing:border-box"
-            oninput="h.searchInput('einsaetze.search',this.value);ctrl.updateMobileCards()" autofocus>
+            oninput="state.filters.einsaetze.search=this.value;ctrl.updateMobileCards()" autofocus>
         </div>`;
       } else if (key==="jahr") {
         title.textContent = "Jahr";
