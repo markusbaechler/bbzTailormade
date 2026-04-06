@@ -492,6 +492,7 @@
       coBetragFinal:     h.num(raw.CoBetragFinal),
       spesenZusatz:    h.num(raw.SpesenZusatz),
       spesenBerechnet: h.num(raw.SpesenBerechnet),
+      spesenToggle:    !!(raw.Spesen),
       spesenFinal:     h.num(raw.SpesenFinal),
       status:          raw.Status || "",
       abrechnung:      raw.Abrechnung || "offen",
@@ -521,7 +522,7 @@
       }
       const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
       if (!proj) { e.spesenAnzeige = 0; return; }
-      const wegAktiv = !!(e._spesenRaw || e.spesenBerechnet);
+      const wegAktiv = !!(e.spesenToggle || e._spesenRaw || e.spesenBerechnet);
       if (!wegAktiv) { e.spesenAnzeige = 0; return; }
       const km = proj.kmZumKunden;
       const ansatz = proj.ansatzKmSpesen;
@@ -2455,7 +2456,7 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet || e?._spesenRaw);
+      const hasSp       = !!(e?.spesenToggle || e?.spesenBerechnet || e?._spesenRaw);
       const kmGespeichert = kmVorbelegt || "";
       const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
 
@@ -3023,6 +3024,7 @@
         // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag aus hidden field
         const wegAktiv = document.getElementById("ef-weg-btn")?.classList.contains("on");
         fields.SpesenBerechnet = wegAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
+        fields.Spesen = wegAktiv;
         // SpesenZusatz + SpesenFinal nicht mehr im Modal gesetzt — bestehende Werte erhalten
         // (werden im späteren Abrechnungsdialog verwaltet)
         const status = fd.get("status");
