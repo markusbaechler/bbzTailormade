@@ -1471,7 +1471,7 @@
                 }).join("")}</tbody>
               </table>` : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Einsätze gefunden.</div>`}
             </div>
-          </div>
+          </div><!-- /ef-main -->
 
           <!-- ── DETAIL PANEL ── -->
           <div class="ef-detail">
@@ -1519,8 +1519,9 @@
                 <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
               </div>
             ` : `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`}
-          </div>
+          </div><!-- /ef-detail -->
 
+        </div><!-- /ef-shell -->
 
           <!-- ── MOBILE: Card-View ── -->
           <div class="ef-mobile-cards" id="ef-mobile-cards">
