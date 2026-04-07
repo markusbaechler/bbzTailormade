@@ -673,3 +673,21 @@ html, body {
   .pd-table th { font-size:9px !important; padding:6px 8px !important; }
   .pd-table td { padding:7px 8px !important; font-size:12px !important; }
 }
+
+/* ── Einsätze Mobile ──────────────────────────────────────────────────────── */
+@media(max-width:899px) {
+  /* Default: zeige nur Tabelle, keine Sidebar, kein Detail */
+  .ei-sidebar { display:none !important; }
+  .ei-detail  { display:none !important; }
+
+  /* Mit ei-mob-filter: nur Sidebar fullscreen */
+  .ei-shell.ei-mob-filter .ei-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
+  .ei-shell.ei-mob-filter .ei-main    { display:none !important; }
+
+  /* Toolbar Mobile */
+  .ei-toolbar { gap:8px !important; }
+  .ei-mob-filter-btn { display:flex !important; }
+  .ei-tbl td { padding:8px 6px !important; font-size:12px !important; }
+  .ei-tbl th { padding:6px 6px !important; font-size:9px !important; }
+}
+.ei-mob-filter-btn { display:none; }
