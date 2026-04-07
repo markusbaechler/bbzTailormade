@@ -557,11 +557,11 @@
       p.einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === p.id);
       p.konzeintraege = state.enriched.konzeption.filter(k => k.projektLookupId === p.id);
     });
-    // totalBetrag auf Abrechnungen: aus enriched Einsätzen (lead+co) + Konzeption + Zusatzspesen
+    // totalBetrag auf Abrechnungen: Honorar (lead+co) + Wegspesen + Konzeption + Zusatzspesen
     state.enriched.abrechnungen.forEach(a => {
       const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
       const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-      a.totalBetrag = einsaetze.reduce((s,e) => s+(e.totalBetrag||0), 0)
+      a.totalBetrag = einsaetze.reduce((s,e) => s+(e.totalBetrag||0)+(e.spesenBerechnet||0), 0)
                     + konz.reduce((s,k) => s+(k.anzeigeBetrag||0), 0)
                     + (a.spesenZusatzBetrag||0);
     });
