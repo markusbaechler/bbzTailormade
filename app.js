@@ -2229,11 +2229,22 @@
       ui.setMsg("", "");
       if (r === "projekte")       { views.projekte(); return; }
       if (r === "projekt-detail") { views.projektDetail(state.selection.projektId); return; }
-      if (r === "einsaetze")      { views.einsaetze(); return; }
-      if (r === "konzeption")     { views.konzeption(); return; }
-      if (r === "abrechnungen")   { views.abrechnungen(); return; }
-      if (r === "firmen")         { views.firmen(); return; }
-      if (r === "firma-detail")   { views.firmaDetail(state.selection.firmaId); return; }
+      // Nicht-Panel-Views: in scroll-wrapper einbetten
+      const scrollWrap = fn => {
+        fn();
+        const root = ui.els.root;
+        if (root && !root.firstElementChild?.classList.contains("tm-scroll-view")) {
+          const wrap = document.createElement("div");
+          wrap.className = "tm-scroll-view";
+          while (root.firstChild) wrap.appendChild(root.firstChild);
+          root.appendChild(wrap);
+        }
+      };
+      if (r === "einsaetze")      { scrollWrap(() => views.einsaetze()); return; }
+      if (r === "konzeption")     { scrollWrap(() => views.konzeption()); return; }
+      if (r === "abrechnungen")   { scrollWrap(() => views.abrechnungen()); return; }
+      if (r === "firmen")         { scrollWrap(() => views.firmen()); return; }
+      if (r === "firma-detail")   { scrollWrap(() => views.firmaDetail(state.selection.firmaId)); return; }
     },
 
     navigate(route) {
