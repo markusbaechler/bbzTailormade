@@ -1190,7 +1190,7 @@
       ui.render(`
         <style>
           /* ── Projekt-Detail 3-Panel-Layout ─────────────────────────────── */
-          .pd-wrap { display:flex; flex-direction:column; flex:1; min-height:0; height:100%; }
+          .pd-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h, 52px)); overflow:hidden; }
           .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* Sidebar */
