@@ -1500,9 +1500,9 @@
           /* ── View-root override für Shell-Layout ── */
           .tm-view-root{padding:0!important;overflow:hidden!important}
           /* ── 3-Panel Shell ── */
-          .ef-shell{display:flex;height:calc(100vh - 52px);overflow:hidden;gap:0;min-width:0}
-          .ef-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-          .ef-sidebar-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
+          .ef-shell{display:flex;height:calc(100vh - var(--tm-header-h,52px));overflow:hidden;gap:0;min-width:0}
+          .ef-sidebar{width:220px;flex-shrink:0;border-right:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow-y:auto}
+          .ef-sidebar-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid #dde3ea}
           .ef-sidebar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
           .ef-sidebar-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
           .ef-sidebar-reset:hover{text-decoration:underline}
@@ -1525,7 +1525,7 @@
           .ef-tbl thead th:nth-child(4){width:18%}
           .ef-tbl thead th:nth-child(5){width:12%}
           .ef-tbl thead th:nth-child(6){width:10%}
-          .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
+          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#8896a5;padding:7px 10px;border-top:1px solid #dde3ea;border-bottom:1px solid #dde3ea;white-space:nowrap;background:#fff;position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
           .ef-th-sort:hover{color:var(--tm-text)}
           .ef-th-sort .ef-sort-arrow{opacity:0;font-size:10px;margin-left:3px;transition:opacity .1s}
@@ -1533,7 +1533,7 @@
           .ef-th-active{color:var(--tm-blue)!important;font-weight:500}
           .ef-th-active .ef-sort-arrow{opacity:1!important}
           .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
-          .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.038)}
+          
           .ef-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
           .ef-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
           .ef-tbl tbody tr.cancelled{opacity:.45;box-shadow:inset 3px 0 0 var(--tm-red,#950e13)}
@@ -1563,7 +1563,7 @@
           .ef-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
           .ef-sb-chip.active-red{background:var(--tm-red,#950e13);color:#fff!important;border-color:var(--tm-red,#950e13);font-weight:600}
           /* ── Detail Panel ── */
-          .ef-detail{width:240px;min-width:240px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
+          .ef-detail{width:260px;min-width:260px;flex-shrink:0;border-left:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow-y:auto}
           .ef-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
           .ef-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
           .ef-detail-title{font-size:15px;font-weight:600;color:var(--tm-text)}
