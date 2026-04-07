@@ -1199,7 +1199,8 @@
       ui.render(`
         <style>
           /* ── Projekt-Detail 3-Panel-Layout ─────────────────────────────── */
-          .pd-shell { display:flex; height:100%; overflow:hidden; }
+          .pd-wrap { display:flex; flex-direction:column; flex:1; min-height:0; height:100%; }
+          .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* Sidebar */
           .pd-sidebar { width:230px; min-width:230px; border-right:1px solid var(--tm-blue-pale); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
@@ -1237,10 +1238,10 @@
           .pd-kpi-bar-fill { height:3px; border-radius:2px; }
 
           /* Karteikarten-Tabs */
-          .pd-tabs-wrap { display:flex; align-items:flex-end; gap:2px; padding:10px 16px 0; background:var(--tm-surface); border-bottom:2px solid var(--tm-blue-pale); flex-shrink:0; }
-          .pd-tab { padding:8px 18px; font-size:13px; cursor:pointer; color:var(--tm-text-muted); background:#e8eaed; border:1px solid var(--tm-blue-pale); border-bottom:none; border-radius:6px 6px 0 0; white-space:nowrap; position:relative; bottom:-2px; font-weight:600; font-family:inherit; }
-          .pd-tab:hover { background:#dde0e4; color:var(--tm-text); }
-          .pd-tab.active { background:#fff; color:var(--tm-blue); font-weight:700; border-bottom-color:#fff; z-index:1; }
+          .pd-tabs-wrap { display:flex; align-items:flex-end; gap:2px; padding:10px 16px 0; background:#eef1f5; border-bottom:2px solid rgba(0,0,0,0.12); flex-shrink:0; }
+          .pd-tab { padding:8px 18px; font-size:13px; cursor:pointer; color:#8896a5; background:#dde1e7; border:1px solid rgba(0,0,0,0.12); border-bottom:none; border-radius:6px 6px 0 0; white-space:nowrap; position:relative; bottom:-2px; font-weight:600; font-family:inherit; transition:background 0.1s,color 0.1s; }
+          .pd-tab:hover { background:#ced3da; color:#4a5568; }
+          .pd-tab.active { background:#fff; color:#004078; font-weight:700; border-bottom-color:#fff; z-index:1; }
 
           /* Filter-Bar */
           .pd-filter-bar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--tm-blue-pale); flex-shrink:0; background:#fff; flex-wrap:wrap; }
@@ -1295,7 +1296,7 @@
           .pd-dp-empty-icon { font-size:28px; opacity:0.2; }
         </style>
 
-        <div class="pd-shell">
+        <div class="pd-wrap"><div class="pd-shell">
 
           <!-- SIDEBAR -->
           <div class="pd-sidebar">
@@ -1360,7 +1361,7 @@
               <button class="pd-tab${tab==="stammdaten"?" active":""}" data-tab="stammdaten" data-route="projekt-detail">Stammdaten &amp; Ansätze</button>
             </div>
 
-            <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
               ${tabContent}
             </div>
           </div>
@@ -1375,7 +1376,7 @@
             </div>
           </div>
 
-        </div>
+        </div></div>
       `);
     },
 
