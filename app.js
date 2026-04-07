@@ -143,14 +143,14 @@
       route:        "projekte",
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "" },
+      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       projektDetail: { jahr: "", person: "", einsatzStatus: "", abrechnung: "", konzJahr: "", konzKat: "", konzVerr: "", konzAbr: "" },
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -869,7 +869,18 @@
           ctrl.updateDetailPanel(); return;
         }
         if (a("[data-action='open-bs']"))              { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
-        if (a("[data-action='select-konzeption']"))    { const id = +a("[data-action='select-konzeption']").dataset.id; state.ui.selectedKonzId = state.ui.selectedKonzId===id ? null : id; document.querySelectorAll("[data-action='select-konzeption']").forEach(tr => tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedKonzId)); ctrl.updateKonzDetailPanel(); return; }
+        if (a("[data-action='kz-filter']"))         { const el=a("[data-action='kz-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.konzeption[k]=state.filters.konzeption[k]===v?"":v; state.ui.selectedKonzId=null; ctrl.render(); return; }
+        if (a("[data-action='kz-reset-filters']"))   { state.filters.konzeption={search:"",verrechenbar:"",person:"",projekt:"",firma:"",jahr:"",abrechnung:""}; state.ui.selectedKonzId=null; ctrl.render(); return; }
+        if (a("[data-action='kz-toggle-sec']"))      { const sec=a("[data-action='kz-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
+        if (a("[data-action='kz-mob-filter']"))      { state.ui.kzMobFilter=true;  ctrl.render(); return; }
+        if (a("[data-action='kz-mob-filter-close']")){ state.ui.kzMobFilter=false; ctrl.render(); return; }
+        if (a("[data-action='kz-select']")) {
+          const id = +a("[data-action='kz-select']").dataset.id;
+          if (window.innerWidth <= 899) { ctrl.kzMobOpen(id); return; }
+          state.ui.selectedKonzId = state.ui.selectedKonzId===id ? null : id;
+          document.querySelectorAll("[data-action='kz-select']").forEach(tr => tr.classList.toggle("kz-row-sel", +tr.dataset.id === state.ui.selectedKonzId));
+          ctrl.updateKonzDetailPanel(); return;
+        }
         if (a("[data-action='open-filter-sheet']"))    { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
         if (a("[data-action='open-kz-filter-sheet']")) { const k=a("[data-action='open-kz-filter-sheet']").dataset.filterKey; ctrl.openKzFs(k); return; }
         if (a("[data-action='clear-kz-filter']"))      { e.stopPropagation(); const k=a("[data-action='clear-kz-filter']").dataset.fkey; state.filters.konzeption[k]=""; state.ui.selectedKonzId=null; ctrl.render(); return; }
@@ -1693,270 +1704,225 @@
     },
 
     konzeption() {
-      const f = state.filters.konzeption;
-      const selId = state.ui.selectedKonzId;
+      const f   = state.filters.konzeption;
       const all = state.enriched.konzeption;
-      const personen = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
-      const jahre = [...new Set(all.map(k=>k.datum?new Date(k.datum).getFullYear():null).filter(Boolean))].sort((a,b)=>b-a);
-      const kategorien = [...new Set(all.map(k=>k.kategorie).filter(Boolean))].sort();
-      const projekte = [...new Map(all.map(k=>{
-        const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-        const nr=p?.projektNr||""; const lbl=nr?"#"+nr+" "+k.projektTitle:k.projektTitle;
-        return [k.projektLookupId,lbl];
-      })).entries()].filter(([,t])=>t).sort((a,b)=>{const na=a[1].match(/#(d+)/)?.[1]||"";const nb=b[1].match(/#(d+)/)?.[1]||"";return na&&nb?+na - +nb:a[1].localeCompare(b[1]);});
-      const firmen = [...new Set(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
-      const FIRMA_COLORS=[{bg:"#dbeafe",tx:"#185FA5"},{bg:"#dcfce7",tx:"#3B6D11"},{bg:"#fef3c7",tx:"#854F0B"},{bg:"#fce7f3",tx:"#993556"},{bg:"#ede9fe",tx:"#534AB7"},{bg:"#ccfbf1",tx:"#0F6E56"},{bg:"#ffedd5",tx:"#854F0B"},{bg:"#fce7f3",tx:"#72243E"}];
-      const firmaColorMap={};let firmaIdx=0;
-      all.forEach(k=>{const fn=state.enriched.projekte.find(p=>p.id===k.projektLookupId)?.firmaName||"";if(fn&&!(fn in firmaColorMap))firmaColorMap[fn]=FIRMA_COLORS[firmaIdx++%FIRMA_COLORS.length];});
+      const selId = state.ui.selectedKonzId;
+
+      // ── Filter-Optionen ────────────────────────────────────────────────────
+      const jahre   = [...new Set(all.map(k => k.datum ? new Date(k.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
+      const firmen  = [...new Set(all.map(k => { const p = state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
+      const projekte= [...new Map(all.map(k => [k.projektLookupId, k.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
+      const personen= [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort();
+
+      // ── Filter anwenden ────────────────────────────────────────────────────
       let list = [...all];
-      if (f.search)       list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search)||h.inc(k.personName,f.search));
-      if (f.verrechenbar) list = list.filter(k => k.verrechenbar === f.verrechenbar);
-      if (f.person)       list = list.filter(k => k.personName === f.person);
-      if (f.projekt)      list = list.filter(k => k.projektLookupId === +f.projekt);
-      if (f.firma)        list = list.filter(k => { const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
-      if (f.jahr)         list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.jahr);
-      if (f.kategorie)    list = list.filter(k => k.kategorie === f.kategorie);
+      if (f.search)      list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search));
+      if (f.jahr)        list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.jahr);
+      if (f.firma)       list = list.filter(k => { const p = state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.projekt)     list = list.filter(k => k.projektLookupId === +f.projekt);
+      if (f.verrechenbar)list = list.filter(k => k.verrechenbar === f.verrechenbar);
+      if (f.person)      list = list.filter(k => k.personName === f.person);
+      if (f.abrechnung)  list = list.filter(k => k.abrechnung === f.abrechnung);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-      const sumF = list.filter(k=>k.verrechenbar==="verrechenbar" && k.abrechnung!=="abgerechnet").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sumK = list.filter(k=>k.verrechenbar==="Klärung nötig").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sumI = list.filter(k=>k.verrechenbar==="Inklusive (ohne Verrechnung)").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sel = selId ? list.find(k=>k.id===selId)||all.find(k=>k.id===selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
-      const hasFilter = !!(f.search||f.verrechenbar||f.person||f.projekt||f.firma||f.jahr||f.kategorie);
 
-      const kzChip = (fkey, val, lbl) => {
-        const isActive = f[fkey]===String(val);
-        const toggle = "state.filters.konzeption['"+fkey+"']=(state.filters.konzeption['"+fkey+"']==='"+String(val).replace(/'/g,"\'")+"'?'':'"+String(val).replace(/'/g,"\'")+"');state.ui.selectedKonzId=null;ctrl.render()";
-        return '<button class="kz-sb-chip'+(isActive?' active':'')+'" onclick="'+toggle+'">'+h.esc(lbl)+'</button>';
+      // ── Firma-Farben ───────────────────────────────────────────────────────
+      const COLORS = [
+        {bg:"#dbeafe",tx:"#185FA5"},{bg:"#dcfce7",tx:"#3B6D11"},{bg:"#fef3c7",tx:"#854F0B"},
+        {bg:"#fce7f3",tx:"#993556"},{bg:"#ede9fe",tx:"#534AB7"},{bg:"#ccfbf1",tx:"#0F6E56"},
+        {bg:"#ffedd5",tx:"#854F0B"},{bg:"#fce7f3",tx:"#72243E"}
+      ];
+      const firmaColorMap = {};
+      let ci = 0;
+      const firmaOf = k => state.enriched.projekte.find(p=>p.id===k.projektLookupId)?.firmaName||"";
+      list.forEach(k => { const fn = firmaOf(k); if (fn && !(fn in firmaColorMap)) firmaColorMap[fn] = COLORS[ci++ % COLORS.length]; });
+
+      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.verrechenbar||f.person||f.abrechnung;
+      const sumTotal  = list.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumVerr   = list.filter(k=>k.verrechenbar==="verrechenbar").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const sumStunden= list.reduce((s,k)=>s+(k.aufwandStunden||0),0);
+      const sb = state.ui.sbOpen;
+
+      // ── Sidebar-Sektion ────────────────────────────────────────────────────
+      const sbSec = (key, label, items) => {
+        const isOpen = sb["kz_"+key] !== false;
+        const isActive = !!f[key];
+        return `<div class="kz-sb-sec">
+          <div class="kz-sb-sec-hdr" data-action="kz-toggle-sec" data-sec="kz_${key}">
+            <span class="kz-sb-label">${label}</span>
+            ${isActive ? `<span class="kz-sb-count">1</span>` : ""}
+            <span class="kz-sb-toggle${isOpen?" open":""}">▶</span>
+          </div>
+          ${isOpen ? `<div class="kz-sb-body">${items.map(([val,lbl]) => `
+            <div class="kz-sb-chip${f[key]===val?" active":""}" data-action="kz-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
+          `).join("")}</div>` : ""}
+        </div>`;
       };
-      const kzSec = (lbl, body) => '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span class="kz-sb-lbl">'+lbl+'</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+body+'</div></div>';
-      const jahrSec    = jahre.length     ? kzSec("Jahr",        jahre.map(j=>kzChip("jahr",j,j)).join("")) : "";
-      const verrSec    = kzSec("Verrechenbar", state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join(""));
-      const firmaSec   = firmen.length    ? kzSec("Firma",       firmen.map(n=>kzChip("firma",n,n)).join("")) : "";
-      const projektSec = projekte.length  ? kzSec("Projekt",     projekte.map(([id,t])=>kzChip("projekt",id,t)).join("")) : "";
-      const personSec  = personen.length  ? kzSec("Person",      personen.map(n=>kzChip("person",n,n)).join("")) : "";
-      const katSec     = kategorien.length? kzSec("Kategorie",   kategorien.map(k=>kzChip("kategorie",k,k)).join("")) : "";
-      const tblHtml = list.length
-        ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Firma / Projekt</th><th>Beschreibung</th><th>Person</th><th>Kat. / Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
-          +list.map(k=>{
-            const proj=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-            const fn=proj?.firmaName||"";
-            const fc=firmaColorMap[fn];
-            const fb=fn?'<span style="background:'+fc?.bg+';color:'+fc?.tx+';font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px">'+h.esc(fn)+'</span>':"";
-            return '<tr class="'+(k.id===selId?"ef-row-sel":"")+'" data-action="select-konzeption" data-id="'+k.id+'">'
-              +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
-              +'<td><div style="margin-bottom:2px">'+fb+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+(proj?.projektNr?' <span style="font-weight:400">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></td>'
-              +'<td style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</td>'
-              +'<td><div style="display:flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0">'+k.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()+'</span><span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+h.esc(k.personName)+'</span></div></td>'
-              +'<td><div style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></td>'
-              +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
-              +'</tr>';
-          }).join("")
-          +'</tbody></table>'
-        : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Konzeptionsaufwände gefunden.</div>';
-      const detailHtml = sel
-        ? '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
-          +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
-          +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>'
-        : '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>';
 
-      ui.render(`<style>
-        .tm-view-root{padding:0!important;overflow:hidden!important}
-        .kz-shell{display:flex;height:calc(100vh - 52px);overflow:hidden}
-        .kz-left{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-        .kz-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-        .kz-right{width:260px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-        .kz-toolbar{padding:10px 16px 8px;background:var(--tm-bg);flex-shrink:0;border-bottom:1px solid var(--tm-border);display:flex;align-items:center;gap:10px}
-        .kz-title{font-size:18px;font-weight:600;color:var(--tm-text);letter-spacing:-.3px}
-        .kz-meta{font-size:12px;color:var(--tm-text-muted);margin-top:1px}
-        .kz-kpi{display:flex;flex-shrink:0;border-bottom:1px solid var(--tm-border)}
-        .kz-kpi-item{flex:1;padding:8px 14px;border-right:1px solid var(--tm-border)}
-        .kz-kpi-item:last-child{border-right:none}
-        .kz-kpi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);margin-bottom:2px}
-        .kz-kpi-val{font-size:14px;font-weight:700}
-        .kz-kpi-val.green{color:#1a6e40}
-        .kz-kpi-val.amber{color:#b45309}
-        .kz-tbl-scroll{flex:1;overflow-y:auto}
-        .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-        .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
-        .kz-tbl thead th:nth-child(1){width:10%}.kz-tbl thead th:nth-child(2){width:22%}.kz-tbl thead th:nth-child(3){width:26%}.kz-tbl thead th:nth-child(4){width:17%}.kz-tbl thead th:nth-child(5){width:12%}.kz-tbl thead th:nth-child(6){width:13%}
-        .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
-        .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
-        .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
-        .kz-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
-        .kz-tbl td{padding:9px 10px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .kz-sb-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
-        .kz-sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
-        .kz-sb-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
-        .kz-sb-reset:hover{text-decoration:underline}
-        .kz-sb-sec{border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-        .kz-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;cursor:pointer;user-select:none;border-top:1px solid var(--tm-border)}
-        .kz-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
-        .kz-sb-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);flex:1}
-        .kz-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block}
-        .kz-sb-toggle.open{transform:rotate(90deg)}
-        .kz-sb-body{padding:0 8px 8px;max-height:150px;overflow-y:auto}
-        .kz-sb-body.collapsed{display:none}
-        .kz-sb-chip{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;display:block;transition:all .1s}
-        .kz-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
-        .kz-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
-        .kz-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
-        .kz-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
-        .kz-detail-title{font-size:15px;font-weight:600;color:var(--tm-text);line-height:1.3}
-        .kz-detail-sub{font-size:11px;color:var(--tm-text-muted);margin-top:2px}
-        .kz-detail-edit{float:right;font-size:11px;padding:3px 10px;border:1px solid var(--tm-blue);color:var(--tm-blue);border-radius:6px;background:none;cursor:pointer}
-        .kz-detail-edit:hover{background:var(--tm-blue);color:#fff}
-        .kz-detail-sec{padding:10px 14px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-        .kz-detail-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:4px}
-        .kz-detail-val{font-size:13px;color:var(--tm-text)}
-        @media(max-width:700px){
-          .tm-view-root{padding:0!important;overflow:auto!important}
-          .kz-shell{flex-direction:column;height:auto}
-          .kz-left{display:none!important}
-          .kz-right{display:none!important}
-          .kz-tbl-scroll{display:none!important}
-          .kz-toolbar{padding:10px 14px 6px}
-          .kz-title{font-size:16px}
-          .kz-kpi{flex-wrap:wrap}
-          .kz-kpi-item{min-width:33%}
-          .kz-mobile-cards{display:flex!important}
-          .kz-chip-strip{display:flex!important}
-        }
-        .kz-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0;position:relative;z-index:10}
-        .kz-chip-strip::-webkit-scrollbar{display:none}
-        .kz-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
-        .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
-        .kz-cs-chip .kz-cs-x{font-size:15px;opacity:.7;margin-left:2px}
-        .kz-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px}
-        .ef-bs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
-        .ef-bs-overlay.open{display:flex}
-        .ef-bs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-        @keyframes bsUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-        .ef-bs-handle{display:flex;justify-content:center;padding:10px 0 4px}
-        .ef-bs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-        .ef-bs-hdr{padding:12px 16px 10px;border-bottom:1px solid var(--tm-border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-        .ef-bs-title{font-size:16px;font-weight:600;color:var(--tm-text);line-height:1.3}
-        .ef-bs-sub{font-size:12px;color:var(--tm-text-muted);margin-top:2px}
-        .ef-bs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-        .ef-bs-body{overflow-y:auto;flex:1;padding-bottom:env(safe-area-inset-bottom,16px)}
-        .ef-bs-sec{padding:11px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8)}
-        .ef-bs-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:3px}
-        .ef-bs-val{font-size:14px;color:var(--tm-text)}
-        .ef-bs-edit{width:calc(100% - 32px);height:48px;background:var(--tm-blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin:14px 16px 0}
-        .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
-        .ef-fs-overlay.open{display:flex}
-        .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-        .ef-fs-handle{display:flex;justify-content:center;padding:10px 0 4px;flex-shrink:0}
-        .ef-fs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-        .ef-fs-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:1px solid var(--tm-border);flex-shrink:0}
-        .ef-fs-title{font-size:16px;font-weight:600;color:var(--tm-text)}
-        .ef-fs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-        .ef-fs-body{overflow-y:auto;flex:1;padding:8px 0 env(safe-area-inset-bottom,16px)}
-        .ef-fs-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8);cursor:pointer;font-size:15px;color:var(--tm-text)}
-        .ef-fs-opt.active{color:var(--tm-blue);font-weight:500}
-        .ef-fs-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--tm-border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
-        .kz-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s}
-        .kz-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
-        .kz-mc-date{font-size:12px;font-weight:600;color:var(--tm-text)}
-        .kz-mc-title{font-size:15px;font-weight:600;margin-bottom:2px}
-        .kz-mc-proj{font-size:12px;color:var(--tm-text-muted);margin-bottom:8px}
-        .kz-mc-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px}
-        .kz-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border);font-size:12px;color:var(--tm-text-muted)}
-      </style>
-      <div class="kz-shell">
-        <div class="kz-left">
-          <div class="kz-sb-hdr">
-            <span class="kz-sb-title">Filter</span>
-            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\',jahr:\'\',kategorie:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
-          </div>
-          <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
-            <input class="ef-search" type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
-          </div>
-          ${jahrSec}${verrSec}${firmaSec}${projektSec}${personSec}${katSec}
-        </div>
-        <div class="kz-main">
-          <div class="kz-toolbar">
-            <div style="flex:1">
-              <div class="kz-title">${(()=>{
-                const parts=[];
-                if(f.firma) parts.push(h.esc(f.firma));
-                else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
-                if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
-                return parts.length ? parts.join(" · ")+" · Konzeption & Admin" : "Konzeption & Admin";
-              })()}</div>
-              <div class="kz-meta">${list.length} Einträge</div>
-            </div>
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
-          </div>
-          <div class="kz-kpi">
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Zur Abrechnung</div><div class="kz-kpi-val green">CHF ${h.chf(sumF)}</div></div>
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">In Klärung</div><div class="kz-kpi-val amber">CHF ${h.chf(sumK)}</div></div>
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Inklusive</div><div class="kz-kpi-val">CHF ${h.chf(sumI)}</div></div>
-          </div>
-          <!-- MOBILE: Chip-Strip -->
-          <div class="kz-chip-strip">
-            ${[
-              ["verrechenbar", f.verrechenbar||"", "Verrechenbar"],
-              ["firma", f.firma||"", "Firma"],
-              ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
-              ["person", f.person||"", "Person"]
-            ].map(([key, activeVal, label]) => {
-              const isActive = !!activeVal;
-              return '<button class="kz-cs-chip'+(isActive?" active":"")+'" data-action="open-kz-filter-sheet" data-filter-key="'+key+'">'
-                +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
-                +(isActive?'<span class="kz-cs-x" data-action="clear-kz-filter" data-fkey="'+key+'">×</span>':"")
-                +'</button>';
-            }).join("")}
-          </div>
-          <!-- MOBILE: Cards -->
-          <div class="kz-mobile-cards">
-            ${list.length ? list.map(k => {
-              const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-              const fn = proj?.firmaName||"";
-              const fc = firmaColorMap[fn];
-              const fb = fn ? '<span class="kz-mc-badge" style="background:'+fc?.bg+';color:'+fc?.tx+'">'+h.esc(fn)+'</span>' : "";
-              return '<div class="kz-mc" onclick="ctrl.openKzBs('+k.id+')">'
-                +'<div class="kz-mc-top"><div class="kz-mc-date">'+h.esc(k.datumFmt)+'</div>'+h.verrBadge(k.verrechenbar)+'</div>'
-                +'<div class="kz-mc-title">'+h.esc(k.title)+'</div>'
-                +'<div class="kz-mc-proj">'+fb+' '+h.esc(k.projektTitle)+'</div>'
-                +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
-                +'</div>';
-            }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
-          </div>
-          <!-- MOBILE: Bottom Sheet -->
-          <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
-            <div class="ef-bs">
-              <div class="ef-bs-handle"><div></div></div>
-              <div class="ef-bs-hdr">
-                <div><div class="ef-bs-title" id="ef-bs-title">—</div><div class="ef-bs-sub" id="ef-bs-sub">—</div></div>
-                <div class="ef-bs-close" onclick="ctrl.closeBs()">×</div>
+      // ── Detail-Panel ───────────────────────────────────────────────────────
+      const detailHtml = () => {
+        const k = selId ? list.find(k=>k.id===selId) || all.find(k=>k.id===selId) : null;
+        if (!k) return `<div class="kz-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Zeile auswählen für Details</span></div>`;
+        const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+        return `
+          <div class="kz-dp-title">${h.esc(k.title)}</div>
+          <div class="kz-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Datum</span><span class="kz-dp-val">${h.esc(k.datumFmt)}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Projekt</span><span class="kz-dp-val">${h.esc(k.projektTitle||"—")}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Kategorie</span><span class="kz-dp-val">${h.esc(k.kategorie)}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Person</span><span class="kz-dp-val">${h.esc(k.personName||"—")}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Aufwand</span><span class="kz-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Betrag</span><span class="kz-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Verrechenbar</span><span class="kz-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
+          <div class="kz-dp-row"><span class="kz-dp-key">Abrechnung</span><span class="kz-dp-val">${h.abrBadge(k.abrechnung)}</span></div>
+          ${k.bemerkungen?`<div class="kz-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
+          <div class="kz-dp-footer">
+            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
+            <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
+          </div>`;
+      };
+
+      // ── Zeilen ─────────────────────────────────────────────────────────────
+      const kRow = k => {
+        const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+        const fn   = proj?.firmaName||"";
+        const clr  = firmaColorMap[fn];
+        const isSel = k.id === selId;
+        return `<tr class="kz-row${isSel?" kz-row-sel":""}" data-action="kz-select" data-id="${k.id}">
+          <td class="kz-td-date">${h.esc(k.datumFmt)}</td>
+          <td>
+            ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span>`:""}
+            <div class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</div>
+          </td>
+          <td><div class="kz-c1">${h.esc(k.title)}</div></td>
+          <td class="kz-td-muted">${h.esc(k.personName||"—")}</td>
+          <td class="kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
+          <td>${h.verrBadge(k.verrechenbar)}</td>
+          <td>${h.abrBadge(k.abrechnung)}</td>
+        </tr>`;
+      };
+
+      ui.render(`
+        <style>
+          .kz-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
+          .kz-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
+          .kz-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .kz-sb-head { padding:10px 12px; }
+          .kz-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .kz-sb-head input:focus { border-color:#004078; background:#fff; }
+          .kz-sb-scroll { flex:1; overflow-y:auto; }
+          .kz-sb-sec { border-bottom:1px solid #dde3ea; }
+          .kz-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
+          .kz-sb-sec-hdr:hover { background:#f5f7fa; }
+          .kz-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
+          .kz-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; }
+          .kz-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; }
+          .kz-sb-toggle.open { transform:rotate(90deg); }
+          .kz-sb-body { padding:2px 8px 8px; }
+          .kz-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
+          .kz-sb-chip:hover { background:#f5f7fa; }
+          .kz-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .kz-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
+          .kz-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
+          .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+          .kz-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
+          .kz-title { font-size:18px; font-weight:700; color:var(--tm-text); }
+          .kz-meta { font-size:12px; color:#8896a5; }
+          .kz-tbl-wrap { flex:1; overflow-y:auto; }
+          table.kz-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
+          .kz-tbl th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+          .kz-tbl td { padding:9px 10px; border-bottom:1px solid #dde3ea; vertical-align:middle; }
+          .kz-row { cursor:pointer; }
+          .kz-row:hover td { background:#f6f8fb; }
+          .kz-row-sel td { background:#e6f1fb !important; }
+          .kz-td-date { white-space:nowrap; color:#8896a5; font-size:13px; width:90px; }
+          .kz-td-muted { color:#8896a5; font-size:12px; white-space:nowrap; }
+          .kz-c1 { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
+          .kz-c2 { font-size:11px; color:#8896a5; margin-top:1px; }
+          .kz-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap; margin-bottom:2px; }
+          .kz-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .kz-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
+          .kz-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
+          .kz-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
+          .kz-dp-title { font-size:14px; font-weight:700; color:var(--tm-text); margin-bottom:4px; line-height:1.4; }
+          .kz-dp-sub { font-size:12px; color:#8896a5; margin-bottom:12px; font-weight:600; }
+          .kz-dp-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid #dde3ea; }
+          .kz-dp-row:last-child { border-bottom:none; }
+          .kz-dp-key { font-size:12px; color:#8896a5; font-weight:600; }
+          .kz-dp-val { font-size:12px; color:var(--tm-text); text-align:right; font-weight:600; }
+          .kz-dp-note { margin-top:10px; padding:8px 10px; background:#f5f7fa; border-radius:6px; font-size:12px; color:#4a5568; line-height:1.5; }
+          .kz-dp-footer { margin-top:16px; padding-top:12px; border-top:1px solid #dde3ea; display:flex; gap:6px; }
+          .kz-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#8896a5; font-size:13px; gap:8px; font-weight:600; }
+          .kz-mob-filter-btn { display:none; }
+          @media(max-width:899px) {
+            .kz-sidebar { display:none !important; }
+            .kz-detail  { display:none !important; }
+            .kz-shell.kz-mob-filter .kz-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
+            .kz-shell.kz-mob-filter .kz-main    { display:none !important; }
+            .kz-mob-filter-btn { display:flex !important; }
+          }
+        </style>
+        <div class="kz-wrap">
+          <div class="kz-shell${state.ui.kzMobFilter?" kz-mob-filter":""}">
+
+            <!-- SIDEBAR -->
+            <div class="kz-sidebar">
+              <div class="kz-sb-head">
+                <button class="tm-btn tm-btn-sm kz-mob-filter-btn" data-action="kz-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zur Liste</button>
+                <input type="search" placeholder="Suche Konzeption, Projekt…" value="${h.esc(f.search||"")}"
+                  data-search-key="konzeption.search"
+                  oninput="h.searchInput('konzeption.search',this.value)">
               </div>
-              <div class="ef-bs-body" id="ef-bs-body"></div>
+              <div class="kz-sb-scroll">
+                ${sbSec("jahr",        "Jahr",        jahre.map(j=>[String(j),String(j)]))}
+                ${sbSec("firma",       "Firma",       firmen.map(n=>[n,n]))}
+                ${sbSec("projekt",     "Projekt",     projekte.map(([id,t])=>[String(id),t]))}
+                ${sbSec("verrechenbar","Verrechenbar",state.choices.konzVerrechenbar.map(v=>[v,v]))}
+                ${sbSec("person",      "Person",      personen.map(n=>[n,n]))}
+                ${sbSec("abrechnung",  "Abrechnung",  state.choices.konzAbrechnung.map(v=>[v,v]))}
+              </div>
+              ${hasFilter?`<div class="kz-sb-footer"><button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button></div>`:""}
             </div>
-          </div>
-          <!-- MOBILE: Filter-Sheet -->
-          <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
-            <div class="ef-fs">
-              <div class="ef-fs-handle"><div></div></div>
-              <div class="ef-fs-hdr"><div class="ef-fs-title" id="kz-fs-title">Filter</div><div class="ef-fs-close" onclick="ctrl.closeKzFs()">×</div></div>
-              <div class="ef-fs-body" id="kz-fs-body"></div>
-            </div>
-          </div>
-          <div class="kz-tbl-scroll">${tblHtml}</div>
-        </div>
-        <div class="kz-right">${detailHtml}</div>
-      </div>
-`);
-    },
 
+            <!-- MAIN -->
+            <div class="kz-main">
+              <div class="kz-toolbar">
+                <div>
+                  <div class="kz-title">${[f.firma,f.person].filter(Boolean).concat(["Konzeption & Admin"]).join(" · ")}</div>
+                  <div class="kz-meta">${list.length} Einträge · ${sumStunden.toFixed(1)} h · CHF ${h.chf(sumVerr)} verrechenbar</div>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="tm-btn tm-btn-sm kz-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="kz-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
+                </div>
+              </div>
+              <div class="kz-tbl-wrap">
+                <table class="kz-tbl">
+                  <thead><tr>
+                    <th style="width:90px">Datum ↓</th>
+                    <th style="width:180px">Firma / Projekt</th>
+                    <th>Beschreibung</th>
+                    <th style="width:120px">Person</th>
+                    <th style="width:120px">Kat. / Dauer</th>
+                    <th style="width:120px">Verrechenbar</th>
+                    <th style="width:110px">Abrechnung</th>
+                  </tr></thead>
+                  <tbody>
+                    ${list.length ? list.map(kRow).join("") : `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einträge gefunden.</td></tr>`}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- DETAIL -->
+            <div class="kz-detail">
+              <div class="kz-dp-head"><div class="kz-dp-label">Detail</div></div>
+              <div class="kz-dp-scroll">${detailHtml()}</div>
+            </div>
+
+          </div>
+        </div>
+      `);
+    },
 
     firmen() {
       const f = state.filters.firmen;
@@ -2536,7 +2502,7 @@
         }
       };
       if (r === "einsaetze")      { views.einsaetze(); return; }
-      if (r === "konzeption")     { scrollWrap(() => views.konzeption()); return; }
+      if (r === "konzeption")     { views.konzeption(); return; }
       if (r === "abrechnungen")   { scrollWrap(() => views.abrechnungen()); return; }
       if (r === "firmen")         { scrollWrap(() => views.firmen()); return; }
       if (r === "firma-detail")   { scrollWrap(() => views.firmaDetail(state.selection.firmaId)); return; }
@@ -2652,23 +2618,58 @@
     },
 
     updateKonzDetailPanel() {
-      const panel = document.querySelector(".kz-right");
+      const panel = document.querySelector(".kz-dp-scroll");
       if (!panel) return;
       const selId = state.ui.selectedKonzId;
-      const sel = selId ? state.enriched.konzeption.find(k => k.id === selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
-      if (!sel) { panel.innerHTML = '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>'; return; }
-      panel.innerHTML =
-        '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
-        +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
-        +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>';
+      const k = selId ? state.enriched.konzeption.find(k=>k.id===selId) : null;
+      const proj = k ? state.enriched.projekte.find(p=>p.id===k.projektLookupId) : null;
+      if (!k) { panel.innerHTML = `<div class="kz-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Zeile auswählen für Details</span></div>`; return; }
+      panel.innerHTML = `
+        <div class="kz-dp-title">${h.esc(k.title)}</div>
+        <div class="kz-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Datum</span><span class="kz-dp-val">${h.esc(k.datumFmt)}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Projekt</span><span class="kz-dp-val">${h.esc(k.projektTitle||"—")}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Kategorie</span><span class="kz-dp-val">${h.esc(k.kategorie)}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Person</span><span class="kz-dp-val">${h.esc(k.personName||"—")}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Aufwand</span><span class="kz-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Betrag</span><span class="kz-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Verrechenbar</span><span class="kz-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
+        <div class="kz-dp-row"><span class="kz-dp-key">Abrechnung</span><span class="kz-dp-val">${h.abrBadge(k.abrechnung)}</span></div>
+        ${k.bemerkungen?`<div class="kz-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
+        <div class="kz-dp-footer">
+          <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
+          <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
+        </div>`;
+    },
+
+    kzMobOpen(id) {
+      const k = state.enriched.konzeption.find(k=>k.id===id);
+      if (!k) return;
+      const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
+      ui.renderModal(`
+        <div class="ei-bs-bd" id="tm-modal-bd">
+          <div class="ei-bs">
+            <div class="ei-bs-handle"></div>
+            <div class="ei-bs-head">
+              <div class="ei-bs-title">${h.esc(k.title)}</div>
+              <div class="ei-bs-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+            </div>
+            <div class="ei-bs-body">
+              <div class="ei-bs-row"><span class="ei-bs-key">Datum</span><span class="ei-bs-val">${h.esc(k.datumFmt)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Projekt</span><span class="ei-bs-val">${h.esc(k.projektTitle||"—")}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Kategorie</span><span class="ei-bs-val">${h.esc(k.kategorie)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Person</span><span class="ei-bs-val">${h.esc(k.personName||"—")}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Aufwand</span><span class="ei-bs-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Betrag</span><span class="ei-bs-val" style="color:#004078">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Verrechenbar</span><span class="ei-bs-val">${h.verrBadge(k.verrechenbar)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Abrechnung</span><span class="ei-bs-val">${h.abrBadge(k.abrechnung)}</span></div>
+            </div>
+            <div class="ei-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
     },
 
     updateDetailPanel() {
