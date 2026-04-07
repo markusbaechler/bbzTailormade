@@ -1563,15 +1563,15 @@
           .ei-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; flex-shrink:0; }
           .ei-sb-toggle.open { transform:rotate(90deg); }
           .ei-sb-body { padding:2px 8px 8px; }
-          .ei-sb-chip { font-size:12px; padding:4px 8px; border-radius:6px; border:1px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:all .1s; }
-          .ei-sb-chip:hover { background:#f5f7fa; border-color:#dde3ea; }
-          .ei-sb-chip.active { background:#004078; color:#fff; border-color:#004078; font-weight:600; }
+          .ei-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
+          .ei-sb-chip:hover { background:#f5f7fa; }
+          .ei-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
           .ei-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
           .ei-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
 
           /* Main */
           .ei-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
-          .ei-toolbar { display:flex; align-items:center; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid #dde3ea; }
+          .ei-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
           .ei-title { font-size:18px; font-weight:700; color:var(--tm-text); flex:1; }
           .ei-meta { font-size:12px; color:#8896a5; }
           .ei-tbl-wrap { flex:1; overflow-y:auto; }
@@ -1641,7 +1641,13 @@
             <div class="ei-main">
               <div class="ei-toolbar">
                 <div>
-                  <div class="ei-title">Alle Einsätze</div>
+                  <div class="ei-title">${(() => {
+                    const parts = [];
+                    if (f.firma) parts.push(f.firma);
+                    if (f.person) parts.push(f.person);
+                    parts.push("Einsätze");
+                    return parts.join(" · ");
+                  })()}</div>
                   <div class="ei-meta">${list.length} Einträge · Total CHF ${h.chf(totalBetrag)}</div>
                 </div>
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
