@@ -147,6 +147,10 @@ html, body {
   padding: 0;
   margin-top: 0;
 }
+/* firma-detail needs scrollable view-root */
+.tm-view-root.is-scroll {
+  overflow-y: auto !important;
+}
 
 /* ── Loading ──────────────────────────────────────────────────────────────── */
 .tm-loading-screen {
