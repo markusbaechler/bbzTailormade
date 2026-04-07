@@ -2659,42 +2659,40 @@
     },
 
     updateDetailPanel() {
-      const panel = document.querySelector(".ef-detail");
+      const panel = document.querySelector(".ei-dp-scroll");
       if (!panel) return;
       const selId = state.ui.selectedEinsatzId;
-      const sel = selId ? state.enriched.einsaetze.find(e => e.id === selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
+      const sel   = selId ? state.enriched.einsaetze.find(e => e.id === selId) : null;
+      const proj  = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
+      const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
       if (!sel) {
-        panel.innerHTML = `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`;
+        panel.innerHTML = `<div class="ei-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Zeile auswählen für Details</span></div>`;
         return;
       }
       panel.innerHTML = `
-        <div class="ef-detail-hdr">
-          <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
-          <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-          <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
-        </div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>
-        ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Beschreibung</div><div class="ef-detail-val">${h.esc(sel.title||"—")}</div></div>
-        <div class="ef-detail-sec">
-          <div class="ef-detail-lbl">Personen</div>
-          <div class="ef-detail-person">
-            <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
+        <div class="ei-dp-title">${h.esc(sel.title||sel.kategorie)}</div>
+        <div class="ei-dp-sub">${h.esc(proj?.firmaName||"")}</div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Datum</span><span class="ei-dp-val">${h.esc(sel.datumFmt)}</span></div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Projekt</span><span class="ei-dp-val">${h.esc(sel.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span></div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Kategorie</span><span class="ei-dp-val">${h.esc(sel.kategorie)}</span></div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Person</span><span class="ei-dp-val">
+          <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+            <span class="ei-av ei-av-lead">${initials(sel.personName)}</span>
+            ${sel.coPersonName&&sel.coPersonName!=="—"?`<span class="ei-av ei-av-co">${initials(sel.coPersonName)}</span>`:""}
+            <span style="font-size:12px">${h.esc(sel.personName)}${sel.coPersonName&&sel.coPersonName!=="—"?` · ${h.esc(sel.coPersonName)}`:""}</span>
           </div>
-          ${sel.coPersonName&&sel.coPersonName!=="—"?`<div class="ef-detail-person" style="margin-top:6px">
-            <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
-          </div>`:""}
-        </div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Status</div><div class="ef-detail-val">${h.statusBadge(sel)}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Kategorie</div><div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div></div>
-        ${sel.bemerkungen?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>`:""}
-        ${sel.ort?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>`:""}
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Betrag</div><div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige?"CHF "+h.chf(sel.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Abrechnung</div><div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div></div>`;
+        </span></div>
+        ${sel.ort?`<div class="ei-dp-row"><span class="ei-dp-key">Ort</span><span class="ei-dp-val">${h.esc(sel.ort)}</span></div>`:""}
+        <div class="ei-dp-row"><span class="ei-dp-key">Status</span><span class="ei-dp-val">${h.statusBadge(sel)}</span></div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Betrag</span><span class="ei-dp-val" style="font-weight:700">${sel.anzeigeBetrag!==null?`CHF ${h.chf(sel.anzeigeBetrag)}`:"—"}</span></div>
+        ${sel.spesenBerechnet?`<div class="ei-dp-row"><span class="ei-dp-key">Wegspesen</span><span class="ei-dp-val">CHF ${h.chf(sel.spesenBerechnet)}</span></div>`:""}
+        <div class="ei-dp-row"><span class="ei-dp-key">Abrechnung</span><span class="ei-dp-val">${h.abrBadge(sel.abrechnung)}</span></div>
+        ${sel.bemerkungen?`<div class="ei-dp-note">${h.esc(sel.bemerkungen)}</div>`:""}
+        <div class="ei-dp-footer">
+          <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${sel.id}">✎ Bearbeiten</button>
+          <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${sel.id}" title="Duplizieren">⧉</button>
+          <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${sel.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
+        </div>`;
     },
 
 
