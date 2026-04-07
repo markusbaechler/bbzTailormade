@@ -4850,68 +4850,35 @@
     // ── Abrechnung Inline-Helfer ─────────────────────────────────────────
 
     async aeKlaerungEntscheid(konzId, neuerWert, btn, projektId) {
-      const row = btn.closest("tr");
       try {
-        btn.disabled = true;
-        if (row) row.style.opacity = "0.5";
+        if (btn) btn.disabled = true;
 
-        // "keine Verrechnung" → Verrechenbar UND Abrechnung setzen
+        // SP patchen
         const fields = { Verrechenbar: neuerWert };
         if (neuerWert === "keine Verrechnung") fields.Abrechnung = "keine Verrechnung";
         await api.patch(CONFIG.lists.konzeption, konzId, fields);
 
+        // State lokal aktualisieren
         const k = state.enriched.konzeption.find(k => k.id === konzId);
         if (k) {
           k.verrechenbar = neuerWert;
           if (neuerWert === "keine Verrechnung") k.abrechnung = "keine Verrechnung";
         }
-        // Zeile aus Klärung-Tabelle entfernen
-        if (row) row.remove();
-        // Falls verrechenbar: neue Zeile in Verrechenbar-Tabelle
-        if (neuerWert === "verrechenbar" && k) {
-          let tbody = document.getElementById("ae-verr-tbody");
-          if (!tbody) {
-            const konzCard = document.getElementById("ae-verr-table")?.closest(".ae-card");
-            const empty = konzCard?.querySelector(".ae-empty");
-            if (empty) {
-              empty.outerHTML = `<div style="display:flex;justify-content:flex-end;padding:8px 16px 0"><label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all" onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label></div>
-              <table class="ae-table" id="ae-verr-table">
-                <thead><tr><th style="width:32px"></th><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th></tr></thead>
-                <tbody id="ae-verr-tbody"></tbody>
-              </table>
-              <div class="ae-subtotal"><span class="ae-subtotal-lbl">Konzeption gewählt:</span><span class="ae-subtotal-val" id="ae-konz-total">CHF 0.00</span></div>`;
-              tbody = document.getElementById("ae-verr-tbody");
-            }
-          }
-          if (tbody) {
-            const newRow = document.createElement("tr");
-            newRow.innerHTML = `
-              <td><input type="checkbox" class="ae-cb ae-k-cb" data-id="${k.id}" data-betrag="${k.anzeigeBetrag||0}" onchange="aeUpdateTotal()"></td>
-              <td class="muted">${h.esc(k.datumFmt)}</td>
-              <td style="font-weight:500">${h.esc(k.title)}</td>
-              <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-              <td class="r">${h.chf(k.anzeigeBetrag)}</td>`;
-            tbody.appendChild(newRow);
-          }
-        }
-        // Klärung-Karte ausblenden wenn leer
-        const klaerTbody = document.getElementById("ae-klaer-tbody");
-        if (klaerTbody && klaerTbody.querySelectorAll("tr").length === 0) {
-          const card = document.getElementById("ae-klaer-card");
-          if (card) card.style.display = "none";
-        }
-        // Wenn verrechenbar → direkt in Auswahl aufnehmen
-        if (neuerWert === "verrechenbar" && state.ui.aeSelected) {
+
+        // Bei verrechenbar: sofort in Auswahl aufnehmen
+        if (neuerWert === "verrechenbar") {
+          if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
           state.ui.aeSelected.konzeption.add(konzId);
         }
-        if (window.aeUpdateTotal) aeUpdateTotal();
-        const label = neuerWert === "verrechenbar" ? "→ verrechenbar" : "→ inklusive (keine Verrechnung)";
+
+        // Tab neu rendern (sauber, kein DOM-Gefrickel)
+        views.abrechnungErstellen(projektId);
+        const label = neuerWert === "verrechenbar" ? "verrechenbar" : "keine Verrechnung";
         ui.setMsg(`Freigabe gesetzt: ${label}`, "success");
       } catch(e) {
         debug.err("aeKlaerungEntscheid", e);
         ui.setMsg("Fehler: " + e.message, "error");
-        btn.disabled = false;
-        if (row) row.style.opacity = "";
+        if (btn) btn.disabled = false;
       }
     },
 
