@@ -4168,12 +4168,7 @@
                 <div class="ef-kg" id="kat-grp">
                   ${kats.length ? katBtnHtml : `<span style="font-size:12px;color:#8896a5">Zuerst Projekt wählen</span>`}
                 </div>
-                <div id="fd-tage" class="ef-sub-inp${selKat === "Einsatz (Tag)" ? " show" : ""}">
-                  <div class="ef-iw" style="max-width:180px">
-                    <input type="number" name="dauerTage" id="ef-tage-inp" min="1" step="1" value="${selDauerTage}" placeholder="Anzahl Tage" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
-                  </div>
-                  <span class="ef-l" style="margin-top:3px">Tage (Betrag wird multipliziert)</span>
-                </div>
+                <input type="hidden" name="dauerTage" id="ef-tage-inp" value="1">
                 <div id="fd-std" class="ef-sub-inp${selKat === "Stunde" ? " show" : ""}">
                   <div class="ef-iw" style="max-width:180px">
                     <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${selDauerStunden ?? ""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
@@ -4297,9 +4292,16 @@
                 </div>
                 <div class="ef-st-btns">
                   ${state.choices.einsatzStatus.length
-                    ? state.choices.einsatzStatus.map(s => `<button type="button"
-                        class="ef-st-btn${e?.status === s ? " on" : ""}"
-                        onclick="ctrl.efToggleStatus(this, '${h.esc(s)}')">${h.esc(s)}</button>`).join("")
+                    ? state.choices.einsatzStatus
+                        .filter(s => {
+                          // Bei Neuerfassung: abgesagt-Stati nicht anzeigen
+                          // Bei Bearbeitung: alle anzeigen (inkl. Zurücksetzen von abgesagt)
+                          if (!id) return !s.toLowerCase().includes("abgesagt");
+                          return true;
+                        })
+                        .map(s => `<button type="button"
+                          class="ef-st-btn${e?.status === s ? " on" : ""}"
+                          onclick="ctrl.efToggleStatus(this, '${h.esc(s)}')">${h.esc(s)}</button>`).join("")
                     : `<span style="font-size:12px;color:#950e13">⚠ Choices werden geladen…</span>`}
                 </div>
               </div>
@@ -4427,13 +4429,19 @@
     // Status-Toggle: mutual exclusive, zweiter Klick deaktiviert
     efToggleStatus(btn, statusVal) {
       const statusHid = document.getElementById("status-hid");
+      const abrHid    = document.getElementById("abr-hid");
       const wasOn = btn.classList.contains("on");
       document.querySelectorAll(".ef-st-btn").forEach(b => b.classList.remove("on"));
+      const isAbgesagt = statusVal.toLowerCase().includes("abgesagt");
       if (!wasOn) {
         btn.classList.add("on");
         if (statusHid) statusHid.value = statusVal;
+        // Abgesagt → Abrechnung auf "offen" setzen (kein Geld fliessen)
+        if (isAbgesagt && abrHid) abrHid.value = "offen";
       } else {
         if (statusHid) statusHid.value = "";
+        // Nicht mehr abgesagt → Abrechnung zurück auf "offen"
+        if (abrHid) abrHid.value = "offen";
       }
       // Status-Info-Pill aktualisieren
       const dot   = document.getElementById("ef-st-dot");
@@ -4495,10 +4503,8 @@
     },
 
     onKatChange(kat) {
-      const fdTage = document.getElementById("fd-tage");
       const fdStd  = document.getElementById("fd-std");
       const fdStk  = document.getElementById("fd-stk");
-      if (fdTage) fdTage.className = "ef-sub-inp" + (kat === "Einsatz (Tag)" ? " show" : "");
       if (fdStd)  fdStd.className  = "ef-sub-inp" + (kat === "Stunde" ? " show" : "");
       if (fdStk)  fdStk.className  = "ef-sub-inp" + (kat === "Stück" ? " show" : "");
       const isTagKat = ["Einsatz (Tag)", "Einsatz (Halbtag)"].includes(kat);
@@ -4667,6 +4673,22 @@
         debug.err("deleteEinsatz", e);
         ui.setMsg("Fehler beim Löschen: " + e.message, "error");
       }
+    },
+
+    copyKonzeption(id) {
+      const k = state.enriched.konzeption.find(k => k.id === id);
+      if (!k) return;
+      ui.closeModal();
+      ctrl.openKonzeptionForm(null, k.projektLookupId, {
+        titel:       k.title || "",
+        datum:       "",           // Datum bewusst leer lassen
+        kategorie:   k.kategorie || "",
+        personId:    k.personLookupId || null,
+        aufwandStunden: k.aufwandStunden || null,
+        verrechenbar: k.verrechenbar || "",
+        betragFinal: null,         // Betrag nicht übernehmen
+        bemerkungen: k.bemerkungen || ""
+      });
     },
 
     async deleteKonzeption(id) {
@@ -5181,12 +5203,13 @@
     },
 
     // Analog Einsatz-Modal: gleiche Struktur, alle Choices dynamisch aus SP
-    openKonzeptionForm(id, projektId = null) {
+    openKonzeptionForm(id, projektId = null, copyOpts = null) {
       const k          = id ? state.enriched.konzeption.find(k => k.id === id) : null;
       const prefProjId = projektId || (k?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
       const defPerson  = h.defaultPerson();
-      const selPerson  = k ? k.personLookupId : (defPerson?.id || null);
+      const selPerson  = k ? k.personLookupId : (copyOpts?.personId || defPerson?.id || null);
+      const selKatInit = k?.kategorie || copyOpts?.kategorie || "Konzeption";
       const personName = selPerson ? h.contactName(selPerson) : null;
       const initials   = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
 
@@ -5286,8 +5309,8 @@
         <form id="konzeption-form" autocomplete="off" class="kf-bd">
             <input type="hidden" name="itemId" value="${id || ""}">
             <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
-            <input type="hidden" id="kf-kat-hid" name="kategorie" value="${h.esc(selKat)}">
-            <input type="hidden" id="kf-verr-hid" name="verrechenbar" value="${h.esc(k?.verrechenbar || "")}">
+            <input type="hidden" id="kf-kat-hid" name="kategorie" value="${h.esc(k?.kategorie || copyOpts?.kategorie || selKatInit)}">
+            <input type="hidden" id="kf-verr-hid" name="verrechenbar" value="${h.esc(k?.verrechenbar || copyOpts?.verrechenbar || "")}">
             <input type="hidden" id="kf-abr-hid" name="abrechnung" value="${h.esc(k?.abrechnung || "offen")}">
 
             <!-- LINKE SPALTE -->
@@ -5296,7 +5319,7 @@
               <!-- Datum -->
               <div class="kf-s">
                 <div class="kf-l">Datum</div>
-                <div class="kf-iw"><input type="date" name="datum" value="${h.esc(k ? h.toDateInput(k.datum) : "")}" required></div>
+                <div class="kf-iw"><input type="date" name="datum" value="${h.esc(k ? h.toDateInput(k.datum) : (copyOpts?.datum || ""))}" required></div>
               </div>
 
               <!-- Projekt -->
@@ -5330,7 +5353,7 @@
               <!-- Beschreibung -->
               <div class="kf-s">
                 <div class="kf-l">Beschreibung <span style="font-size:10px;color:#dde4ec">*</span></div>
-                <div class="kf-iw"><input type="text" name="titel" value="${h.esc(k?.title || "")}" placeholder="z.B. Vorbereitung Modul 3, Call mit Kunde…" required></div>
+                <div class="kf-iw"><input type="text" name="titel" value="${h.esc(k?.title || copyOpts?.titel || "")}" placeholder="z.B. Vorbereitung Modul 3, Call mit Kunde…" required></div>
               </div>
 
               <!-- Kategorie -->
@@ -5370,7 +5393,7 @@
                 <div class="kf-l">Aufwand</div>
                 <div class="kf-std-row">
                   <input type="number" name="aufwandStunden" id="kf-std-inp"
-                    min="0.25" step="0.25" value="${k?.aufwandStunden || ""}"
+                    min="0.25" step="0.25" value="${k?.aufwandStunden || copyOpts?.aufwandStunden || ""}"
                     placeholder="Stunden" required oninput="ctrl.kfUpdateBetrag()">
                   <span style="font-size:12px;color:#8896a5">Stunden</span>
                   <span class="kf-betrag-preview" id="kf-betrag-preview">${betragBer !== null ? "= CHF " + h.chf(betragBer) : ""}</span>
@@ -5409,7 +5432,7 @@
                 <div class="kf-verr">
                   ${state.choices.konzVerrechenbar.length
                     ? state.choices.konzVerrechenbar.map(v => `<button type="button"
-                        class="kf-verr-btn${(k?.verrechenbar || "") === v ? " on" : ""}"
+                        class="kf-verr-btn${(k?.verrechenbar || copyOpts?.verrechenbar || "") === v ? " on" : ""}"
                         onclick="document.querySelectorAll('.kf-verr-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on');document.getElementById('kf-verr-hid').value='${h.esc(v)}'"
                         >${h.esc(v)}</button>`).join("")
                     : `<span style="font-size:12px;color:#950e13">⚠ Choices werden geladen…</span>`}
@@ -5421,7 +5444,7 @@
               <!-- Bemerkungen -->
               <div class="kf-s">
                 <div class="kf-l">Bemerkungen</div>
-                <div class="kf-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(k?.bemerkungen || "")}</textarea></div>
+                <div class="kf-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(k?.bemerkungen || copyOpts?.bemerkungen || "")}</textarea></div>
               </div>
 
             </div><!-- /kf-col-r -->
@@ -5441,7 +5464,12 @@
                 ⚠ Abrechnung zurücksetzen
               </button>` : ""}
           </div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center">
+            ${id ? `
+              <button type="button" class="tm-btn tm-btn-sm" onclick="ctrl.copyKonzeption(${id})" title="Duplizieren">⧉ Duplizieren</button>
+              <button type="button" class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${id}" style="color:var(--tm-red)" title="Löschen">🗑 Löschen</button>
+            ` : ""}
+            <span style="flex:1"></span>
             <button type="button" class="kf-btn-c" data-close-modal>Abbrechen</button>
             <button type="button" class="kf-btn-s" onclick="document.getElementById('konzeption-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
               <span>✓</span> Speichern
@@ -5515,6 +5543,8 @@
         if (!titel)  throw new Error("Beschreibung ist Pflichtfeld.");
         if (!kat)    throw new Error("Bitte Kategorie wählen.");
         if (!std)    throw new Error("Aufwand Stunden ist Pflichtfeld.");
+        const verrVal = fd.get("verrechenbar") || "";
+        if (!verrVal) throw new Error("Bitte Verrechenbar-Status wählen.");
 
         const p = state.enriched.projekte.find(p => p.id === projId);
         const ansatz = kat === "Admin" ? p?.ansatzAdmin : p?.ansatzKonzeption;
