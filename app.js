@@ -2229,9 +2229,11 @@
       const konzKlaerStd    = konzAlle.filter(k => k.verrechenbar==="Klärung nötig").reduce((s,k) => s+(k.aufwandStunden||0), 0);
       const today = new Date().toISOString().slice(0,10);
 
-      // Aktiver Tab: state merken
+      // Aktiver Tab + Auswahl: state merken
       if (!state.ui.aeTab) state.ui.aeTab = "einsaetze";
+      if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
       const tab = state.ui.aeTab;
+      const sel = state.ui.aeSelected;
 
       // ── Tab-Inhalte ────────────────────────────────────────────────────────
       const tabEinsaetze = () => `
@@ -2239,7 +2241,8 @@
           ${einsaetze.length ? `
           <div class="ae-list-hd">
             <label class="ae-check-all"><input type="checkbox" id="ae-check-all"
-              onchange="document.querySelectorAll('.ae-e-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle</label>
+              ${sel.einsaetze.size > 0 ? "checked" : ""}
+              onchange="document.querySelectorAll('.ae-e-cb').forEach(cb=>{cb.checked=this.checked});ctrl.aeSaveSelection();aeUpdateTotal()"> Alle</label>
           </div>
           <div class="ae-list">
             ${einsaetze.map(e => {
@@ -2249,7 +2252,8 @@
               return `<label class="ae-row">
                 <input type="checkbox" class="ae-cb ae-e-cb"
                   data-id="${e.id}" data-honorar="${honorar}" data-betrag="${honorar}" data-spesen="${spesen}"
-                  onchange="aeUpdateTotal()">
+                  ${sel.einsaetze.has(e.id) ? "checked" : ""}
+                  onchange="ctrl.aeSaveSelection();aeUpdateTotal()">
                 <div class="ae-row-main">
                   <div class="ae-row-top">
                     <span class="ae-row-date">${h.esc(e.datumFmt)}</span>
@@ -2300,12 +2304,15 @@
           ${konzVerr.length ? `
           <div class="ae-list-hd">
             <label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all"
-              onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label>
+              ${sel.konzeption.size > 0 ? "checked" : ""}
+              onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});ctrl.aeSaveSelection();aeUpdateTotal()"> Alle verrechenbaren</label>
           </div>
           <div class="ae-list">
             ${konzVerr.map(k => `
             <label class="ae-row">
-              <input type="checkbox" class="ae-cb ae-k-cb" data-id="${k.id}" data-betrag="${k.anzeigeBetrag||0}" onchange="aeUpdateTotal()">
+              <input type="checkbox" class="ae-cb ae-k-cb" data-id="${k.id}" data-betrag="${k.anzeigeBetrag||0}"
+                ${sel.konzeption.has(k.id) ? "checked" : ""}
+                onchange="ctrl.aeSaveSelection();aeUpdateTotal()">
               <div class="ae-row-main">
                 <div class="ae-row-top">
                   <span class="ae-row-date">${h.esc(k.datumFmt)}</span>
@@ -2327,13 +2334,16 @@
             <div class="ae-field-row">
               <label class="ae-field-lbl">Betrag CHF</label>
               <input type="number" id="ae-zusatz-betrag" step="0.01" min="0" placeholder="0.00"
+                value="${sel.zusatzBetrag || ""}"
                 style="width:130px;padding:9px 12px;font-size:14px;font-weight:600;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-family:inherit;outline:none"
-                oninput="aeUpdateTotal()">
+                oninput="ctrl.aeSaveSelection();aeUpdateTotal()">
             </div>
             <div class="ae-field-row" style="margin-top:12px">
               <label class="ae-field-lbl">Beschreibung</label>
               <input type="text" id="ae-zusatz-bem" placeholder="z.B. Parkgebühren, ÖV, Material…"
-                style="flex:1;padding:9px 12px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-family:inherit;outline:none">
+                value="${h.esc(sel.zusatzBem || "")}"
+                style="flex:1;padding:9px 12px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-family:inherit;outline:none"
+                oninput="ctrl.aeSaveSelection()">
             </div>
           </div>
           <div class="ae-subtotal-row">
@@ -2953,7 +2963,10 @@
       state.ui.kzMobFilter  = false;
       state.ui.abrMobFilter = false;
       state.ui.fiMobFilter  = false;
-      if (route !== "abrechnung-erstellen") state.ui.aeTab = "einsaetze";
+      if (route !== "abrechnung-erstellen") {
+        state.ui.aeTab = "einsaetze";
+        state.ui.aeSelected = null;
+      }
       state.filters.route   = route;
       ctrl.render();
     },
@@ -4757,14 +4770,38 @@
     // ── Abrechnung Inline-Helfer ─────────────────────────────────────────
 
     aeSetTab(tab, projektId) {
+      ctrl.aeSaveSelection();   // Auswahl persistieren bevor neu gerendert
       state.ui.aeTab = tab;
       views.abrechnungErstellen(projektId);
+    },
+
+    aeSaveSelection() {
+      if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+      const sel = state.ui.aeSelected;
+      // Einsatz-Checkboxen
+      document.querySelectorAll(".ae-e-cb").forEach(cb => {
+        const id = Number(cb.dataset.id);
+        if (cb.checked) sel.einsaetze.add(id);
+        else sel.einsaetze.delete(id);
+      });
+      // Konzeption-Checkboxen
+      document.querySelectorAll(".ae-k-cb").forEach(cb => {
+        const id = Number(cb.dataset.id);
+        if (cb.checked) sel.konzeption.add(id);
+        else sel.konzeption.delete(id);
+      });
+      // Zusatzspesen
+      const zb = document.getElementById("ae-zusatz-betrag");
+      const zbm = document.getElementById("ae-zusatz-bem");
+      if (zb)  sel.zusatzBetrag = zb.value;
+      if (zbm) sel.zusatzBem    = zbm.value;
     },
 
     _initAeUpdateTotal() {
       // aeUpdateTotal als globale Funktion registrieren (muss vor render() verfügbar sein)
       window.aeUpdateTotal = () => {
         let honorar = 0, wegspesen = 0, kTotal = 0;
+        // DOM-Checkboxen auslesen (aktueller Tab)
         document.querySelectorAll(".ae-e-cb:checked").forEach(cb => {
           honorar   += parseFloat(cb.dataset.honorar) || 0;
           wegspesen += parseFloat(cb.dataset.spesen)  || 0;
@@ -4772,6 +4809,27 @@
         document.querySelectorAll(".ae-k-cb:checked").forEach(cb => {
           kTotal += parseFloat(cb.dataset.betrag) || 0;
         });
+        // Tabs die nicht sichtbar sind → aus state lesen
+        const sel = state.ui.aeSelected;
+        if (sel) {
+          // Einsätze: wenn kein DOM-Tab aktiv, aus state
+          const domEinsaetze = document.querySelectorAll(".ae-e-cb");
+          if (domEinsaetze.length === 0) {
+            state.enriched.einsaetze.forEach(e => {
+              if (sel.einsaetze.has(e.id)) {
+                honorar   += (e.anzeigeBetrag||0) + (e.coAnzeigeBetrag||0);
+                wegspesen += e.spesenBerechnet || 0;
+              }
+            });
+          }
+          // Konzeption: wenn kein DOM-Tab aktiv, aus state
+          const domKonz = document.querySelectorAll(".ae-k-cb");
+          if (domKonz.length === 0) {
+            state.enriched.konzeption.forEach(k => {
+              if (sel.konzeption.has(k.id)) kTotal += k.anzeigeBetrag || 0;
+            });
+          }
+        }
         const zusatz = parseFloat(document.getElementById("ae-zusatz-betrag")?.value) || 0;
         const grand  = honorar + wegspesen + zusatz + kTotal;
         const fmt = v => v.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -4842,6 +4900,10 @@
           const card = document.getElementById("ae-klaer-card");
           if (card) card.style.display = "none";
         }
+        // Wenn verrechenbar → direkt in Auswahl aufnehmen
+        if (neuerWert === "verrechenbar" && state.ui.aeSelected) {
+          state.ui.aeSelected.konzeption.add(konzId);
+        }
         if (window.aeUpdateTotal) aeUpdateTotal();
         const label = neuerWert === "verrechenbar" ? "→ verrechenbar" : "→ inklusive (keine Verrechnung)";
         ui.setMsg(`Freigabe gesetzt: ${label}`, "success");
@@ -4857,10 +4919,13 @@
       const p = state.enriched.projekte.find(p => p.id === projektId);
       if (!p) return;
 
-      const checkedIds     = [...document.querySelectorAll(".ae-e-cb:checked")].map(cb => Number(cb.dataset.id));
-      const checkedKonzIds = [...document.querySelectorAll(".ae-k-cb:checked")].map(cb => Number(cb.dataset.id));
-      const zusatzBetrag   = h.num(document.getElementById("ae-zusatz-betrag")?.value);
-      const zusatzBem      = (document.getElementById("ae-zusatz-bem")?.value || "").trim();
+      // Auswahl zuerst aus DOM speichern (falls noch nicht getan)
+      ctrl.aeSaveSelection();
+      const sel = state.ui.aeSelected || { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+      const checkedIds     = [...sel.einsaetze];
+      const checkedKonzIds = [...sel.konzeption];
+      const zusatzBetrag   = h.num(sel.zusatzBetrag);
+      const zusatzBem      = (sel.zusatzBem || "").trim();
       const datumVal       = document.getElementById("ae-datum")?.value || new Date().toISOString().slice(0,10);
 
       if (!checkedIds.length && !checkedKonzIds.length) {
