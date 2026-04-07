@@ -2567,7 +2567,11 @@
           </div>
         </div>
       `);
-    },
+    }
+
+  };
+
+  const ctrl = {
 
     render() {
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
