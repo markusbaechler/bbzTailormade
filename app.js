@@ -144,13 +144,13 @@
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
       konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "" },
-      abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
+      abrechnungen: { search: "", status: "", projekt: "", firma: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
       projektDetail: { jahr: "", person: "", einsatzStatus: "", abrechnung: "", konzJahr: "", konzKat: "", konzVerr: "", konzAbr: "" },
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -872,6 +872,17 @@
         }
         if (a("[data-action='open-bs']"))              { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
         if (a("[data-action='kz-filter']"))         { const el=a("[data-action='kz-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.konzeption[k]=state.filters.konzeption[k]===v?"":v; state.ui.selectedKonzId=null; ctrl.render(); return; }
+        if (a("[data-action='abr-filter']"))         { const el=a("[data-action='abr-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.abrechnungen[k]=state.filters.abrechnungen[k]===v?"":v; state.ui.selectedAbrId=null; ctrl.render(); return; }
+        if (a("[data-action='abr-reset-filters']"))  { state.filters.abrechnungen={search:"",status:"",projekt:"",firma:"",jahr:""}; state.ui.selectedAbrId=null; ctrl.render(); return; }
+        if (a("[data-action='abr-toggle-sec']"))     { const sec=a("[data-action='abr-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
+        if (a("[data-action='abr-mob-filter']"))     { state.ui.abrMobFilter=true;  ctrl.render(); return; }
+        if (a("[data-action='abr-mob-filter-close']")){ state.ui.abrMobFilter=false; ctrl.render(); return; }
+        if (a("[data-action='abr-select']")) {
+          const id = +a("[data-action='abr-select']").dataset.id;
+          state.ui.selectedAbrId = state.ui.selectedAbrId===id ? null : id;
+          document.querySelectorAll("[data-action='abr-select']").forEach(c => c.classList.toggle("abr-card-sel", +c.dataset.id===state.ui.selectedAbrId));
+          ctrl.updateAbrDetailPanel(); return;
+        }
         if (a("[data-action='kz-reset-filters']"))   { state.filters.konzeption={search:"",verrechenbar:"",person:"",projekt:"",firma:"",jahr:"",abrechnung:""}; state.ui.selectedKonzId=null; ctrl.render(); return; }
         if (a("[data-action='kz-toggle-sec']"))      { const sec=a("[data-action='kz-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
         if (a("[data-action='kz-mob-filter']"))      { state.ui.kzMobFilter=true;  ctrl.render(); return; }
@@ -2332,179 +2343,232 @@
 
 
     abrechnungen() {
-      const f = state.filters.abrechnungen;
+      const f   = state.filters.abrechnungen;
+      const all = state.enriched.abrechnungen;
+      const selId = state.ui.selectedAbrId;
 
-      const jahre = [...new Set(
-        state.enriched.abrechnungen
-          .map(a => h.toDate(a.datum)?.getFullYear())
-          .filter(Boolean)
-      )].sort((a,b) => b - a);
+      // ── Filter-Optionen ────────────────────────────────────────────────────
+      const jahre  = [...new Set(all.map(a => { const d=h.toDate(a.datum); return d?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>b-a);
+      const firmen = [...new Set(all.map(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
+      const projekte = [...new Map(all.map(a=>[a.projektLookupId,a.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
 
-      const projMitAbr = [...new Map(
-        state.enriched.abrechnungen.map(a => [a.projektLookupId, state.enriched.projekte.find(p=>p.id===a.projektLookupId)])
-      ).values()].filter(Boolean).sort((a,b) => a.title.localeCompare(b.title,"de"));
+      // ── Filter anwenden ────────────────────────────────────────────────────
+      let list = [...all];
+      if (f.search)  list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return h.inc(a.title,f.search)||h.inc(a.projektTitle,f.search)||(p&&h.inc(p.firmaName,f.search)); });
+      if (f.jahr)    list = list.filter(a => { const d=h.toDate(a.datum); return d&&String(d.getFullYear())===f.jahr; });
+      if (f.firma)   list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.projekt) list = list.filter(a => String(a.projektLookupId)===f.projekt);
+      if (f.status)  list = list.filter(a => a.status===f.status);
+      list.sort((a,b) => h.toDate(b.datum)-h.toDate(a.datum));
 
-      let list = [...state.enriched.abrechnungen];
-      if (f.search) list = list.filter(a => {
-        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
-        const firma = proj ? h.firmName(proj.firmaLookupId) : "";
-        return h.inc(a.title,f.search) || h.inc(a.projektTitle,f.search) || h.inc(firma,f.search);
-      });
-      if (f.status)  list = list.filter(a => a.status === f.status);
-      if (f.projekt) list = list.filter(a => String(a.projektLookupId) === f.projekt);
-      if (f.jahr)    list = list.filter(a => { const d = h.toDate(a.datum); return d && String(d.getFullYear()) === f.jahr; });
-      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.status;
+      const sb = state.ui.sbOpen;
 
-      const abrBetrag = (a) => {
-        const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
-        const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-        const eSum = einsaetze.reduce((t,e) => t+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
-        const kSum = konz.reduce((t,k) => t+(k.anzeigeBetrag||0),0);
-        const wSum = einsaetze.reduce((t,e) => t+(e.spesenBerechnet||0),0);
-        const sSum = (a.spesenZusatzBetrag||0)+wSum;
-        return { eSum, kSum, sSum, total: eSum+kSum+sSum, einsaetze, konz };
+      // ── KPI-Zahlen ─────────────────────────────────────────────────────────
+      const total     = list.reduce((s,a)=>s+(a.totalBetrag||0),0);
+      const byStatus  = s => list.filter(a=>(a.status||"erstellt")===s).length;
+
+      // ── Status Badge ───────────────────────────────────────────────────────
+      const abrStatusBadge = s => {
+        const map = { erstellt:"#B5D4F4:#0C447C", versendet:"#FEF3C7:#854F0B", bezahlt:"#D1FAE5:#0F6E56" };
+        const [bg,tx] = (map[s]||"#f1f5f9:#475569").split(":");
+        return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(s||"erstellt")}</span>`;
       };
 
-      const totalBetrag = list.reduce((s,a) => s+abrBetrag(a).total, 0);
-      const byStatus    = (s) => list.filter(a => a.status === s).length;
+      // ── Sidebar-Sektion ────────────────────────────────────────────────────
+      const sbSec = (key, label, items) => {
+        const isOpen = sb["abr_"+key] !== false;
+        const isActive = !!f[key];
+        return `<div class="abr-sb-sec">
+          <div class="abr-sb-sec-hdr" data-action="abr-toggle-sec" data-sec="abr_${key}">
+            <span class="abr-sb-label">${label}</span>
+            ${isActive?`<span class="abr-sb-count">1</span>`:""}
+            <span class="abr-sb-toggle${isOpen?" open":""}">▶</span>
+          </div>
+          ${isOpen?`<div class="abr-sb-body">${items.map(([val,lbl])=>`
+            <div class="abr-sb-chip${f[key]===val?" active":""}" data-action="abr-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
+          `).join("")}</div>`:""}
+        </div>`;
+      };
 
-      const abrStatusBadge = (v) => {
-        const m = {
-          "erstellt":  ["tm-badge tm-badge-planned","erstellt"],
-          "versendet": ["tm-badge tm-badge-billing","versendet"],
-          "bezahlt":   ["tm-badge tm-badge-billed", "bezahlt"]
-        };
-        const [c,l] = m[v] || ["tm-badge", v||"—"];
-        return h.badge(c, l);
+      // ── Detail-Panel ───────────────────────────────────────────────────────
+      const detailHtml = () => {
+        const a = selId ? list.find(a=>a.id===selId)||all.find(a=>a.id===selId) : null;
+        if (!a) return `<div class="abr-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Abrechnung auswählen</span></div>`;
+        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+        const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id);
+        const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id);
+        const status = a.status||"erstellt";
+        const flowBtns = ["erstellt","versendet","bezahlt"].map(s=>{
+          const isActive = status===s;
+          return `<button class="abr-flow-btn${isActive?" abr-flow-active":""}" onclick="ctrl.abrSetStatus(${a.id},'${s}')">${h.esc(s)}</button>`;
+        }).join("");
+        return `
+          <div class="abr-dp-title">${h.esc(a.title||a.datumFmt)}</div>
+          <div class="abr-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+          <div class="abr-dp-flow">${flowBtns}</div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Datum</span><span class="abr-dp-val">${h.esc(a.datumFmt)}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Projekt</span><span class="abr-dp-val">${h.esc(a.projektTitle||"—")}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Status</span><span class="abr-dp-val">${abrStatusBadge(status)}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Total</span><span class="abr-dp-val" style="font-weight:700;color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
+          ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
+          ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
+          ${a.spesenZusatzBemerkung?`<div class="abr-dp-row"><span class="abr-dp-key">Spesen-Notiz</span><span class="abr-dp-val" style="font-size:11px;max-width:160px;text-align:right">${h.esc(a.spesenZusatzBemerkung)}</span></div>`:""}
+          <div class="abr-dp-footer">
+            <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+            ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+            <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
+          </div>`;
+      };
+
+      // ── Karten ─────────────────────────────────────────────────────────────
+      const abrCard = a => {
+        const proj  = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+        const firma = proj?.firmaName||"";
+        const isSel = a.id===selId;
+        const status= a.status||"erstellt";
+        return `<div class="abr-card${isSel?" abr-card-sel":""}" data-action="abr-select" data-id="${a.id}">
+          <div class="abr-card-top">
+            <div>
+              <div class="abr-card-title">${h.esc(a.title||a.datumFmt)}</div>
+              <div class="abr-card-meta">${h.esc(firma)}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="abr-card-betrag">CHF ${h.chf(a.totalBetrag||0)}</div>
+              <div style="margin-top:3px">${abrStatusBadge(status)}</div>
+            </div>
+          </div>
+          <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
+        </div>`;
       };
 
       ui.render(`
         <style>
-          .abr-card{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden;transition:box-shadow .15s,border-color .15s}
-          .abr-card:hover{box-shadow:0 4px 20px rgba(0,64,120,.1);border-color:#b8cde0}
-          .abr-card-hd{padding:14px 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;cursor:pointer;user-select:none}
-          .abr-card-main{flex:1;min-width:0}
-          .abr-card-title{font-size:14px;font-weight:700;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .abr-card-meta{font-size:12px;color:#8896a5;margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-          .abr-card-right{text-align:right;flex-shrink:0}
-          .abr-card-total{font-size:17px;font-weight:800;color:#004078;white-space:nowrap}
-          .abr-card-sub{font-size:11px;color:#8896a5;margin-top:2px}
-          .abr-card-ft{padding:12px 18px 14px;background:#f9fbfd;border-top:1px solid #dde4ec;display:none;flex-direction:column;gap:12px}
-          .abr-card-ft.open{display:flex}
-          .abr-detail-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid #eef1f6}
-          .abr-detail-row:last-child{border:none}
-          .abr-detail-lbl{color:#4a5568}
-          .abr-detail-val{font-weight:600;color:#1a2332}
-          .abr-detail-val.muted{font-weight:400;color:#8896a5;font-size:12px}
-          .abr-flow{display:flex;gap:6px;flex-wrap:wrap}
-          .abr-flow-btn{padding:5px 14px;border-radius:100px;font-size:12px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;color:#4a5568;cursor:pointer;font-family:inherit;transition:all .15s}
-          .abr-flow-btn:hover:not(.active-e):not(.active-v):not(.active-b){border-color:#0a5a9e;background:#e8f0f8}
-          .abr-flow-btn.active-e{background:#004078;border-color:#004078;color:#fff}
-          .abr-flow-btn.active-v{background:#e59c2e;border-color:#e59c2e;color:#fff}
-          .abr-flow-btn.active-b{background:#1a6e40;border-color:#1a6e40;color:#fff}
-          .abr-act{display:flex;gap:8px;flex-wrap:wrap;padding-top:2px}
-          .abr-grid{display:grid;grid-template-columns:1fr;gap:10px}
-          @media(min-width:700px){.abr-grid{grid-template-columns:1fr 1fr}}
-          @media(min-width:1100px){.abr-grid{grid-template-columns:1fr 1fr 1fr}}
+          .abr-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
+          .abr-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
+          /* Sidebar */
+          .abr-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .abr-sb-head { padding:10px 12px; }
+          .abr-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .abr-sb-head input:focus { border-color:#004078; background:#fff; }
+          .abr-sb-scroll { flex:1; overflow-y:auto; }
+          .abr-sb-sec { border-bottom:1px solid #dde3ea; }
+          .abr-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
+          .abr-sb-sec-hdr:hover { background:#f5f7fa; }
+          .abr-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
+          .abr-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; }
+          .abr-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; }
+          .abr-sb-toggle.open { transform:rotate(90deg); }
+          .abr-sb-body { padding:2px 8px 8px; }
+          .abr-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
+          .abr-sb-chip:hover { background:#f5f7fa; }
+          .abr-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .abr-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
+          .abr-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
+          /* Main */
+          .abr-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
+          .abr-toolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
+          .abr-title { font-size:18px; font-weight:700; color:var(--tm-text); }
+          .abr-meta { font-size:12px; color:#8896a5; }
+          /* KPI Strip */
+          .abr-kpis { display:flex; gap:10px; padding:10px 16px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
+          .abr-kpi { flex:1; background:#fff; border-radius:8px; padding:8px 12px; border:1px solid rgba(0,0,0,0.09); }
+          .abr-kpi-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8896a5; margin-bottom:3px; }
+          .abr-kpi-val { font-size:16px; font-weight:700; color:var(--tm-text); }
+          .abr-kpi-val.green { color:#0F6E56; }
+          .abr-kpi-val.amber { color:#854F0B; }
+          /* Cards */
+          .abr-cards { flex:1; overflow-y:auto; padding:10px 16px; display:flex; flex-direction:column; gap:8px; }
+          .abr-card { background:#fff; border-radius:8px; padding:10px 14px; border:1px solid rgba(0,0,0,0.09); cursor:pointer; transition:box-shadow .1s; }
+          .abr-card:hover { box-shadow:0 2px 8px rgba(0,64,120,.1); }
+          .abr-card-sel { border-color:#004078; box-shadow:inset 3px 0 0 #004078; }
+          .abr-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:4px; }
+          .abr-card-title { font-size:13px; font-weight:700; color:var(--tm-text); }
+          .abr-card-meta { font-size:11px; color:#8896a5; margin-top:2px; }
+          .abr-card-betrag { font-size:14px; font-weight:700; color:#004078; white-space:nowrap; }
+          .abr-card-date { font-size:11px; color:#8896a5; }
+          /* Detail */
+          .abr-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .abr-dp-head { display:flex; align-items:center; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
+          .abr-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
+          .abr-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
+          .abr-dp-title { font-size:14px; font-weight:700; color:var(--tm-text); margin-bottom:4px; }
+          .abr-dp-sub { font-size:12px; color:#8896a5; margin-bottom:10px; font-weight:600; }
+          .abr-dp-flow { display:flex; gap:4px; margin-bottom:12px; }
+          .abr-flow-btn { flex:1; padding:5px 6px; font-size:11px; font-weight:600; border-radius:6px; border:1px solid #dde3ea; background:#f5f7fa; color:#8896a5; cursor:pointer; font-family:inherit; transition:all .1s; text-align:center; }
+          .abr-flow-btn:hover { background:#e6f1fb; color:#004078; border-color:#004078; }
+          .abr-flow-active { background:#004078 !important; color:#fff !important; border-color:#004078 !important; }
+          .abr-dp-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid #dde3ea; }
+          .abr-dp-row:last-of-type { border-bottom:none; }
+          .abr-dp-key { font-size:12px; color:#8896a5; font-weight:600; }
+          .abr-dp-val { font-size:12px; color:var(--tm-text); text-align:right; font-weight:600; }
+          .abr-dp-footer { margin-top:16px; padding-top:12px; border-top:1px solid #dde3ea; display:flex; gap:6px; flex-wrap:wrap; }
+          .abr-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#8896a5; font-size:13px; gap:8px; font-weight:600; }
+          /* Mobile */
+          .abr-mob-filter-btn { display:none; }
+          @media(max-width:899px) {
+            .abr-sidebar { display:none !important; }
+            .abr-detail  { display:none !important; }
+            .abr-shell.abr-mob-filter .abr-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
+            .abr-shell.abr-mob-filter .abr-main    { display:none !important; }
+            .abr-mob-filter-btn { display:flex !important; }
+            .abr-kpis { gap:6px; padding:8px 12px; overflow-x:auto; }
+            .abr-kpi { min-width:100px; }
+          }
         </style>
+        <div class="abr-wrap">
+          <div class="abr-shell${state.ui.abrMobFilter?" abr-mob-filter":""}">
 
-        <div class="tm-page-header">
-          <div>
-            <div class="tm-page-title">Abrechnungen</div>
-            <div class="tm-page-meta">${list.length} Einträge${f.jahr?" · "+f.jahr:""}${f.status?" · "+f.status:""}</div>
+            <!-- SIDEBAR -->
+            <div class="abr-sidebar">
+              <div class="abr-sb-head">
+                <button class="tm-btn tm-btn-sm abr-mob-filter-btn" data-action="abr-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Abrechnungen</button>
+                <input type="search" placeholder="Suche Abrechnung, Firma…" value="${h.esc(f.search||"")}"
+                  data-search-key="abrechnungen.search"
+                  oninput="h.searchInput('abrechnungen.search',this.value)">
+              </div>
+              <div class="abr-sb-scroll">
+                ${sbSec("jahr",   "Jahr",   jahre.map(j=>[String(j),String(j)]))}
+                ${sbSec("firma",  "Firma",  firmen.map(n=>[n,n]))}
+                ${sbSec("projekt","Projekt",projekte.map(([id,t])=>[String(id),t]))}
+                ${sbSec("status", "Status", [["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]])}
+              </div>
+              ${hasFilter?`<div class="abr-sb-footer"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
+            </div>
+
+            <!-- MAIN -->
+            <div class="abr-main">
+              <div class="abr-toolbar">
+                <div>
+                  <div class="abr-title">${[f.firma,f.status].filter(Boolean).concat(["Abrechnungen"]).join(" · ")}</div>
+                  <div class="abr-meta">${list.length} Einträge · CHF ${h.chf(total)}</div>
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button class="tm-btn tm-btn-sm abr-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="abr-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                </div>
+              </div>
+              <div class="abr-kpis">
+                <div class="abr-kpi"><div class="abr-kpi-label">Total</div><div class="abr-kpi-val">CHF ${h.chf(total)}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Erstellt</div><div class="abr-kpi-val amber">${byStatus("erstellt")}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Versendet</div><div class="abr-kpi-val amber">${byStatus("versendet")}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Bezahlt</div><div class="abr-kpi-val green">${byStatus("bezahlt")}</div></div>
+              </div>
+              <div class="abr-cards">
+                ${list.length ? list.map(abrCard).join("") : `<div style="text-align:center;padding:32px;color:#8896a5;font-size:13px;font-weight:600">Keine Abrechnungen gefunden.</div>`}
+              </div>
+            </div>
+
+            <!-- DETAIL -->
+            <div class="abr-detail">
+              <div class="abr-dp-head"><div class="abr-dp-label">Detail</div></div>
+              <div class="abr-dp-scroll">${detailHtml()}</div>
+            </div>
+
           </div>
         </div>
-
-        <div class="tm-kpi-row" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
-          <div class="tm-kpi"><div class="tm-kpi-label">Total (gefiltert)</div><div class="tm-kpi-value tm-chf" style="font-size:15px">CHF ${h.chf(totalBetrag)}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">erstellt</div><div class="tm-kpi-value" style="color:var(--tm-blue)">${byStatus("erstellt")}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">versendet</div><div class="tm-kpi-value" style="color:#e59c2e">${byStatus("versendet")}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">bezahlt</div><div class="tm-kpi-value" style="color:#1a6e40">${byStatus("bezahlt")}</div></div>
-        </div>
-
-        <div class="tm-filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">
-          <input type="search" placeholder="Suche Abrechnung, Projekt, Firma…" value="${h.esc(f.search)}"
-            data-search-key="abrechnungen.search" oninput="h.searchInput('abrechnungen.search',this.value)" style="flex:1;min-width:180px">
-          <select onchange="state.filters.abrechnungen.status=this.value;ctrl.render()">
-            <option value="">Status: alle</option>
-            ${state.choices.abrStatus.map(s => `<option value="${h.esc(s)}" ${f.status===s?"selected":""}>${h.esc(s)}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.abrechnungen.projekt=this.value;ctrl.render()">
-            <option value="">Projekt: alle</option>
-            ${projMitAbr.map(p => `<option value="${p.id}" ${f.projekt===String(p.id)?"selected":""}>${h.esc(p.title)}</option>`).join("")}
-          </select>
-          <select onchange="state.filters.abrechnungen.jahr=this.value;ctrl.render()">
-            <option value="">Jahr: alle</option>
-            ${jahre.map(y => `<option value="${y}" ${f.jahr===String(y)?"selected":""}>${y}</option>`).join("")}
-          </select>
-          ${(f.search||f.status||f.projekt||f.jahr) ? `<button class="tm-btn tm-btn-sm" onclick="state.filters.abrechnungen={search:'',status:'',projekt:'',jahr:''};ctrl.render()">✕ Filter</button>` : ""}
-        </div>
-
-        ${list.length ? `<div class="abr-grid">
-          ${list.map(a => {
-            const { eSum, kSum, sSum, total, einsaetze, konz } = abrBetrag(a);
-            const proj  = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-            const firma = proj ? h.firmName(proj.firmaLookupId) : "—";
-            const ftId  = "abr-ft-" + a.id;
-            const aStat = a.status || "erstellt";
-            return `
-            <div class="abr-card">
-              <div class="abr-card-hd" onclick="document.getElementById('${ftId}').classList.toggle('open')">
-                <div class="abr-card-main">
-                  <div class="abr-card-title" title="${h.esc(a.title)}">${h.esc(a.title || a.datumFmt)}</div>
-                  <div class="abr-card-meta">
-                    ${abrStatusBadge(aStat)}
-                    <span style="font-weight:600;color:#1a2332">${h.esc(firma)}</span>
-                    <span style="color:#8896a5">·</span>
-                    <span style="font-weight:500;color:#4a5568">${h.esc(proj?.title||"—")}</span>
-                    <span style="color:#8896a5">·</span>
-                    <span>${h.esc(a.datumFmt)}</span>
-                  </div>
-                </div>
-                <div class="abr-card-right">
-                  <div class="abr-card-total">CHF ${h.chf(total)}</div>
-                  <div class="abr-card-sub">${einsaetze.length} Einsatz${einsaetze.length!==1?"ätze":""}${konz.length?" · "+konz.length+" Konz.":""}</div>
-                </div>
-              </div>
-              <div class="abr-card-ft" id="${ftId}">
-                <div>
-                  ${eSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Einsätze (${einsaetze.length})</span><span class="abr-detail-val">CHF ${h.chf(eSum)}</span></div>`:""}
-                  ${kSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Konzeption (${konz.length})</span><span class="abr-detail-val">CHF ${h.chf(kSum)}</span></div>`:""}
-                  ${sSum>0?`<div class="abr-detail-row"><span class="abr-detail-lbl">Spesen</span><span class="abr-detail-val">CHF ${h.chf(sSum)}</span></div>`:""}
-                  ${a.spesenZusatzBemerkung?`<div class="abr-detail-row"><span class="abr-detail-lbl">Zusatzspesen-Notiz</span><span class="abr-detail-val muted">${h.esc(a.spesenZusatzBemerkung)}</span></div>`:""}
-                  <div class="abr-detail-row" style="border-top:1.5px solid #dde4ec;margin-top:4px;padding-top:6px">
-                    <span class="abr-detail-lbl" style="font-weight:700;color:#1a2332">Total</span>
-                    <span class="abr-detail-val" style="color:#004078">CHF ${h.chf(total)}</span>
-                  </div>
-                </div>
-                <div>
-                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5;margin-bottom:7px">Status</div>
-                  <div class="abr-flow">
-                    ${["erstellt","versendet","bezahlt"].map(s => {
-                      const cls = aStat===s?(s==="erstellt"?" active-e":s==="versendet"?" active-v":" active-b"):"";
-                      return `<button class="abr-flow-btn${cls}" onclick="ctrl.abrSetStatus(${a.id},'${h.esc(s)}')">${h.esc(s)}</button>`;
-                    }).join("")}
-                  </div>
-                </div>
-                <div class="abr-act">
-                  <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
-                  ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
-                  <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑 Löschen & zurücksetzen</button>
-                </div>
-              </div>
-            </div>`;
-          }).join("")}
-        </div>` : ui.empty("Keine Abrechnungen gefunden.")}
       `);
     },
 
-
-  };
-
-  // ════════════════════════════════════════════════════════════════════════
-  // CONTROLLER
-  // ════════════════════════════════════════════════════════════════════════
-  const ctrl = {
     render() {
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
       if (state.form) return;
@@ -2526,7 +2590,7 @@
       };
       if (r === "einsaetze")      { views.einsaetze(); return; }
       if (r === "konzeption")     { views.konzeption(); return; }
-      if (r === "abrechnungen")   { scrollWrap(() => views.abrechnungen()); return; }
+      if (r === "abrechnungen")   { views.abrechnungen(); return; }
       if (r === "firmen")         { scrollWrap(() => views.firmen()); return; }
       if (r === "firma-detail")   { scrollWrap(() => views.firmaDetail(state.selection.firmaId)); return; }
     },
@@ -2662,6 +2726,35 @@
         <div class="kz-dp-footer">
           <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
           <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
+        </div>`;
+    },
+
+    updateAbrDetailPanel() {
+      const panel = document.querySelector(".abr-dp-scroll");
+      if (!panel) return;
+      const selId = state.ui.selectedAbrId;
+      const a = selId ? state.enriched.abrechnungen.find(a=>a.id===selId) : null;
+      if (!a) { panel.innerHTML = `<div class="abr-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Abrechnung auswählen</span></div>`; return; }
+      const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+      const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id);
+      const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id);
+      const status = a.status||"erstellt";
+      const abrStatusBadge = s => { const map={erstellt:"#B5D4F4:#0C447C",versendet:"#FEF3C7:#854F0B",bezahlt:"#D1FAE5:#0F6E56"}; const [bg,tx]=(map[s]||"#f1f5f9:#475569").split(":"); return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(s||"erstellt")}</span>`; };
+      const flowBtns = ["erstellt","versendet","bezahlt"].map(s=>`<button class="abr-flow-btn${status===s?" abr-flow-active":""}" onclick="ctrl.abrSetStatus(${a.id},'${s}')">${h.esc(s)}</button>`).join("");
+      panel.innerHTML = `
+        <div class="abr-dp-title">${h.esc(a.title||a.datumFmt)}</div>
+        <div class="abr-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+        <div class="abr-dp-flow">${flowBtns}</div>
+        <div class="abr-dp-row"><span class="abr-dp-key">Datum</span><span class="abr-dp-val">${h.esc(a.datumFmt)}</span></div>
+        <div class="abr-dp-row"><span class="abr-dp-key">Projekt</span><span class="abr-dp-val">${h.esc(a.projektTitle||"—")}</span></div>
+        <div class="abr-dp-row"><span class="abr-dp-key">Status</span><span class="abr-dp-val">${abrStatusBadge(status)}</span></div>
+        <div class="abr-dp-row"><span class="abr-dp-key">Total</span><span class="abr-dp-val" style="font-weight:700;color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
+        ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
+        ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
+        <div class="abr-dp-footer">
+          <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+          ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+          <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
         </div>`;
     },
 
