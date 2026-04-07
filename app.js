@@ -143,13 +143,14 @@
       route:        "projekte",
       projekte:     { search: "", status: "" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", kategorie: "" },
+      konzeption:   { search: "", verrechenbar: "" },
       abrechnungen: { search: "", status: "", projekt: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
+      projektDetail: { jahr: "", person: "", einsatzStatus: "", abrechnung: "", konzJahr: "", konzKat: "", konzVerr: "", konzAbr: "" },
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {} },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -177,12 +178,7 @@
     },
     fmtDate(v) {
       const d = h.toDate(v);
-      if (!d) return "";
-      const wd = ["So","Mo","Di","Mi","Do","Fr","Sa"][d.getDay()];
-      const dd = String(d.getDate()).padStart(2,"0");
-      const mm = String(d.getMonth()+1).padStart(2,"0");
-      const yy = String(d.getFullYear()).slice(2);
-      return `${wd} ${dd}.${mm}.${yy}`;
+      return d ? d.toLocaleDateString("de-CH", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
     },
     toDateInput(v) {
       const d = h.toDate(v);
@@ -504,23 +500,7 @@
     e.personName    = h.contactName(e.personLookupId);
     e.coPersonName  = h.contactName(e.coPersonLookupId);
     e.coAnzeigeBetrag = h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet);
-    // spesenAnzeige wird in recalcEinsatzSpesen() gesetzt
-    e.spesenAnzeige = 0;
     return e;
-  }
-
-  function recalcEinsatzSpesen() {
-    // spesenAnzeige = gespeicherter SpesenBerechnet-Wert aus SP
-    // (enthält den effektiv berechneten Betrag zum Zeitpunkt des Speicherns)
-    // abgerechnete Einsätze: spesenFinal hat Vorrang
-    state.enriched.einsaetze.forEach(e => {
-      if (e.abrechnung === "abgerechnet" && e.spesenFinal != null) {
-        e.spesenAnzeige = e.spesenFinal;
-        return;
-      }
-      if (!e.spesenBerechnet) { e.spesenAnzeige = 0; return; }
-      e.spesenAnzeige = e.spesenBerechnet;
-    });
   }
 
   function enrichKonzeption(raw) {
@@ -568,7 +548,6 @@
     state.enriched.einsaetze    = state.data.einsaetze.map(enrichEinsatz);
     state.enriched.konzeption   = state.data.konzeption.map(enrichKonzeption);
     state.enriched.projekte     = state.data.projekte.map(enrichProjekt);
-    recalcEinsatzSpesen(); // nach projekte, damit proj.find() funktioniert
     // Nachträgliche Zuweisung: enriched items pro Projekt
     state.enriched.projekte.forEach(p => {
       p.einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === p.id);
@@ -841,6 +820,9 @@
         const a = sel => e.target.closest(sel);
         if (a("[data-action='open-projekt']"))     { ctrl.openProjekt(+a("[data-action='open-projekt']").dataset.id); return; }
         if (a("[data-action='back-to-projekte']")) { ctrl.navigate("projekte"); return; }
+        if (a("[data-action='pd-select-einsatz']")) { const el = a("[data-action='pd-select-einsatz']"); state.ui.selectedProjektEinsatzId = +el.dataset.id === state.ui.selectedProjektEinsatzId ? null : +el.dataset.id; ctrl.render(); return; }
+        if (a("[data-action='pd-select-konz']"))    { const el = a("[data-action='pd-select-konz']"); state.ui.selectedProjektKonzId = +el.dataset.id === state.ui.selectedProjektKonzId ? null : +el.dataset.id; ctrl.render(); return; }
+        if (a(".pd-tab[data-tab]"))                { const t = a(".pd-tab[data-tab]"); state.ui.selectedProjektEinsatzId = null; state.ui.selectedProjektKonzId = null; ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (a("[data-action='new-einsatz']"))      { ctrl.openEinsatzForm(null, +a("[data-action='new-einsatz']").dataset.projektId || null); return; }
         if (a("[data-action='new-konzeption']"))   { ctrl.openKonzeptionForm(null, +a("[data-action='new-konzeption']").dataset.projektId || null); return; }
         if (a("[data-action='edit-einsatz']"))     { ctrl.openEinsatzForm(+a("[data-action='edit-einsatz']").dataset.id); return; }
@@ -855,27 +837,8 @@
         if (a("[data-action='edit-projekt']"))     { ctrl.openProjektForm(+a("[data-action='edit-projekt']").dataset.id); return; }
         if (a("[data-close-modal]"))               { ctrl.closeModal(); return; }
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
-        if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
-        if (a("[data-action='select-einsatz']"))        {
-          const id = +a("[data-action='select-einsatz']").dataset.id;
-          state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id;
-          // Zeilen-Highlight aktualisieren
-          document.querySelectorAll("[data-action='select-einsatz']").forEach(tr => {
-            tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedEinsatzId);
-          });
-          // Detail-Panel direkt updaten (kein Full-Render)
-          ctrl.updateDetailPanel();
-          return;
-        }
-        if (a("[data-action='open-bs']"))               { ctrl.openBs(+a("[data-action='open-bs']").dataset.id); return; }
-        if (a("[data-action='select-konzeption']"))     { const id = +a("[data-action='select-konzeption']").dataset.id; state.ui.selectedKonzId = state.ui.selectedKonzId===id ? null : id; document.querySelectorAll("[data-action='select-konzeption']").forEach(tr => tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedKonzId)); ctrl.updateKonzDetailPanel(); return; }
-        if (a("[data-action='open-filter-sheet']"))     { const k=a("[data-action='open-filter-sheet']").dataset.filterKey; ctrl.openFs(k); return; }
-        if (a("[data-action='open-kz-filter-sheet']"))  { const k=a("[data-action='open-kz-filter-sheet']").dataset.filterKey; ctrl.openKzFs(k); return; }
-        if (a("[data-action='clear-kz-filter']"))        { e.stopPropagation(); const k=a("[data-action='clear-kz-filter']").dataset.fkey; state.filters.konzeption[k]=""; state.ui.selectedKonzId=null; ctrl.render(); return; }
-        if (a("[data-action='open-search-sheet']"))     { ctrl.openFs("search"); return; }
-        if (a("[data-action='clear-filter']"))          { e.stopPropagation(); const k=a("[data-action='clear-filter']").dataset.fkey; state.filters.einsaetze[k]=""; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
-        if (a(".ef-sb-chip[data-fkey]"))               { const c = a(".ef-sb-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
-        if (a("[data-action='toggle-sb-sec']"))         { const sec = a("[data-action='toggle-sb-sec']").dataset.sec; const sb = state.ui.sbOpen; sb[sec] = sb[sec] === false ? true : false; ctrl.render(); return; }
+        if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; ctrl.render(); return; }
+        if (a("[data-action='toggle-einsatz-filter']"))  { state.ui.einsatzFilterOpen = !state.ui.einsatzFilterOpen; ctrl.render(); return; }
         if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
@@ -945,176 +908,482 @@
   // ════════════════════════════════════════════════════════════════════════
   const views = {
     projekte() {
-      const f = state.filters.projekte;
-      let list = state.enriched.projekte.filter(p => !p.archiviert);
-      if (f.search) list = list.filter(p => h.inc(p.title, f.search) || h.inc(p.firmaName, f.search));
-      if (f.status) list = list.filter(p => p.status === f.status);
-
-      ui.render(`
-        <div class="tm-page-header">
-          <div>
-            <div class="tm-page-title">Projekte</div>
-            <div class="tm-page-meta">${list.length} aktive Projekte</div>
-          </div>
-          <div class="tm-page-actions">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-projekt">+ Projekt</button>
-          </div>
-        </div>
-        <div class="tm-filter-bar">
-          <input type="search" placeholder="Suche Projekt oder Firma…" value="${h.esc(f.search)}"
-            data-search-key="projekte.search" oninput="h.searchInput('projekte.search',this.value)">
-          <select onchange="state.filters.projekte.status=this.value;ctrl.render()">
-            <option value="">Alle Status</option>
-            ${state.choices.projektStatus.map(s => `<option value="${s}" ${f.status===s?"selected":""}>${s}</option>`).join("")}
-          </select>
-        </div>
-        ${list.length ? `<div class="tm-proj-grid">${list.map(p => {
-          const pct = p.konzBudgetH ? Math.round(p.konzStunden / p.konzBudgetH * 100) : null;
-          return `<div class="tm-proj-card" data-action="open-projekt" data-id="${p.id}">
-            <div class="tm-proj-name">${h.esc(p.title)}</div>
-            <div class="tm-proj-firm">${h.esc(p.firmaName)}${p.projektNr ? ` · #${h.esc(p.projektNr)}` : ""} · ${h.projStatusBadge(p.status)}</div>
-            <div class="tm-proj-stats">
-              <div class="tm-proj-stat"><strong class="tm-chf">CHF ${h.chf(p.totalBetrag)}</strong>Umsatz</div>
-              <div class="tm-proj-stat"><strong>${p.einsaetzeCount}</strong>Einsätze</div>
-              ${p.konzBudgetH ? `<div class="tm-proj-stat"><strong>${p.konzStunden.toFixed(1)} h</strong>Konzeption</div>` : ""}
-            </div>
-            ${pct !== null ? `<div class="tm-budget-bar" style="margin-top:8px">
-              <div class="tm-budget-fill ${pct>=100?"over":pct>=80?"warn":""}" style="width:${Math.min(pct,100)}%"></div>
-            </div><div style="font-size:11px;color:var(--tm-text-muted);margin-top:3px">${p.konzStunden.toFixed(1)} / ${p.konzBudgetH} h</div>` : ""}
-          </div>`;
-        }).join("")}</div>` : ui.empty("Keine Projekte gefunden.")}
-      `);
+      // Projekte-Route zeigt direkt das erste Projekt im 3-Panel-Layout
+      // Falls bereits ein Projekt gewählt → direkt zu projektDetail
+      const alle = state.enriched.projekte.filter(p => !p.archiviert);
+      if (!alle.length) { ui.render(ui.empty("Keine Projekte vorhanden.")); return; }
+      if (!state.selection.projektId) {
+        state.selection.projektId = alle[0].id;
+      }
+      state.filters.route = "projekt-detail";
+      views.projektDetail(state.selection.projektId);
     },
 
     projektDetail(id) {
-      const p = state.enriched.projekte.find(p => p.id === id);
+      // ── Daten ──────────────────────────────────────────────────────────────
+      const alle = state.enriched.projekte.filter(p => !p.archiviert);
+      const p = alle.find(p => p.id === id);
       if (!p) { ui.render(`<p class="tm-muted">Projekt nicht gefunden (ID: ${id}).</p>`); return; }
 
       const tab = state.filters.activeTab["projekt-detail"] || "einsaetze";
       const pct = p.konzBudgetH ? Math.round(p.konzStunden / p.konzBudgetH * 100) : null;
+      const f   = state.filters.projektDetail;
 
+      // ── Firma-Farbpalette (deterministisch) ────────────────────────────────
+      const PD_COLORS = [
+        {dot:"#378ADD"},{dot:"#1D9E75"},{dot:"#D85A30"},{dot:"#7F77DD"},
+        {dot:"#BA7517"},{dot:"#0F6E56"},{dot:"#185FA5"},{dot:"#854F0B"}
+      ];
+      const firmenSorted = [...new Set(alle.map(p => p.firmaName).filter(Boolean))].sort();
+      const firmaColor = fn => PD_COLORS[firmenSorted.indexOf(fn) % PD_COLORS.length]?.dot || "#8896a5";
+
+      // ── Sidebar HTML ───────────────────────────────────────────────────────
+      const sbSearch = state.filters.projekte.search.toLowerCase();
+      const firmenGruppen = firmenSorted.map(fn => {
+        const projekte = alle.filter(pp => pp.firmaName === fn &&
+          (!sbSearch || pp.title.toLowerCase().includes(sbSearch) || fn.toLowerCase().includes(sbSearch)));
+        if (!projekte.length) return "";
+        return `<div>
+          <div class="pd-firma-label">
+            <span class="pd-firma-dot" style="background:${firmaColor(fn)}"></span>
+            ${h.esc(fn)}
+          </div>
+          ${projekte.map(pp => `
+            <div class="pd-proj-item${pp.id === id ? " active" : ""}" data-action="open-projekt" data-id="${pp.id}">
+              <div class="pd-proj-name">${h.esc(pp.title)}</div>
+              <div class="pd-proj-meta">#${h.esc(pp.projektNr||pp.id)} · ${pp.status} · CHF ${h.chf(pp.totalBetrag)}</div>
+            </div>`).join("")}
+        </div>`;
+      }).join("");
+
+      // ── Einsätze-Tab ───────────────────────────────────────────────────────
       const tabEinsaetze = () => {
-        const list = [...p.einsaetze].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-        if (!list.length) return ui.empty("Noch keine Einsätze erfasst.");
-        return `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Lead / Co-Lead</th><th>Betrag</th><th>Status</th><th>Abrechnung</th><th></th></tr></thead>
-          <tbody>${list.map(e => `<tr class="${["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)?"cancelled":""}">
-            <td class="tm-nowrap">${h.esc(e.datumFmt)}</td>
-            <td style="font-weight:500">${h.esc(e.title)}</td>
-            <td class="tm-muted">${h.esc(e.kategorie)}</td>
-            <td class="tm-muted">${h.esc(e.personName)}${e.coPersonName && e.coPersonName !== "—" ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.esc(e.coPersonName)}</div>` : ""}</td>
-            <td class="tm-right tm-chf">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}${e.coAnzeigeBetrag !== null && e.coAnzeigeBetrag !== undefined ? `<div style="font-size:11px;color:var(--tm-text-muted)">Co: ${h.chf(e.coAnzeigeBetrag)}</div>` : ""}</td>
-            <td>${h.statusBadge(e)}</td>
+        let list = [...p.einsaetze].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+
+        // Jahre für Filter
+        const jahre = [...new Set(list.map(e => e.datum ? new Date(e.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
+        const personen = [...new Set([...list.map(e=>e.personName), ...list.map(e=>e.coPersonName)].filter(n=>n&&n!=="—"))].sort();
+
+        // Filter anwenden
+        if (f.jahr)          list = list.filter(e => e.datum && new Date(e.datum).getFullYear() === +f.jahr);
+        if (f.person)        list = list.filter(e => e.personName===f.person || e.coPersonName===f.person);
+        if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus===f.einsatzStatus);
+        if (f.abrechnung)    list = list.filter(e => e.abrechnung===f.abrechnung);
+
+        const sel = state.ui.selectedProjektEinsatzId;
+        const geplant     = list.filter(e => e.einsatzStatus === "geplant");
+        const durchgefuehrt = list.filter(e => e.einsatzStatus !== "geplant");
+
+        const eRow = e => {
+          const isSel = e.id === sel;
+          const isAbgesagt = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+          const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+          return `<tr class="pd-row${isSel?" pd-row-sel":""}${isAbgesagt?" pd-row-cancelled":""}"
+            data-action="pd-select-einsatz" data-id="${e.id}">
+            <td class="pd-td-muted pd-nowrap">${h.esc(e.datumFmt)}</td>
+            <td style="font-weight:600">${h.esc(e.title)}${isAbgesagt?` ${h.badge("tm-badge tm-badge-cancelled","Abgesagt")}`:""}</td>
+            <td class="pd-td-muted">${h.esc(e.kategorie)}</td>
+            <td>
+              <div style="display:inline-flex;align-items:center;gap:4px">
+                <span class="pd-av pd-av-lead">${initials(e.personName)}</span>
+                ${e.coPersonName && e.coPersonName!=="—" ? `<span class="pd-av pd-av-co">${initials(e.coPersonName)}</span>` : ""}
+                <span class="pd-person-name">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
+              </div>
+            </td>
+            <td class="pd-td-right">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}</td>
             <td>${h.abrBadge(e.abrechnung)}</td>
-            <td><div class="tm-actions">
-              <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎</button>
-              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
-              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" title="Löschen" style="color:var(--tm-red)">🗑</button>
-            </div></td>
-          </tr>`).join("")}</tbody></table></div>`;
+          </tr>`;
+        };
+
+        const filterBar = `<div class="pd-filter-bar">
+          <span class="pd-filter-label">Filter:</span>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.jahr=this.value;state.ui.selectedProjektEinsatzId=null;ctrl.render()">
+            <option value="">Alle Jahre</option>
+            ${jahre.map(j=>`<option value="${j}" ${f.jahr==j?"selected":""}>${j}</option>`).join("")}
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.person=this.value;state.ui.selectedProjektEinsatzId=null;ctrl.render()">
+            <option value="">Alle Personen</option>
+            ${personen.map(n=>`<option value="${h.esc(n)}" ${f.person===n?"selected":""}>${h.esc(n)}</option>`).join("")}
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.einsatzStatus=this.value;state.ui.selectedProjektEinsatzId=null;ctrl.render()">
+            <option value="">Alle Status</option>
+            <option value="geplant" ${f.einsatzStatus==="geplant"?"selected":""}>Geplant</option>
+            <option value="durchgefuehrt" ${f.einsatzStatus==="durchgefuehrt"?"selected":""}>Durchgeführt</option>
+            <option value="abgesagt" ${f.einsatzStatus==="abgesagt"?"selected":""}>Abgesagt</option>
+            <option value="abgesagt-chf" ${f.einsatzStatus==="abgesagt-chf"?"selected":""}>Abgesagt (CHF)</option>
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.abrechnung=this.value;state.ui.selectedProjektEinsatzId=null;ctrl.render()">
+            <option value="">Alle Abrechn.</option>
+            ${state.choices.einsatzAbrechnung.map(v=>`<option value="${h.esc(v)}" ${f.abrechnung===v?"selected":""}>${h.esc(v)}</option>`).join("")}
+          </select>
+          ${(f.jahr||f.person||f.einsatzStatus||f.abrechnung)?`<span class="pd-filter-reset" onclick="state.filters.projektDetail.jahr='';state.filters.projektDetail.person='';state.filters.projektDetail.einsatzStatus='';state.filters.projektDetail.abrechnung='';state.ui.selectedProjektEinsatzId=null;ctrl.render()">✕ Zurücksetzen</span>`:""}
+        </div>`;
+
+        const thead = `<thead><tr>
+          <th style="width:88px">Datum ↓</th>
+          <th>Beschreibung</th>
+          <th style="width:130px">Kategorie</th>
+          <th style="width:160px">Lead / Co-Lead</th>
+          <th style="width:90px;text-align:right">Betrag</th>
+          <th style="width:110px">Abrechnung</th>
+        </tr></thead>`;
+
+        if (!list.length) return filterBar + ui.empty("Keine Einsätze für diese Filter.");
+
+        return filterBar + `<div class="pd-table-wrap">
+          ${geplant.length ? `<div class="pd-section-head">Geplante Einsätze (${geplant.length})</div>
+          <table class="pd-table">${thead}<tbody>${geplant.map(eRow).join("")}</tbody></table>` : ""}
+          ${durchgefuehrt.length ? `<div class="pd-section-head">Durchgeführte Einsätze (${durchgefuehrt.length})</div>
+          <table class="pd-table">${thead}<tbody>${durchgefuehrt.map(eRow).join("")}</tbody></table>` : ""}
+        </div>`;
       };
 
+      // ── Konzeption-Tab ─────────────────────────────────────────────────────
       const tabKonzeption = () => {
-        const list = [...p.konzeintraege].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-        if (!list.length) return ui.empty("Noch keine Konzeptionsaufwände erfasst.");
-        return `<div class="tm-table-wrap"><table class="tm-table">
-          <thead><tr><th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th><th>Stunden</th><th>Betrag</th><th>Verrechenbar</th><th>Abrechnung</th><th></th></tr></thead>
-          <tbody>${list.map(k => `<tr>
-            <td class="tm-nowrap">${h.esc(k.datumFmt)}</td>
-            <td style="font-weight:500">${h.esc(k.title)}</td>
-            <td class="tm-muted">${h.esc(k.kategorie)}</td>
-            <td class="tm-muted">${h.esc(k.personName)}</td>
-            <td class="tm-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) : "—"}</td>
-            <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
-            <td>${h.verrBadge(k.verrechenbar)}</td>
-            <td>${h.abrBadge(k.abrechnung)}</td>
-            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button><button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" title="Löschen" style="color:var(--tm-red)">🗑</button></div></td>
-          </tr>`).join("")}</tbody></table></div>`;
+        let list = [...p.konzeintraege].sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+
+        const jahre = [...new Set(list.map(k => k.datum ? new Date(k.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
+
+        if (f.konzJahr)  list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.konzJahr);
+        if (f.konzKat)   list = list.filter(k => k.kategorie === f.konzKat);
+        if (f.konzVerr)  list = list.filter(k => k.verrechenbar === f.konzVerr);
+        if (f.konzAbr)   list = list.filter(k => k.abrechnung === f.konzAbr);
+
+        const sel = state.ui.selectedProjektKonzId;
+
+        const filterBar = `<div class="pd-filter-bar">
+          <span class="pd-filter-label">Filter:</span>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.konzJahr=this.value;state.ui.selectedProjektKonzId=null;ctrl.render()">
+            <option value="">Alle Jahre</option>
+            ${jahre.map(j=>`<option value="${j}" ${f.konzJahr==j?"selected":""}>${j}</option>`).join("")}
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.konzKat=this.value;state.ui.selectedProjektKonzId=null;ctrl.render()">
+            <option value="">Alle Kategorien</option>
+            <option value="Konzeption" ${f.konzKat==="Konzeption"?"selected":""}>Konzeption</option>
+            <option value="Admin" ${f.konzKat==="Admin"?"selected":""}>Admin</option>
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.konzVerr=this.value;state.ui.selectedProjektKonzId=null;ctrl.render()">
+            <option value="">Alle Verrechenbar</option>
+            ${state.choices.konzVerrechenbar.map(v=>`<option value="${h.esc(v)}" ${f.konzVerr===v?"selected":""}>${h.esc(v)}</option>`).join("")}
+          </select>
+          <select class="pd-filter-select" onchange="state.filters.projektDetail.konzAbr=this.value;state.ui.selectedProjektKonzId=null;ctrl.render()">
+            <option value="">Alle Abrechn.</option>
+            ${state.choices.konzAbrechnung.map(v=>`<option value="${h.esc(v)}" ${f.konzAbr===v?"selected":""}>${h.esc(v)}</option>`).join("")}
+          </select>
+          ${(f.konzJahr||f.konzKat||f.konzVerr||f.konzAbr)?`<span class="pd-filter-reset" onclick="state.filters.projektDetail.konzJahr='';state.filters.projektDetail.konzKat='';state.filters.projektDetail.konzVerr='';state.filters.projektDetail.konzAbr='';state.ui.selectedProjektKonzId=null;ctrl.render()">✕ Zurücksetzen</span>`:""}
+        </div>`;
+
+        if (!list.length) return filterBar + ui.empty("Keine Konzeptionsaufwände für diese Filter.");
+
+        const budgetInfo = p.konzBudgetH
+          ? `Konzeption &amp; Admin — ${p.konzStunden.toFixed(1)} h / ${p.konzBudgetH} h Budget`
+          : "Konzeption &amp; Admin";
+
+        return filterBar + `<div class="pd-table-wrap">
+          <div class="pd-section-head">${budgetInfo}</div>
+          <table class="pd-table">
+            <thead><tr>
+              <th style="width:88px">Datum ↓</th>
+              <th>Beschreibung</th>
+              <th style="width:90px">Kategorie</th>
+              <th style="width:75px;text-align:right">Aufwand</th>
+              <th style="width:90px;text-align:right">Betrag</th>
+              <th style="width:130px">Verrechenbar</th>
+              <th style="width:110px">Abrechnung</th>
+            </tr></thead>
+            <tbody>${list.map(k => `<tr class="pd-row${k.id===sel?" pd-row-sel":""}" data-action="pd-select-konz" data-id="${k.id}">
+              <td class="pd-td-muted pd-nowrap">${h.esc(k.datumFmt)}</td>
+              <td style="font-weight:600">${h.esc(k.title)}</td>
+              <td class="pd-td-muted">${h.esc(k.kategorie)}</td>
+              <td class="pd-td-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+              <td class="pd-td-right">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
+              <td>${h.verrBadge(k.verrechenbar)}</td>
+              <td>${h.abrBadge(k.abrechnung)}</td>
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>`;
       };
 
+      // ── Stammdaten-Tab ─────────────────────────────────────────────────────
       const tabStammdaten = () => `
-        <div class="tm-form-wrap" style="max-width:100%">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px">
-            <div>
-              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--tm-text-muted);margin-bottom:8px">Stammdaten</div>
-              ${[["Projekt-Nr.",p.projektNr||"—"],["Firma",p.firmaName],["Ansprechpartner",p.ansprechpartner],["Status",p.status],["Km zum Kunden",p.kmZumKunden!==null?`${p.kmZumKunden} km`:"—"],["Konzeptionsrahmen",p.konzBudgetH?`${p.konzeptionsrahmenTage} Tage (${p.konzBudgetH} h)`:"—"]]
-                .map(([l,v]) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--tm-blue-pale)"><span style="color:var(--tm-text-muted)">${l}</span><span style="font-weight:500">${h.esc(String(v))}</span></div>`).join("")}
-            </div>
-            <div>
-              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--tm-text-muted);margin-bottom:8px">Ansätze CHF</div>
-              ${[["Einsatz (Tag)",p.ansatzEinsatz],["Einsatz (Halbtag)",p.ansatzHalbtag],["Co-Einsatz (Tag)",p.ansatzCoEinsatz],["Stunde",p.ansatzStunde],["Konzeption/Tag",p.ansatzKonzeption],["Admin/Tag",p.ansatzAdmin],["Km-Spesen/km",p.ansatzKmSpesen]]
-                .filter(([,v]) => v !== null)
-                .map(([l,v]) => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--tm-blue-pale)"><span style="color:var(--tm-text-muted)">${l}</span><span style="font-weight:500">${h.chf(v)}</span></div>`).join("")}
-            </div>
+        <div class="pd-stam-grid">
+          <div class="pd-stam-card pd-stam-full">
+            <div class="pd-stam-title">Projektdaten</div>
+            ${[["Projektnummer", p.projektNr||"—"],["Firma",p.firmaName],["Ansprechpartner",p.ansprechpartner||"—"],
+               ["Status",p.status],["Km zum Kunden",p.kmZumKunden!==null?`${p.kmZumKunden} km`:"—"],
+               ["Konzeptionsrahmen",p.konzBudgetH?`${p.konzeptionsrahmenTage} Tage (${p.konzBudgetH} h)`:"—"]]
+              .map(([l,v])=>`<div class="pd-stam-row"><span class="pd-stam-key">${l}</span><span class="pd-stam-val">${h.esc(String(v))}</span></div>`).join("")}
+          </div>
+          <div class="pd-stam-card">
+            <div class="pd-stam-title">Einsatz-Ansätze</div>
+            ${[["Einsatz (Tag)",p.ansatzEinsatz],["Einsatz (Halbtag)",p.ansatzHalbtag],
+               ["Co-Einsatz (Tag)",p.ansatzCoEinsatz],["Stunde",p.ansatzStunde],
+               ["Spesen (CHF/km)",p.ansatzKmSpesen]]
+              .filter(([,v])=>v!==null)
+              .map(([l,v])=>`<div class="pd-stam-row"><span class="pd-stam-key">${l}</span><span class="pd-stam-val">CHF ${h.chf(v)}</span></div>`).join("")}
+          </div>
+          <div class="pd-stam-card">
+            <div class="pd-stam-title">Konzeption-Ansätze</div>
+            ${[["Konzeption (pro Tag)",p.ansatzKonzeption],["Admin (pro Tag)",p.ansatzAdmin]]
+              .filter(([,v])=>v!==null)
+              .map(([l,v])=>`<div class="pd-stam-row"><span class="pd-stam-key">${l}</span><span class="pd-stam-val">CHF ${h.chf(v)}</span></div>`).join("")
+              || `<div class="pd-stam-row"><span class="pd-stam-key">Keine Ansätze</span><span class="pd-stam-val">—</span></div>`}
           </div>
         </div>`;
 
-      const tabContent = { einsaetze: tabEinsaetze(), konzeption: tabKonzeption(), stammdaten: tabStammdaten() };
+      // ── Detail-Panel ───────────────────────────────────────────────────────
+      const detailPanel = () => {
+        if (tab === "einsaetze") {
+          const sel = state.ui.selectedProjektEinsatzId;
+          const e = sel ? p.einsaetze.find(e=>e.id===sel) : null;
+          if (!e) return `<div class="pd-dp-empty"><div class="pd-dp-empty-icon">☰</div><span>Zeile auswählen für Details</span></div>`;
+          const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+          return `
+            <div class="pd-dp-title">${h.esc(e.title)}</div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Datum</span><span class="pd-dp-val">${h.esc(e.datumFmt)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Kategorie</span><span class="pd-dp-val">${h.esc(e.kategorie)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Person</span><span class="pd-dp-val">
+              <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+                <span class="pd-av pd-av-lead">${initials(e.personName)}</span>
+                ${e.coPersonName&&e.coPersonName!=="—"?`<span class="pd-av pd-av-co">${initials(e.coPersonName)}</span>`:""}
+                <span style="font-size:12px">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
+              </div>
+            </span></div>
+            ${e.ort?`<div class="pd-dp-row"><span class="pd-dp-key">Ort</span><span class="pd-dp-val">${h.esc(e.ort)}</span></div>`:""}
+            <div class="pd-dp-row"><span class="pd-dp-key">Status</span><span class="pd-dp-val">${h.statusBadge(e)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Betrag</span><span class="pd-dp-val" style="font-weight:700">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+            ${e.spesenBerechnet?`<div class="pd-dp-row"><span class="pd-dp-key">Wegspesen</span><span class="pd-dp-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+            <div class="pd-dp-row"><span class="pd-dp-key">Abrechnung</span><span class="pd-dp-val">${h.abrBadge(e.abrechnung)}</span></div>
+            ${e.bemerkungen?`<div class="pd-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
+            <div class="pd-dp-footer">
+              <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
+            </div>`;
+        }
+        if (tab === "konzeption") {
+          const sel = state.ui.selectedProjektKonzId;
+          const k = sel ? p.konzeintraege.find(k=>k.id===sel) : null;
+          if (!k) return `<div class="pd-dp-empty"><div class="pd-dp-empty-icon">☰</div><span>Zeile auswählen für Details</span></div>`;
+          return `
+            <div class="pd-dp-title">${h.esc(k.title)}</div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Datum</span><span class="pd-dp-val">${h.esc(k.datumFmt)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Kategorie</span><span class="pd-dp-val">${h.esc(k.kategorie)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Person</span><span class="pd-dp-val">${h.esc(k.personName||"—")}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Aufwand</span><span class="pd-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Betrag</span><span class="pd-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Verrechenbar</span><span class="pd-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Abrechnung</span><span class="pd-dp-val">${h.abrBadge(k.abrechnung)}</span></div>
+            ${k.bemerkungen?`<div class="pd-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
+            <div class="pd-dp-footer">
+              <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
+            </div>`;
+        }
+        return `<div class="pd-dp-empty"><div class="pd-dp-empty-icon">☰</div><span>Stammdaten links einsehbar</span></div>`;
+      };
 
+      // ── Tab-Inhalt ─────────────────────────────────────────────────────────
+      const tabContent = tab === "einsaetze" ? tabEinsaetze()
+                       : tab === "konzeption" ? tabKonzeption()
+                       : tabStammdaten();
+
+      // ── Render ─────────────────────────────────────────────────────────────
       ui.render(`
-        <div class="tm-page-header">
-          <div>
-            <button class="tm-btn tm-btn-sm" data-action="back-to-projekte" style="margin-bottom:8px">← Projekte</button>
-            <div class="tm-page-title">${h.esc(p.title)}</div>
-            <div class="tm-page-meta">${h.esc(p.firmaName)}${p.projektNr ? ` · #${h.esc(p.projektNr)}` : ""} · ${h.projStatusBadge(p.status)}</div>
+        <style>
+          /* ── Projekt-Detail 3-Panel-Layout ─────────────────────────────── */
+          .pd-shell { display:flex; height:100%; overflow:hidden; }
+
+          /* Sidebar */
+          .pd-sidebar { width:230px; min-width:230px; border-right:1px solid var(--tm-blue-pale); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-sb-head { padding:10px 12px; border-bottom:1px solid var(--tm-blue-pale); }
+          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid var(--tm-blue-pale); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:var(--tm-surface); outline:none; }
+          .pd-sb-head input:focus { border-color:var(--tm-blue); }
+          .pd-sb-scroll { flex:1; overflow-y:auto; }
+          .pd-firma-label { display:flex; align-items:center; gap:6px; padding:8px 12px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+          .pd-firma-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+          .pd-proj-item { padding:6px 12px 6px 26px; cursor:pointer; border-left:2px solid transparent; }
+          .pd-proj-item:hover { background:var(--tm-surface); }
+          .pd-proj-item.active { background:var(--tm-blue-pale); border-left-color:var(--tm-blue); }
+          .pd-proj-name { font-size:13px; font-weight:600; color:var(--tm-text); line-height:1.3; }
+          .pd-proj-item.active .pd-proj-name { color:var(--tm-blue); }
+          .pd-proj-meta { font-size:11px; color:var(--tm-text-muted); margin-top:1px; }
+          .pd-sb-footer { padding:10px 12px; border-top:1px solid var(--tm-blue-pale); }
+          .pd-sb-new-btn { width:100%; padding:6px; background:#fff; color:var(--tm-blue); border:1px solid var(--tm-blue); border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+          .pd-sb-new-btn:hover { background:var(--tm-blue-pale); }
+
+          /* Main */
+          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--tm-blue-pale); background:#fff; flex-shrink:0; }
+          .pd-back-btn { padding:4px 10px; border-radius:6px; border:1px solid var(--tm-blue-pale); background:#fff; color:var(--tm-text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
+          .pd-back-btn:hover { background:var(--tm-surface); color:var(--tm-text); }
+          .pd-topbar-actions { margin-left:auto; display:flex; gap:6px; }
+          .pd-proj-header { padding:12px 16px 14px; border-bottom:1px solid var(--tm-blue-pale); background:var(--tm-surface); flex-shrink:0; }
+          .pd-proj-title { font-size:18px; font-weight:700; color:var(--tm-text); }
+          .pd-proj-sub { display:flex; align-items:center; gap:6px; margin-top:3px; font-size:13px; color:var(--tm-text-muted); }
+          .pd-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:12px 16px; border-bottom:1px solid var(--tm-blue-pale); background:var(--tm-surface); flex-shrink:0; }
+          .pd-kpi { background:#fff; border-radius:8px; padding:10px 14px; border:1px solid var(--tm-blue-pale); }
+          .pd-kpi-label { font-size:9px; font-weight:600; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:5px; }
+          .pd-kpi-val { font-size:18px; font-weight:700; color:var(--tm-text); line-height:1.2; }
+          .pd-kpi-sub { font-size:11px; color:var(--tm-text-muted); margin-top:3px; font-weight:600; }
+          .pd-kpi-bar { height:3px; background:var(--tm-surface); border-radius:2px; margin-top:5px; }
+          .pd-kpi-bar-fill { height:3px; border-radius:2px; }
+
+          /* Karteikarten-Tabs */
+          .pd-tabs-wrap { display:flex; align-items:flex-end; gap:2px; padding:10px 16px 0; background:var(--tm-surface); border-bottom:2px solid var(--tm-blue-pale); flex-shrink:0; }
+          .pd-tab { padding:8px 18px; font-size:13px; cursor:pointer; color:var(--tm-text-muted); background:#e8eaed; border:1px solid var(--tm-blue-pale); border-bottom:none; border-radius:6px 6px 0 0; white-space:nowrap; position:relative; bottom:-2px; font-weight:600; font-family:inherit; }
+          .pd-tab:hover { background:#dde0e4; color:var(--tm-text); }
+          .pd-tab.active { background:#fff; color:var(--tm-blue); font-weight:700; border-bottom-color:#fff; z-index:1; }
+
+          /* Filter-Bar */
+          .pd-filter-bar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--tm-blue-pale); flex-shrink:0; background:#fff; flex-wrap:wrap; }
+          .pd-filter-label { font-size:12px; color:var(--tm-text-muted); white-space:nowrap; font-weight:600; }
+          .pd-filter-select { padding:4px 26px 4px 9px; border:1px solid var(--tm-blue-pale); border-radius:6px; font-size:12px; font-weight:600; font-family:inherit; color:var(--tm-text); background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238896a5'/%3E%3C/svg%3E") no-repeat right 8px center; appearance:none; cursor:pointer; outline:none; }
+          .pd-filter-select:focus { border-color:var(--tm-blue); }
+          .pd-filter-reset { font-size:12px; color:var(--tm-text-muted); cursor:pointer; padding:3px 8px; border-radius:5px; border:1px solid transparent; font-weight:600; font-family:inherit; }
+          .pd-filter-reset:hover { background:var(--tm-surface); color:var(--tm-text); border-color:var(--tm-blue-pale); }
+
+          /* Tabelle */
+          .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; }
+          .pd-section-head { padding:5px 16px 4px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; background:var(--tm-surface); border-bottom:1px solid var(--tm-blue-pale); border-top:1px solid var(--tm-blue-pale); }
+          .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
+          .pd-table th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--tm-blue-pale); white-space:nowrap; background:#fff; }
+          .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; }
+          .pd-row { cursor:pointer; }
+          .pd-row:hover td { background:#f6f8fb; }
+          .pd-row-sel td { background:var(--tm-blue-pale) !important; }
+          .pd-row-cancelled td { color:var(--tm-text-muted); text-decoration:line-through; }
+          .pd-td-muted { color:var(--tm-text-muted) !important; }
+          .pd-td-right { text-align:right !important; }
+          .pd-nowrap { white-space:nowrap; }
+          .pd-av { width:26px; height:26px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex-shrink:0; }
+          .pd-av-lead { background:#B5D4F4; color:#0C447C; }
+          .pd-av-co   { background:#CECBF6; color:#3C3489; margin-left:-7px; border:1.5px solid #fff; }
+          .pd-person-name { font-size:12px; color:var(--tm-text-muted); margin-left:4px; }
+
+          /* Stammdaten */
+          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#fff; }
+          .pd-stam-card { background:var(--tm-surface); border-radius:8px; padding:12px 14px; border:1px solid var(--tm-blue-pale); }
+          .pd-stam-full { grid-column:1/-1; }
+          .pd-stam-title { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; }
+          .pd-stam-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--tm-blue-pale); font-size:12px; }
+          .pd-stam-row:last-child { border-bottom:none; }
+          .pd-stam-key { color:var(--tm-text-muted); font-weight:600; }
+          .pd-stam-val { color:var(--tm-text); font-weight:700; text-align:right; }
+
+          /* Detail-Panel */
+          .pd-detail { width:272px; min-width:272px; border-left:1px solid var(--tm-blue-pale); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid var(--tm-blue-pale); flex-shrink:0; }
+          .pd-dp-label { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+          .pd-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
+          .pd-dp-title { font-size:14px; font-weight:700; color:var(--tm-text); margin-bottom:14px; line-height:1.4; }
+          .pd-dp-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--tm-blue-pale); }
+          .pd-dp-row:last-child { border-bottom:none; }
+          .pd-dp-key { font-size:12px; color:var(--tm-text-muted); font-weight:600; }
+          .pd-dp-val { font-size:12px; color:var(--tm-text); text-align:right; max-width:160px; font-weight:600; }
+          .pd-dp-note { margin-top:10px; padding:8px 10px; background:var(--tm-surface); border-radius:6px; font-size:12px; color:var(--tm-text-muted); line-height:1.5; }
+          .pd-dp-footer { margin-top:16px; padding-top:12px; border-top:1px solid var(--tm-blue-pale); display:flex; gap:6px; }
+          .pd-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--tm-text-muted); font-size:13px; gap:8px; font-weight:600; }
+          .pd-dp-empty-icon { font-size:28px; opacity:0.2; }
+        </style>
+
+        <div class="pd-shell">
+
+          <!-- SIDEBAR -->
+          <div class="pd-sidebar">
+            <div class="pd-sb-head">
+              <input type="search" placeholder="Suche Projekt oder Firma…"
+                id="pd-sb-search" value="${h.esc(state.filters.projekte.search)}"
+                data-search-key="projekte.search"
+                oninput="h.searchInput('projekte.search',this.value)">
+            </div>
+            <div class="pd-sb-scroll" id="pd-sb-list">${firmenGruppen}</div>
+            <div class="pd-sb-footer">
+              <button class="pd-sb-new-btn" data-action="new-projekt">+ Neues Projekt</button>
+            </div>
           </div>
-          <div class="tm-page-actions">
-            <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
-            <button class="tm-btn tm-btn-sm" data-action="delete-projekt" data-id="${p.id}" style="color:var(--tm-red)">Löschen</button>
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
-            <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
-            <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" style="background:var(--tm-green,#1D9E75);color:#fff;border-color:transparent">Abrechnung</button>
+
+          <!-- MAIN -->
+          <div class="pd-main">
+            <div class="pd-topbar">
+              <button class="pd-back-btn" data-action="back-to-projekte">← Projekte</button>
+              <div class="pd-topbar-actions">
+                <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
+                <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
+                <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
+                <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" style="background:var(--tm-green,#1D9E75);color:#fff;border-color:transparent">Abrechnung</button>
+              </div>
+            </div>
+
+            <div class="pd-proj-header">
+              <div class="pd-proj-title">${h.esc(p.title)}</div>
+              <div class="pd-proj-sub">
+                <span style="color:var(--tm-blue);font-weight:700">${h.esc(p.firmaName)}</span>
+                <span>·</span>
+                <span>#${h.esc(p.projektNr||String(p.id))}</span>
+                ${h.projStatusBadge(p.status)}
+              </div>
+            </div>
+
+            <div class="pd-kpis">
+              <div class="pd-kpi">
+                <div class="pd-kpi-label">Total Umsatz</div>
+                <div class="pd-kpi-val">CHF ${h.chf(p.totalBetrag)}</div>
+                <div class="pd-kpi-sub">${p.einsaetzeCount} Einsätze</div>
+              </div>
+              <div class="pd-kpi">
+                <div class="pd-kpi-label">Konzeptionsbudget</div>
+                <div class="pd-kpi-val" style="font-size:16px;color:${pct!==null&&pct>=100?"var(--tm-red)":pct!==null&&pct>=80?"var(--tm-amber)":"var(--tm-text)"}">
+                  ${p.konzBudgetH ? `${p.konzStunden.toFixed(1)} / ${p.konzBudgetH} h` : "—"}
+                </div>
+                ${pct!==null?`<div class="pd-kpi-sub" style="color:${pct>=100?"var(--tm-red)":pct>=80?"var(--tm-amber)":"var(--tm-text-muted)"}">${pct}% ${pct>=100?"⚠ überschritten":pct>=80?"⚠ Achtung":"im Rahmen"}</div>
+                <div class="pd-kpi-bar"><div class="pd-kpi-bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>=100?"var(--tm-red)":pct>=80?"var(--tm-amber)":"var(--tm-green)"}"></div></div>`:""}
+              </div>
+              <div class="pd-kpi">
+                <div class="pd-kpi-label">Offen / abzurechnen</div>
+                <div class="pd-kpi-val">CHF ${h.chf(p.einsaetze.filter(e=>e.abrechnung==="offen"&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>s+(e.anzeigeBetrag||0),0))}</div>
+                <div class="pd-kpi-sub">${p.einsaetze.filter(e=>e.abrechnung==="offen"&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).length} Einsätze offen</div>
+              </div>
+            </div>
+
+            <div class="pd-tabs-wrap">
+              <button class="pd-tab${tab==="einsaetze"?" active":""}" data-tab="einsaetze" data-route="projekt-detail">Einsätze</button>
+              <button class="pd-tab${tab==="konzeption"?" active":""}" data-tab="konzeption" data-route="projekt-detail">Konzeption &amp; Admin</button>
+              <button class="pd-tab${tab==="stammdaten"?" active":""}" data-tab="stammdaten" data-route="projekt-detail">Stammdaten &amp; Ansätze</button>
+            </div>
+
+            <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+              ${tabContent}
+            </div>
           </div>
-        </div>
-        <div class="tm-kpi-row">
-          <div class="tm-kpi"><div class="tm-kpi-label">Total Umsatz</div><div class="tm-kpi-value tm-chf">CHF ${h.chf(p.totalBetrag)}</div></div>
-          <div class="tm-kpi"><div class="tm-kpi-label">Einsätze</div><div class="tm-kpi-value">${p.einsaetzeCount}</div></div>
-          ${p.konzBudgetH ? `<div class="tm-kpi"><div class="tm-kpi-label">Konzeption</div>
-            <div class="tm-kpi-value ${pct>=100?"red":pct>=80?"amber":"green"}">${p.konzStunden.toFixed(1)} h</div>
-            <div class="tm-kpi-sub">von ${p.konzBudgetH} h Budget</div></div>` : ""}
-        </div>
-        ${pct !== null ? `<div class="tm-budget-bar-wrap">
-          <div class="tm-budget-labels">
-            <span>Konzeptionsbudget: ${p.konzStunden.toFixed(1)} / ${p.konzBudgetH} h (${pct}%)</span>
-            <span style="color:${pct>=100?"var(--tm-red)":pct>=80?"var(--tm-amber)":"var(--tm-green)"}">${pct>=100?"⚠ überschritten":pct>=80?"⚠ Achtung":"im Rahmen"}</span>
+
+          <!-- DETAIL PANEL -->
+          <div class="pd-detail">
+            <div class="pd-dp-head">
+              <div class="pd-dp-label">Detail</div>
+            </div>
+            <div class="pd-dp-scroll">
+              ${detailPanel()}
+            </div>
           </div>
-          <div class="tm-budget-bar"><div class="tm-budget-fill ${pct>=100?"over":pct>=80?"warn":""}" style="width:${Math.min(pct,100)}%"></div></div>
-        </div>` : ""}
-        <div class="tm-tabs">
-          ${["einsaetze","konzeption","stammdaten"].map(t => `<div class="tm-tab${tab===t?" active":""}" data-tab="${t}" data-route="projekt-detail">
-            ${{ einsaetze:"Einsätze", konzeption:"Konzeption", stammdaten:"Stammdaten & Ansätze" }[t]}
-          </div>`).join("")}
+
         </div>
-        ${tabContent[tab] || ""}
       `);
     },
 
     einsaetze() {
       const f = state.filters.einsaetze;
-      const selId = state.ui.selectedEinsatzId;
 
       // ── Build filter options from full dataset (before filtering) ──────────
       const all = state.enriched.einsaetze;
 
       const jahre = [...new Set(all.map(e => e.datum ? new Date(e.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
-      const projekte = [...new Map(all.map(e => {
-        const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
-        const nr = p?.projektNr||"";
-        const lbl = nr ? `#${nr} ${e.projektTitle}` : e.projektTitle;
-        return [e.projektLookupId, lbl];
-      })).entries()].filter(([,t])=>t).sort((a,b)=>{
-        const na = a[1].match(/^#(\d+)/)?.[1]||""; const nb = b[1].match(/^#(\d+)/)?.[1]||"";
-        if(na&&nb) return +na - +nb;
-        return a[1].localeCompare(b[1]);
-      });
+      const projekte = [...new Map(all.map(e => [e.projektLookupId, e.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
       const firmen  = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
       const personen = [...new Set([
         ...all.map(e=>e.personName).filter(n=>n&&n!=="—"),
         ...all.map(e=>e.coPersonName).filter(n=>n&&n!=="—")
-      ])].sort((a,b)=>{
-        const la = a.split(" ").pop(); const lb = b.split(" ").pop();
-        return la.localeCompare(lb) || a.localeCompare(b);
-      });
+      ])].sort();
       const projNummern = [...new Set(all.map(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.projektNr||""; }).filter(Boolean))].sort();
 
       // ── Apply filters ──────────────────────────────────────────────────────
@@ -1168,98 +1437,75 @@
         if (fn && !(fn in firmaColorMap)) firmaColorMap[fn] = FIRMA_COLORS[firmaIdx++ % FIRMA_COLORS.length];
       });
 
+      const hasFilter = f.search||f.jahr||f.projekt||f.firma||f.projektNr||f.abrechnung||f.einsatzStatus||f.person;
+
+      // ── Chip helper ────────────────────────────────────────────────────────
+      const chips = (key, opts) => opts.map(([val,lbl]) => {
+        const active = f[key] === String(val);
+        const safeVal = String(val).replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+        return `<button class="ef-chip${active?" ef-chip-active":""}" data-fkey="${key}" data-fval="${safeVal}">${h.esc(lbl)}</button>`;
+      }).join("");
+
+      // ── Panel state + active filter summary ───────────────────────────────
+      const isOpen = state.ui.einsatzFilterOpen;
+      const activeSummary = [
+        f.search ? `«${f.search}»` : "",
+        f.jahr || "",
+        f.firma || "",
+        f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"") : "",
+        f.projektNr ? `#${f.projektNr}` : "",
+        f.einsatzStatus ? {geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus] : "",
+        f.abrechnung || "",
+        f.person ? f.person.split(" ").pop() : ""
+      ].filter(Boolean).join(" · ");
+
       // ── Summaries ──────────────────────────────────────────────────────────
       const totalBetrag = list.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>(s+(e.anzeigeBetrag||0)),0);
 
-      // ── Selected Einsatz for Detail Panel ─────────────────────────────────
-      const sel = selId ? list.find(e=>e.id===selId) || all.find(e=>e.id===selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
-
-      const hasFilter = f.search||f.jahr||f.projekt||f.firma||f.projektNr||f.abrechnung||f.einsatzStatus||f.person;
-
       ui.render(`
         <style>
-          /* ── View-root override für Shell-Layout ── */
-          .tm-view-root{padding:0!important;overflow:hidden!important}
-          /* ── 3-Panel Shell ── */
-          .ef-shell{display:flex;height:calc(100vh - 52px);overflow:hidden;gap:0;min-width:0}
-          .ef-sidebar{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-          .ef-sidebar-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
-          .ef-sidebar-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
-          .ef-sidebar-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
-          .ef-sidebar-reset:hover{text-decoration:underline}
-
-          /* ── Main area ── */
-          .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-          .ef-toolbar{display:flex;align-items:center;gap:12px;padding:10px 16px 0;background:var(--tm-bg);flex-shrink:0;border-bottom:none}
-          .ef-zone-title{font-size:18px;font-weight:600;color:var(--tm-text);letter-spacing:-.3px}
-          .ef-zone-meta{font-size:12px;color:var(--tm-text-muted);margin-top:1px}
-          .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:4px 10px;font-size:13px;background:var(--tm-bg);color:var(--tm-text);flex:1;min-width:0;outline:none}
+          .ef-dataschnitt{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;margin-bottom:10px;overflow:hidden}
+          .ef-ds-header{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none;min-height:40px}
+          .ef-ds-header:hover{background:rgba(0,0,0,.03)}
+          .ef-ds-toggle{font-size:10px;color:var(--tm-text-muted);flex-shrink:0;transition:transform .2s;display:inline-block;width:12px}
+          .ef-ds-toggle.open{transform:rotate(90deg)}
+          .ef-ds-htitle{font-size:11px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;flex-shrink:0}
+          .ef-ds-summary{font-size:11px;color:var(--tm-blue);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:2px}
+          .ef-ds-body{display:flex;flex-direction:column;gap:6px;padding:0 12px 10px}
+          .ef-ds-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;row-gap:4px}
+          .ef-ds-label{font-size:10px;font-weight:700;color:var(--tm-text-muted);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;width:68px;flex-shrink:0}
+          .ef-ds-chips{display:flex;flex-wrap:wrap;gap:4px;flex:1;min-width:0}
+          .ef-chip{font-size:11px;padding:2px 9px;border-radius:12px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);cursor:pointer;transition:all .15s;line-height:1.7;white-space:nowrap}
+          .ef-chip:hover{border-color:var(--tm-blue);color:var(--tm-blue)}
+          .ef-chip-active{background:var(--tm-blue)!important;color:#fff!important;border-color:var(--tm-blue)!important;font-weight:600}
+          .ef-search-row{display:flex;align-items:center;gap:8px;padding-bottom:4px}
+          .ef-search{border:1px solid var(--tm-border);border-radius:7px;padding:5px 10px;font-size:13px;background:var(--tm-bg);color:var(--tm-text);flex:1;min-width:0;outline:none}
           .ef-search:focus{border-color:var(--tm-blue)}
-          .ef-summary{font-size:12px;color:var(--tm-text-muted);white-space:nowrap}
-          .ef-summary strong{color:var(--tm-text);font-weight:500}
-          .ef-tbl-scroll{flex:1;overflow-y:auto}
-          /* ── Table ── */
-          .ef-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-          .ef-tbl thead th:nth-child(1){width:13%}
-          .ef-tbl thead th:nth-child(2){width:24%}
-          .ef-tbl thead th:nth-child(3){width:23%}
-          .ef-tbl thead th:nth-child(4){width:18%}
-          .ef-tbl thead th:nth-child(5){width:12%}
-          .ef-tbl thead th:nth-child(6){width:10%}
-          .ef-tbl thead th{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tm-text-muted);padding:6px 10px 6px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);white-space:nowrap;background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left}
+          .ef-reset{font-size:11px;padding:3px 10px;border-radius:12px;border:1px solid var(--tm-red);color:var(--tm-red);background:transparent;cursor:pointer;white-space:nowrap;flex-shrink:0}
+          .ef-reset:hover{background:var(--tm-red);color:#fff}
+          .ef-ds-divider{border:none;border-top:1px solid var(--tm-border);margin:2px 0 4px}
+          .ef-summary{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--tm-text-muted);padding:3px 2px 5px}
+          .ef-summary strong{color:var(--tm-blue);font-variant-numeric:tabular-nums}
+          .ef-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;border:1px solid var(--tm-border)}
+          .ef-tbl{width:100%;border-collapse:collapse;font-size:12px}
+          .ef-tbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);padding:6px 8px;border-bottom:2px solid var(--tm-border);white-space:nowrap;background:var(--tm-surface);position:sticky;top:0;z-index:1;text-align:left}
           .ef-th-sort{cursor:pointer;user-select:none}
-          .ef-th-sort:hover{color:var(--tm-text)}
-          .ef-th-sort .ef-sort-arrow{opacity:0;font-size:10px;margin-left:3px;transition:opacity .1s}
-          .ef-th-sort:hover .ef-sort-arrow{opacity:.4}
-          .ef-th-active{color:var(--tm-blue)!important;font-weight:500}
-          .ef-th-active .ef-sort-arrow{opacity:1!important}
-          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
-          .ef-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.038)}
-          .ef-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
-          .ef-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
-          .ef-tbl tbody tr.cancelled{opacity:.45;box-shadow:inset 3px 0 0 var(--tm-red,#950e13)}
-          .ef-tbl td{padding:9px 10px;vertical-align:middle;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .ef-c1{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .ef-c2{font-size:11px;color:var(--tm-text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .ef-av{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0;vertical-align:middle}
-          .ef-person-row{display:flex;align-items:center;gap:4px;overflow:hidden}
-          .ef-person-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-          .ef-td-date{white-space:nowrap;font-size:12px;color:var(--tm-text-muted);font-variant-numeric:tabular-nums}
-          .ef-td-betrag{text-align:right}
-          .ef-td-betrag .ef-c1{font-variant-numeric:tabular-nums;color:var(--tm-blue);font-weight:600}
-          .ef-td-betrag .ef-c2{text-align:right}
-          /* ── Sidebar kollabierbare Sektionen ── */
-          .ef-sb-section{padding:0;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-          .ef-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 6px;cursor:pointer;user-select:none;gap:6px;border-top:1px solid var(--tm-border)}
-          .ef-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
-          .ef-sb-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);flex:1}
-          .ef-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block;flex-shrink:0}
-          .ef-sb-toggle.open{transform:rotate(90deg)}
-          .ef-sb-count{font-size:9px;background:var(--tm-blue);color:#fff;border-radius:8px;padding:1px 5px;font-weight:700;flex-shrink:0}
-          .ef-sb-body{padding:0 8px 8px;max-height:150px;overflow-y:auto}
-          .ef-sb-body.collapsed{display:none}
-          .ef-sb-chips{display:flex;flex-direction:column;gap:2px}
-          .ef-sb-chip{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;transition:all .1s}
-          .ef-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
-          .ef-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
-          .ef-sb-chip.active-red{background:var(--tm-red,#950e13);color:#fff!important;border-color:var(--tm-red,#950e13);font-weight:600}
-          /* ── Detail Panel ── */
-          .ef-detail{width:240px;min-width:240px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-          .ef-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
-          .ef-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
-          .ef-detail-title{font-size:15px;font-weight:600;color:var(--tm-text)}
-          .ef-detail-sub{font-size:11px;color:var(--tm-text-muted);margin-top:2px}
-          .ef-detail-edit{float:right;font-size:11px;padding:3px 10px;border:1px solid var(--tm-blue);color:var(--tm-blue);border-radius:6px;background:none;cursor:pointer;margin-top:2px}
-          .ef-detail-edit:hover{background:var(--tm-blue);color:#fff}
-          .ef-detail-sec{padding:10px 14px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-          .ef-detail-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:4px}
-          .ef-detail-val{font-size:13px;color:var(--tm-text)}
-          .ef-detail-val.big{font-size:20px;font-weight:700;color:var(--tm-blue)}
-          .ef-detail-person{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-          .ef-av-md{width:28px;height:28px;border-radius:50%;background:var(--tm-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
-          .ef-detail-actions{padding:12px 14px;display:flex;flex-direction:column;gap:6px}
-          /* ── Mobile cards (unchanged) ── */
+          .ef-th-sort:hover{color:var(--tm-blue)}
+          .ef-th-active{color:var(--tm-blue)!important}
+          .ef-sort-arrow{font-size:10px;opacity:.5;margin-left:2px}
+          .ef-th-active .ef-sort-arrow{opacity:1}
+          .ef-tbl tbody tr{border-bottom:1px solid var(--tm-border-light,#f0f4f8);transition:background .1s;cursor:pointer}
+          .ef-tbl tbody tr:last-child{border-bottom:none}
+          .ef-tbl tbody tr:hover{background:var(--tm-surface)}
+          .ef-tbl tbody tr.cancelled{opacity:.5}
+          .ef-tbl td{padding:4px 8px;vertical-align:middle;line-height:1.35}
+          .ef-td-date{white-space:nowrap;color:var(--tm-text-muted);font-size:11px;font-variant-numeric:tabular-nums}
+          .ef-td-title{font-weight:500}
+          .ef-td-meta{font-size:11px;color:var(--tm-text-muted)}
+          .ef-td-nr{font-size:10px;color:var(--tm-text-muted);white-space:nowrap}
+          .ef-td-kat{font-size:10px;color:var(--tm-text-muted)}
+          .ef-td-person{font-size:11px}
+          .ef-td-chf{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--tm-blue);font-weight:600;white-space:nowrap}
           .ef-cards{display:flex;flex-direction:column;gap:8px}
           .ef-card{background:var(--tm-surface);border:1px solid var(--tm-border);border-radius:10px;padding:11px 14px;cursor:pointer;transition:box-shadow .15s,border-color .15s;display:block}
           .ef-card:hover{border-color:var(--tm-blue);box-shadow:0 2px 8px rgba(0,64,120,.08)}
@@ -1268,586 +1514,153 @@
           .ef-card-date{font-size:11px;color:var(--tm-text-muted);white-space:nowrap;font-variant-numeric:tabular-nums;padding-top:1px}
           .ef-card-title{font-weight:600;font-size:13px;flex:1;min-width:0}
           .ef-card-chf{font-size:13px;font-weight:700;color:var(--tm-blue);white-space:nowrap;font-variant-numeric:tabular-nums}
-          .ef-card-meta{font-size:11px;color:var(--tm-text-muted);display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
-          .ef-card-badges{display:flex;gap:4px;flex-wrap:wrap}
-          /* ── Mobile: alles neu ── */
-          @media(max-width:700px){
-            .tm-view-root{padding:0!important;overflow:auto!important}
-            .ef-shell{flex-direction:column;height:auto;overflow:visible}
-            .ef-sidebar{display:none!important}
-            .ef-detail{display:none!important}
-            .ef-tbl-scroll{display:none!important}
-            .ef-toolbar{padding:10px 14px 6px}
-            .ef-zone-title{font-size:16px}
-            .ef-mobile-cards{display:flex!important}
-            .ef-fab{display:flex!important}
-            .ef-chip-strip{display:flex!important}
+          .ef-card-meta{font-size:11px;color:var(--tm-text-muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-bottom:6px}
+          .ef-card-badges{display:flex;flex-wrap:wrap;gap:4px}
+          .ef-mobile-only{display:none}
+          .ef-desktop-only{display:block}
+          @media(max-width:699px){
+            .ef-mobile-only{display:block}
+            .ef-desktop-only{display:none}
+            .ef-ds-label{width:60px}
           }
-          /* ── Chip-Strip ── */
-          .ef-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0}
-          .ef-chip-strip::-webkit-scrollbar{display:none}
-          .ef-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
-          .ef-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
-          .ef-cs-chip .ef-cs-x{font-size:15px;opacity:.7;margin-left:2px;line-height:1}
-          .ef-cs-search{display:flex;align-items:center;width:32px;height:32px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-bg);cursor:pointer;justify-content:center;flex-shrink:0;font-size:15px;color:var(--tm-text-muted)}
-          /* ── Filter-Sheet (Mobile) ── */
-          .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
-          .ef-fs-overlay.open{display:flex}
-          .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-          .ef-fs-handle{display:flex;justify-content:center;padding:10px 0 4px;flex-shrink:0}
-          .ef-fs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-          .ef-fs-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:1px solid var(--tm-border);flex-shrink:0}
-          .ef-fs-title{font-size:16px;font-weight:600;color:var(--tm-text)}
-          .ef-fs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-          .ef-fs-body{overflow-y:auto;flex:1;padding:8px 0 env(safe-area-inset-bottom,16px)}
-          .ef-fs-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8);cursor:pointer;font-size:15px;color:var(--tm-text)}
-          .ef-fs-opt:active{background:var(--tm-surface)}
-          .ef-fs-opt.active{color:var(--tm-blue);font-weight:500}
-          .ef-fs-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--tm-border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-          .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
-          /* Card-View: standardmässig hidden, mobile sichtbar */
-          .ef-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px;overflow-y:auto}
-          @media(min-width:701px){.ef-mobile-cards{display:none!important}.ef-fab{display:none!important}}
-          .ef-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative}
-          .ef-mc:active{box-shadow:0 0 0 2px var(--tm-blue)}
-          .ef-mc.cancelled{opacity:.45;border-left:3px solid var(--tm-red,#950e13)}
-          .ef-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
-          .ef-mc-date{font-size:12px;font-weight:600;color:var(--tm-text);white-space:nowrap}
-          .ef-mc-status{flex-shrink:0}
-          .ef-mc-title{font-size:15px;font-weight:600;color:var(--tm-text);margin-bottom:2px;line-height:1.3}
-          .ef-mc-kat{font-size:12px;color:var(--tm-text-muted);margin-bottom:8px}
-          .ef-mc-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
-          .ef-mc-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;flex-shrink:0}
-          .ef-mc-proj{font-size:12px;color:var(--tm-text-muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-          .ef-mc-person{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--tm-text-muted)}
-          .ef-mc-ort{font-size:12px;color:var(--tm-text-muted);display:flex;align-items:center;gap:4px}
-          .ef-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border)}
-          .ef-mc-bem{font-size:11px;color:var(--tm-text-muted);font-style:italic;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
-          /* FAB */
-          .ef-fab{display:none;position:fixed;bottom:24px;right:20px;width:54px;height:54px;border-radius:50%;background:var(--tm-blue);color:#fff;border:none;font-size:24px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,64,120,.35);z-index:100;line-height:1}
-          .ef-fab:active{transform:scale(.95)}
-          /* Bottom-Sheet */
-          .ef-bs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
-          .ef-bs-overlay.open{display:flex}
-          .ef-bs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-          @keyframes bsUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-          .ef-bs-handle{display:flex;justify-content:center;padding:10px 0 4px}
-          .ef-bs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-          .ef-bs-hdr{padding:12px 16px 10px;border-bottom:1px solid var(--tm-border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-          .ef-bs-title{font-size:16px;font-weight:600;color:var(--tm-text);line-height:1.3}
-          .ef-bs-sub{font-size:12px;color:var(--tm-text-muted);margin-top:2px}
-          .ef-bs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-          .ef-bs-body{overflow-y:auto;flex:1;padding-bottom:env(safe-area-inset-bottom,16px)}
-          .ef-bs-sec{padding:11px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8)}
-          .ef-bs-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:3px}
-          .ef-bs-val{font-size:14px;color:var(--tm-text)}
-          .ef-bs-person{display:flex;align-items:center;gap:10px;margin-bottom:5px}
-          .ef-bs-av{width:32px;height:32px;border-radius:50%;background:var(--tm-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
-          .ef-bs-edit{width:100%;height:48px;background:var(--tm-blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin:14px 16px 0;width:calc(100% - 32px)}
         </style>
 
-        <div class="ef-shell">
+        <div class="tm-page-header">
+          <div><div class="tm-page-title">Alle Einsätze</div></div>
+          <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button></div>
+        </div>
 
-          <!-- ── SIDEBAR: Filter ── -->
-          <div class="ef-sidebar">
-            <div class="ef-sidebar-hdr">
-              <span class="ef-sidebar-title">Filter</span>
-              ${hasFilter ? `<button class="ef-sidebar-reset" data-action="reset-einsatz-filters">Alle löschen</button>` : ""}
+        <div class="ef-dataschnitt">
+          <div class="ef-ds-header" data-action="toggle-einsatz-filter">
+            <span class="ef-ds-toggle${isOpen?" open":""}">▶</span>
+            <span class="ef-ds-htitle">Filter</span>
+            ${activeSummary ? `<span class="ef-ds-summary">${h.esc(activeSummary)}</span>` : ""}
+            ${hasFilter ? `<button class="ef-reset" data-action="reset-einsatz-filters" style="margin-left:auto">✕ Alle löschen</button>` : ""}
+          </div>
+          ${isOpen ? `<div class="ef-ds-body">
+            <div class="ef-search-row">
+              <input class="ef-search" type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)">
             </div>
-            <div class="ef-sb-section" style="padding:8px 12px">
-              <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="einsaetze.search" oninput="h.searchInput('einsaetze.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
-            </div>
-            ${(()=>{
-              const sb = state.ui.sbOpen || {};
-              const isMobile = window.innerWidth <= 700;
-              const sec = (key, label, items, renderItem) => {
-                const hasActive = items.some(([v])=>f[key]===String(v));
-                // Mobile: eingeklappt by default, ausser aktiver Filter oder explizit geöffnet
-                // Desktop: offen by default, ausser explizit geschlossen
-                const isOpen = isMobile
-                  ? (sb[key] === true || (hasActive && sb[key] !== false))
-                  : sb[key] !== false;
-                const activeCount = items.filter(([v])=>f[key]===String(v)).length;
-                return `<div class="ef-sb-section">
-                  <div class="ef-sb-sec-hdr" data-action="toggle-sb-sec" data-sec="${key}">
-                    <span class="ef-sb-label">${label}</span>
-                    ${activeCount ? `<span class="ef-sb-count">${activeCount}</span>` : ""}
-                    <span class="ef-sb-toggle${isOpen?" open":""}">▶</span>
-                  </div>
-                  <div class="ef-sb-body${isOpen?"":" collapsed"}">
-                    <div class="ef-sb-chips">${items.map(renderItem).join("")}</div>
-                  </div>
-                </div>`;
-              };
-              const chip = (fkey, val, lbl, extraClass="") =>
-                `<button class="ef-sb-chip${f[fkey]===String(val)?(extraClass?" "+extraClass:" active"):""}" data-fkey="${fkey}" data-fval="${String(val).replace(/"/g,'&quot;')}">${h.esc(lbl)}</button>`;
-              return [
-                jahre.length ? sec("jahr","Jahr",jahre.map(j=>[j,j]),([v,l])=>chip("jahr",v,l)) : "",
-                firmen.length ? sec("firma","Firma",firmen.map(n=>[n,n]),([v,l])=>chip("firma",v,l)) : "",
-                projekte.length ? sec("projekt","Projekt",projekte.map(([id,t])=>[id,t]),([v,l])=>chip("projekt",v,l)) : "",
-                sec("einsatzStatus","Status",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]],([v,l])=>chip("einsatzStatus",v,l,v.startsWith("abg")?"active-red":"")),
-                personen.length ? sec("person","Person",personen.map(n=>[n,n]),([v,l])=>chip("person",v,l)) : "",
-                state.choices.einsatzAbrechnung.length ? sec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]),([v,l])=>chip("abrechnung",v,l)) : ""
-              ].join("");
-            })()}
+            <hr class="ef-ds-divider">
+            ${jahre.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Jahr</span><div class="ef-ds-chips">${chips("jahr", jahre.map(j=>[j,j]))}</div></div>` : ""}
+            ${firmen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Firma</span><div class="ef-ds-chips">${chips("firma", firmen.map(n=>[n,n]))}</div></div>` : ""}
+            ${projekte.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Projekt</span><div class="ef-ds-chips">${chips("projekt", projekte.map(([id,t])=>[id,t]))}</div></div>` : ""}
+            ${projNummern.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Proj.-Nr.</span><div class="ef-ds-chips">${chips("projektNr", projNummern.map(n=>[n,"#"+n]))}</div></div>` : ""}
+            <div class="ef-ds-row"><span class="ef-ds-label">Status</span><div class="ef-ds-chips">${chips("einsatzStatus",[["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]])}</div></div>
+            <div class="ef-ds-row"><span class="ef-ds-label">Abrechnung</span><div class="ef-ds-chips">${chips("abrechnung",state.choices.einsatzAbrechnung.map(s=>[s,s]))}</div></div>
+            ${personen.length ? `<div class="ef-ds-row"><span class="ef-ds-label">Person</span><div class="ef-ds-chips">${chips("person", personen.map(n=>[n,n.split(" ").pop()]))}</div></div>` : ""}
+          </div>` : ""}
+        </div>
+
+        <div class="ef-summary">
+          <span><strong>${list.length}</strong> Einsätze</span>
+          <span>·</span>
+          <span>Total <strong>CHF ${h.chf(totalBetrag)}</strong></span>
+        </div>
+
+        ${list.length ? `
+          <!-- ── DESKTOP: Tabelle ── -->
+          <div class="ef-desktop-only">
+            <div class="ef-tbl-wrap"><table class="ef-tbl">
+              <thead><tr>
+                ${[["datum","Datum"],["title","Beschreibung"],["projekt","Projekt"],["firma","Firma"],["","Nr."],["","Kategorie"],["person","Person"],["betrag","Betrag"],["status","Status"],["abrechnung","Abrechnung"]].map(([col,lbl])=>
+                  col ? `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}" style="${col==="betrag"?"text-align:right":""}">${lbl} <span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span></th>`
+                      : `<th>${lbl}</th>`
+                ).join("")}
+              </tr></thead>
+              <tbody>${list.map(e => {
+                const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+                const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+                const firmaName = proj?.firmaName||"";
+                const firmaClr = firmaColorMap[firmaName];
+                const firmaBadge = firmaName
+                  ? `<span style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"};font-size:11px;font-weight:500;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(firmaName)}</span>`
+                  : "—";
+                return `<tr class="${isCancelled?"cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
+                  <td class="ef-td-date">${h.esc(e.datumFmt)}</td>
+                  <td class="ef-td-title">${h.esc(e.title)}</td>
+                  <td class="ef-td-meta">${h.esc(e.projektTitle)}</td>
+                  <td style="padding:4px 8px;vertical-align:middle">${firmaBadge}</td>
+                  <td class="ef-td-nr">${proj?.projektNr?`#${h.esc(proj.projektNr)}`:"—"}</td>
+                  <td class="ef-td-kat">${h.esc(e.kategorie)}</td>
+                  <td class="ef-td-person">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="font-size:10px;color:var(--tm-text-muted)"> · ${h.esc(e.coPersonName)}</span>`:""}</td>
+                  <td class="ef-td-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</td>
+                  <td>${h.statusBadge(e)}</td>
+                  <td>${h.abrBadge(e.abrechnung)}</td>
+                </tr>`;
+              }).join("")}</tbody>
+            </table></div>
           </div>
 
-          <!-- ── MAIN: Toolbar + Tabelle ── -->
-          <div class="ef-main">
-            <div class="ef-toolbar">
-              <div style="flex:1">
-                <div class="ef-zone-title">${(()=>{
-                  const parts=[];
-                  if(f.firma) parts.push(h.esc(f.firma));
-                  else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
-                  if(f.einsatzStatus) parts.push({geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus]||"");
-                  if(f.person) parts.push(h.esc(f.person));
-                  if(f.jahr) parts.push(h.esc(String(f.jahr)));
-                  return parts.length ? parts.join(" · ")+" · Einsätze" : "Alle Einsätze";
-                })()}</div>
-                <div class="ef-zone-meta">${list.length} Einträge &nbsp;·&nbsp; Total CHF ${h.chf(totalBetrag)}</div>
-              </div>
-              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
-            </div>
-            <div style="height:10px;background:var(--tm-bg);flex-shrink:0"></div>
-            <!-- ── MOBILE: Chip-Strip ── -->
-            <div class="ef-chip-strip" id="ef-chip-strip">
-              <div class="ef-cs-search" data-action="open-search-sheet" title="Suche">⌕</div>
-              ${[
-                ["jahr", f.jahr||"", "Jahr"],
-                ["firma", f.firma||"", "Firma"],
-                ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.projektNr ? "#"+(state.enriched.projekte.find(p=>p.id===+f.projekt)?.projektNr)+" "+(state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"") : state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
-                ["einsatzStatus", f.einsatzStatus ? {geplant:"Geplant",durchgefuehrt:"Durchgeführt",abgesagt:"Abgesagt","abgesagt-chf":"Abgesagt (CHF)"}[f.einsatzStatus]||"" : "", "Status"],
-                ["person", f.person||"", "Person"],
-                ["abrechnung", f.abrechnung||"", "Abrechnung"]
-              ].map(([key, activeVal, label]) => {
-                const isActive = !!activeVal;
-                return `<button class="ef-cs-chip${isActive?" active":""}" data-action="open-filter-sheet" data-filter-key="${key}">
-                  ${isActive ? h.esc(activeVal.length>18?activeVal.slice(0,18)+"…":activeVal) : h.esc(label)}
-                  ${isActive ? `<span class="ef-cs-x" data-action="clear-filter" data-fkey="${key}">×</span>` : ""}
-                </button>`;
-              }).join("")}
-            </div>
-            <!-- ── MOBILE: Filter-Sheet ── -->
-            <div class="ef-fs-overlay" id="ef-fs-overlay" onclick="if(event.target===this){ctrl.closeFs()}">
-              <div class="ef-fs">
-                <div class="ef-fs-handle"><div></div></div>
-                <div class="ef-fs-hdr">
-                  <div class="ef-fs-title" id="ef-fs-title">Filter</div>
-                  <div class="ef-fs-close" onclick="ctrl.closeFs()">×</div>
-                </div>
-                <div class="ef-fs-body" id="ef-fs-body"></div>
-              </div>
-            </div>
-            <div class="ef-tbl-scroll">
-              ${list.length ? `<table class="ef-tbl">
-                <thead><tr>
-                  ${[["datum","Datum"],["title","Beschreibung"],["firma","Projekt"],["person","Person"],["ort","Ort"],["status","Status"]].map(([col,lbl])=>
-                    `<th class="ef-th-sort${sort.col===col?" ef-th-active":""}" data-sort-col="${col}">
-                      ${lbl}<span class="ef-sort-arrow">${sort.col===col?(sort.dir==="asc"?"↑":"↓"):"↕"}</span>
-                    </th>`).join("")}
-                </tr></thead>
-                <tbody>${list.map(e => {
-                  const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-                  const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-                  const isSelected = e.id === selId;
-                  const firmaName = proj?.firmaName||"";
-                  const firmaClr = firmaColorMap[firmaName];
-                  const firmaBadge = firmaName
-                    ? `<span style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"};font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px">${h.esc(firmaName)}</span>`
-                    : "—";
-                  const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
-                  const personAv = `<span class="ef-av" title="${h.esc(e.personName)}">${initials(e.personName||"?")}</span>`;
-                  const coAv = e.coPersonName&&e.coPersonName!=="—"
-                    ? `<span class="ef-av" title="${h.esc(e.coPersonName)}" style="margin-left:-5px">${initials(e.coPersonName)}</span>`
-                    : "";
-                  const personLabel = e.coPersonName&&e.coPersonName!=="—"
-                    ? `${e.personName.split(" ").pop()} · ${e.coPersonName.split(" ").pop()}`
-                    : e.personName;
-                  return `<tr class="${[isCancelled?"cancelled":"",isSelected?"ef-row-sel":""].filter(Boolean).join(" ")}" data-action="select-einsatz" data-id="${e.id}">
-                    <td style="font-weight:600;font-size:13px;white-space:nowrap;color:var(--tm-text)">${h.esc(e.datumFmt)}</td>
-                    <td><div style="font-size:13px;color:var(--tm-text)">${h.esc(e.title||e.kategorie)}</div><div class="ef-c2">${h.esc(e.kategorie)}</div></td>
-                    <td><div style="margin-bottom:2px">${firmaBadge}</div><div class="ef-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` <span style="font-weight:400">#${h.esc(proj.projektNr)}</span>`:""}</div></td>
-                    <td><div class="ef-person-row">${personAv}${coAv}<span>${h.esc(personLabel)}</span></div></td>
-                    <td style="font-size:12px;color:var(--tm-text-muted)" title="${h.esc(e.ort||"")}">${e.ort?h.esc(e.ort):"—"}</td>
-                    <td>${h.statusBadge(e)}</td>
-                  </tr>`;
-                }).join("")}</tbody>
-              </table>` : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Einsätze gefunden.</div>`}
-            </div>
-          </div><!-- /ef-main -->
-
-          <!-- ── DETAIL PANEL ── -->
-          <div class="ef-detail">
-            ${sel ? `
-              <div class="ef-detail-hdr">
-                <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
-                <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-                <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
-              </div>
-              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>` : `<div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>`}
-              ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Beschreibung</div>
-                <div class="ef-detail-val">${h.esc(sel.title||"—")}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Personen</div>
-                <div class="ef-detail-person">
-                  <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
-                </div>
-                ${sel.coPersonName&&sel.coPersonName!=="—" ? `<div class="ef-detail-person" style="margin-top:6px">
-                  <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-                  <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
-                </div>` : ""}
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Status</div>
-                <div class="ef-detail-val">${h.statusBadge(sel)}</div>
-              </div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Kategorie</div>
-                <div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div>
-              </div>
-              ${sel.bemerkungen ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>` : ""}
-
-              ${sel.ort ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>` : ""}
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Betrag</div>
-                <div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div>
-              </div>
-              <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige ? "CHF "+h.chf(sel.spesenAnzeige) : "CHF 0.00 (keine Verrechnung)"}</div></div>
-              <div class="ef-detail-sec">
-                <div class="ef-detail-lbl">Abrechnung</div>
-                <div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div>
-              </div>
-            ` : `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`}
-          </div><!-- /ef-detail -->
-
-        </div><!-- /ef-shell -->
-
-          <!-- ── MOBILE: Card-View ── -->
-          ${window.innerWidth <= 700 ? `<div class="ef-mobile-cards" id="ef-mobile-cards">
-            ${list.length ? list.map(e => {
+          <!-- ── MOBILE: Cards ── -->
+          <div class="ef-mobile-only">
+            <div class="ef-cards">${list.map(e => {
               const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
               const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-              const firmaName = proj?.firmaName||"";
-              const firmaClr = firmaColorMap[firmaName];
-              const firmaBadge = firmaName
-                ? `<span class="ef-mc-badge" style="background:${firmaClr?.bg||"var(--tm-surface)"};color:${firmaClr?.tx||"var(--tm-text-muted)"}">${h.esc(firmaName)}</span>`
-                : "";
-              const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
-              return `<div class="ef-mc${isCancelled?" cancelled":""}" data-action="open-bs" data-id="${e.id}">
-                <div class="ef-mc-top">
-                  <div class="ef-mc-date">${h.esc(e.datumFmt)}</div>
-                  <div class="ef-mc-status">${h.statusBadge(e)}</div>
+              const meta = [
+                proj?.firmaName||"",
+                e.projektTitle ? (proj?.projektNr ? `${e.projektTitle} #${proj.projektNr}` : e.projektTitle) : "",
+                e.kategorie||""
+              ].filter(Boolean).join(" · ");
+              return `<div class="ef-card${isCancelled?" cancelled":""}" onclick="ctrl.openEinsatzForm(${e.id})">
+                <div class="ef-card-top">
+                  <span class="ef-card-date">${h.esc(e.datumFmt)}</span>
+                  <span class="ef-card-title">${h.esc(e.title||e.kategorie)}</span>
+                  <span class="ef-card-chf">${e.anzeigeBetrag!==null?h.chf(e.anzeigeBetrag):"—"}</span>
                 </div>
-                <div class="ef-mc-title">${h.esc(e.title||e.kategorie)}</div>
-                <div class="ef-mc-kat">${h.esc(e.kategorie)}</div>
-                <div class="ef-mc-row">
-                  ${firmaBadge}
-                  <span class="ef-mc-proj">${h.esc(e.projektTitle||"")}${proj?.projektNr?` #${h.esc(proj.projektNr)}`:""}</span>
+                <div class="ef-card-meta">
+                  ${meta?`<span>${h.esc(meta)}</span>`:""}
+                  <span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
                 </div>
-                <div class="ef-mc-foot">
-                  <div class="ef-mc-person">
-                    <span class="ef-av" style="width:20px;height:20px;font-size:8px">${initials(e.personName||"?")}</span>
-                    ${e.coPersonName&&e.coPersonName!=="—"?`<span class="ef-av" style="width:20px;height:20px;font-size:8px;margin-left:-6px">${initials(e.coPersonName)}</span>`:""}
-                    <span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName.split(" ").pop())}`:""}</span>
-                  </div>
-                  ${e.ort ? `<div class="ef-mc-ort" style="margin-left:auto">${h.esc(e.ort)}</div>` : ""}
-                </div>
-                ${e.bemerkungen ? `<div style="font-size:11px;color:var(--tm-text-muted);font-style:italic;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">«${h.esc(e.bemerkungen.length>50?e.bemerkungen.slice(0,50)+"…":e.bemerkungen)}»</div>` : ""}
-                </div>
+                <div class="ef-card-badges">${h.statusBadge(e)} ${h.abrBadge(e.abrechnung)}</div>
               </div>`;
-            }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`}
+            }).join("")}</div>
           </div>
-
-          <!-- ── FAB ── -->
-          <button class="ef-fab" data-action="new-einsatz" data-projekt-id="" aria-label="Einsatz erfassen">+</button>` : ""}
-
-          <!-- ── BOTTOM SHEET ── -->
-          <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
-            <div class="ef-bs">
-              <div class="ef-bs-handle"><div></div></div>
-              <div class="ef-bs-hdr" id="ef-bs-hdr">
-                <div>
-                  <div class="ef-bs-title" id="ef-bs-title">—</div>
-                  <div class="ef-bs-sub" id="ef-bs-sub">—</div>
-                </div>
-                <div class="ef-bs-close" onclick="ctrl.closeBs()">×</div>
-              </div>
-              <div class="ef-bs-body" id="ef-bs-body"></div>
-            </div>
-          </div>
-
-        </div>
+        ` : ui.empty("Keine Einsätze gefunden.")}
       `);
     },
 
     konzeption() {
       const f = state.filters.konzeption;
-      const selId = state.ui.selectedKonzId;
-      const all = state.enriched.konzeption;
-      const personen = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
-      const jahre = [...new Set(all.map(k=>k.datum?new Date(k.datum).getFullYear():null).filter(Boolean))].sort((a,b)=>b-a);
-      const kategorien = [...new Set(all.map(k=>k.kategorie).filter(Boolean))].sort();
-      const projekte = [...new Map(all.map(k=>{
-        const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-        const nr=p?.projektNr||""; const lbl=nr?"#"+nr+" "+k.projektTitle:k.projektTitle;
-        return [k.projektLookupId,lbl];
-      })).entries()].filter(([,t])=>t).sort((a,b)=>{const na=a[1].match(/#(d+)/)?.[1]||"";const nb=b[1].match(/#(d+)/)?.[1]||"";return na&&nb?+na - +nb:a[1].localeCompare(b[1]);});
-      const firmen = [...new Set(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
-      const FIRMA_COLORS=[{bg:"#dbeafe",tx:"#185FA5"},{bg:"#dcfce7",tx:"#3B6D11"},{bg:"#fef3c7",tx:"#854F0B"},{bg:"#fce7f3",tx:"#993556"},{bg:"#ede9fe",tx:"#534AB7"},{bg:"#ccfbf1",tx:"#0F6E56"},{bg:"#ffedd5",tx:"#854F0B"},{bg:"#fce7f3",tx:"#72243E"}];
-      const firmaColorMap={};let firmaIdx=0;
-      all.forEach(k=>{const fn=state.enriched.projekte.find(p=>p.id===k.projektLookupId)?.firmaName||"";if(fn&&!(fn in firmaColorMap))firmaColorMap[fn]=FIRMA_COLORS[firmaIdx++%FIRMA_COLORS.length];});
-      let list = [...all];
-      if (f.search)       list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search)||h.inc(k.personName,f.search));
+      let list = [...state.enriched.konzeption];
+      if (f.search)       list = list.filter(k => h.inc(k.title, f.search) || h.inc(k.projektTitle, f.search));
       if (f.verrechenbar) list = list.filter(k => k.verrechenbar === f.verrechenbar);
-      if (f.person)       list = list.filter(k => k.personName === f.person);
-      if (f.projekt)      list = list.filter(k => k.projektLookupId === +f.projekt);
-      if (f.firma)        list = list.filter(k => { const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
-      if (f.jahr)         list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.jahr);
-      if (f.kategorie)    list = list.filter(k => k.kategorie === f.kategorie);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-      const sumF = list.filter(k=>k.verrechenbar==="verrechenbar" && k.abrechnung!=="abgerechnet").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sumK = list.filter(k=>k.verrechenbar==="Klärung nötig").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sumI = list.filter(k=>k.verrechenbar==="Inklusive (ohne Verrechnung)").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-      const sel = selId ? list.find(k=>k.id===selId)||all.find(k=>k.id===selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p=>p.id===sel.projektLookupId) : null;
-      const hasFilter = !!(f.search||f.verrechenbar||f.person||f.projekt||f.firma||f.jahr||f.kategorie);
 
-      const kzChip = (fkey, val, lbl) => {
-        const isActive = f[fkey]===String(val);
-        const toggle = "state.filters.konzeption['"+fkey+"']=(state.filters.konzeption['"+fkey+"']==='"+String(val).replace(/'/g,"\'")+"'?'':'"+String(val).replace(/'/g,"\'")+"');state.ui.selectedKonzId=null;ctrl.render()";
-        return '<button class="kz-sb-chip'+(isActive?' active':'')+'" onclick="'+toggle+'">'+h.esc(lbl)+'</button>';
-      };
-      const kzSec = (lbl, body) => '<div class="kz-sb-sec"><div class="kz-sb-sec-hdr" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span class="kz-sb-lbl">'+lbl+'</span><span class="kz-sb-toggle open">▶</span></div><div class="kz-sb-body">'+body+'</div></div>';
-      const jahrSec    = jahre.length     ? kzSec("Jahr",        jahre.map(j=>kzChip("jahr",j,j)).join("")) : "";
-      const verrSec    = kzSec("Verrechenbar", state.choices.konzVerrechenbar.map(v=>kzChip("verrechenbar",v,v)).join(""));
-      const firmaSec   = firmen.length    ? kzSec("Firma",       firmen.map(n=>kzChip("firma",n,n)).join("")) : "";
-      const projektSec = projekte.length  ? kzSec("Projekt",     projekte.map(([id,t])=>kzChip("projekt",id,t)).join("")) : "";
-      const personSec  = personen.length  ? kzSec("Person",      personen.map(n=>kzChip("person",n,n)).join("")) : "";
-      const katSec     = kategorien.length? kzSec("Kategorie",   kategorien.map(k=>kzChip("kategorie",k,k)).join("")) : "";
-      const tblHtml = list.length
-        ? '<table class="kz-tbl"><thead><tr><th>Datum</th><th>Firma / Projekt</th><th>Beschreibung</th><th>Person</th><th>Kat. / Dauer</th><th>Verrechenbar</th></tr></thead><tbody>'
-          +list.map(k=>{
-            const proj=state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-            const fn=proj?.firmaName||"";
-            const fc=firmaColorMap[fn];
-            const fb=fn?'<span style="background:'+fc?.bg+';color:'+fc?.tx+';font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px">'+h.esc(fn)+'</span>':"";
-            return '<tr class="'+(k.id===selId?"ef-row-sel":"")+'" data-action="select-konzeption" data-id="'+k.id+'">'
-              +'<td style="font-weight:600;font-size:13px;white-space:nowrap">'+h.esc(k.datumFmt)+'</td>'
-              +'<td><div style="margin-bottom:2px">'+fb+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+h.esc(k.projektTitle)+(proj?.projektNr?' <span style="font-weight:400">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></td>'
-              +'<td style="font-size:13px;font-weight:500">'+h.esc(k.title)+'</td>'
-              +'<td><div style="display:flex;align-items:center;gap:4px"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--tm-blue-pale,#dbeafe);color:var(--tm-blue);font-size:9px;font-weight:700;flex-shrink:0">'+k.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()+'</span><span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+h.esc(k.personName)+'</span></div></td>'
-              +'<td><div style="font-size:12px;color:var(--tm-text-muted)">'+h.esc(k.kategorie)+'</div><div style="font-size:11px;color:var(--tm-text-muted)">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></td>'
-              +'<td>'+h.verrBadge(k.verrechenbar)+'</td>'
-              +'</tr>';
-          }).join("")
-          +'</tbody></table>'
-        : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:13px">Keine Konzeptionsaufwände gefunden.</div>';
-      const detailHtml = sel
-        ? '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
-          +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
-          +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
-          +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>'
-        : '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>';
+      const sumF = list.filter(k => k.verrechenbar === "zur Abrechnung").reduce((s,k) => s + (k.anzeigeBetrag||0), 0);
+      const sumK = list.filter(k => k.verrechenbar === "Klärung nötig").reduce((s,k)  => s + (k.anzeigeBetrag||0), 0);
+      const sumI = list.filter(k => k.verrechenbar === "Inklusive").reduce((s,k)      => s + (k.anzeigeBetrag||0), 0);
 
-      ui.render(`<style>
-        .tm-view-root{padding:0!important;overflow:hidden!important}
-        .kz-shell{display:flex;height:calc(100vh - 52px);overflow:hidden}
-        .kz-left{width:200px;flex-shrink:0;border-right:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-        .kz-main{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
-        .kz-right{width:260px;flex-shrink:0;border-left:1px solid var(--tm-border);background:var(--tm-bg);display:flex;flex-direction:column;overflow-y:auto}
-        .kz-toolbar{padding:10px 16px 8px;background:var(--tm-bg);flex-shrink:0;border-bottom:1px solid var(--tm-border);display:flex;align-items:center;gap:10px}
-        .kz-title{font-size:18px;font-weight:600;color:var(--tm-text);letter-spacing:-.3px}
-        .kz-meta{font-size:12px;color:var(--tm-text-muted);margin-top:1px}
-        .kz-kpi{display:flex;flex-shrink:0;border-bottom:1px solid var(--tm-border)}
-        .kz-kpi-item{flex:1;padding:8px 14px;border-right:1px solid var(--tm-border)}
-        .kz-kpi-item:last-child{border-right:none}
-        .kz-kpi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);margin-bottom:2px}
-        .kz-kpi-val{font-size:14px;font-weight:700}
-        .kz-kpi-val.green{color:#1a6e40}
-        .kz-kpi-val.amber{color:#b45309}
-        .kz-tbl-scroll{flex:1;overflow-y:auto}
-        .kz-tbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-        .kz-tbl thead th{font-size:11px;font-weight:400;color:var(--tm-text-muted);padding:6px 10px;border-top:1px solid var(--tm-border);border-bottom:1px solid var(--tm-border);background:var(--tm-bg);position:sticky;top:0;z-index:1;text-align:left;white-space:nowrap}
-        .kz-tbl thead th:nth-child(1){width:10%}.kz-tbl thead th:nth-child(2){width:22%}.kz-tbl thead th:nth-child(3){width:26%}.kz-tbl thead th:nth-child(4){width:17%}.kz-tbl thead th:nth-child(5){width:12%}.kz-tbl thead th:nth-child(6){width:13%}
-        .kz-tbl tbody tr{border-bottom:1px solid var(--tm-border);cursor:pointer;transition:background .1s}
-        .kz-tbl tbody tr:nth-child(even){background:rgba(0,0,0,.03)}
-        .kz-tbl tbody tr:hover{background:rgba(0,64,120,.07)!important}
-        .kz-tbl tbody tr.ef-row-sel{background:var(--tm-blue-pale,#dbeafe)!important;box-shadow:inset 3px 0 0 var(--tm-blue)}
-        .kz-tbl td{padding:9px 10px;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .kz-sb-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px;border-bottom:1px solid var(--tm-border)}
-        .kz-sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted)}
-        .kz-sb-reset{font-size:11px;color:var(--tm-red);cursor:pointer;background:none;border:none;padding:0}
-        .kz-sb-reset:hover{text-decoration:underline}
-        .kz-sb-sec{border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-        .kz-sb-sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;cursor:pointer;user-select:none;border-top:1px solid var(--tm-border)}
-        .kz-sb-sec-hdr:hover{background:rgba(0,0,0,.03)}
-        .kz-sb-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tm-text-muted);flex:1}
-        .kz-sb-toggle{font-size:9px;color:var(--tm-text-muted);transition:transform .15s;display:inline-block}
-        .kz-sb-toggle.open{transform:rotate(90deg)}
-        .kz-sb-body{padding:0 8px 8px;max-height:150px;overflow-y:auto}
-        .kz-sb-body.collapsed{display:none}
-        .kz-sb-chip{font-size:12px;padding:4px 8px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;display:block;transition:all .1s}
-        .kz-sb-chip:hover{background:var(--tm-surface);border-color:var(--tm-border)}
-        .kz-sb-chip.active{background:var(--tm-blue);color:#fff!important;border-color:var(--tm-blue);font-weight:600}
-        .kz-detail-empty{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--tm-text-muted);text-align:center;padding:20px}
-        .kz-detail-hdr{padding:12px 14px 10px;border-bottom:1px solid var(--tm-border)}
-        .kz-detail-title{font-size:15px;font-weight:600;color:var(--tm-text);line-height:1.3}
-        .kz-detail-sub{font-size:11px;color:var(--tm-text-muted);margin-top:2px}
-        .kz-detail-edit{float:right;font-size:11px;padding:3px 10px;border:1px solid var(--tm-blue);color:var(--tm-blue);border-radius:6px;background:none;cursor:pointer}
-        .kz-detail-edit:hover{background:var(--tm-blue);color:#fff}
-        .kz-detail-sec{padding:10px 14px;border-bottom:1px solid var(--tm-border-light,#f0f4f8)}
-        .kz-detail-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:4px}
-        .kz-detail-val{font-size:13px;color:var(--tm-text)}
-        @media(max-width:700px){
-          .tm-view-root{padding:0!important;overflow:auto!important}
-          .kz-shell{flex-direction:column;height:auto}
-          .kz-left{display:none!important}
-          .kz-right{display:none!important}
-          .kz-tbl-scroll{display:none!important}
-          .kz-toolbar{padding:10px 14px 6px}
-          .kz-title{font-size:16px}
-          .kz-kpi{flex-wrap:wrap}
-          .kz-kpi-item{min-width:33%}
-          .kz-mobile-cards{display:flex!important}
-          .kz-chip-strip{display:flex!important}
-        }
-        .kz-chip-strip{display:none;align-items:center;gap:8px;padding:8px 14px;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:0.5px solid var(--tm-border);background:var(--tm-bg);flex-shrink:0;position:relative;z-index:10}
-        .kz-chip-strip::-webkit-scrollbar{display:none}
-        .kz-cs-chip{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:20px;border:1px solid var(--tm-border);background:var(--tm-bg);color:var(--tm-text);font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:all .15s}
-        .kz-cs-chip.active{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-weight:500}
-        .kz-cs-chip .kz-cs-x{font-size:15px;opacity:.7;margin-left:2px}
-        .kz-mobile-cards{display:none;flex-direction:column;gap:10px;padding:12px 14px}
-        .ef-bs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
-        .ef-bs-overlay.open{display:flex}
-        .ef-bs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-        @keyframes bsUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-        .ef-bs-handle{display:flex;justify-content:center;padding:10px 0 4px}
-        .ef-bs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-        .ef-bs-hdr{padding:12px 16px 10px;border-bottom:1px solid var(--tm-border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-        .ef-bs-title{font-size:16px;font-weight:600;color:var(--tm-text);line-height:1.3}
-        .ef-bs-sub{font-size:12px;color:var(--tm-text-muted);margin-top:2px}
-        .ef-bs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
-        .ef-bs-body{overflow-y:auto;flex:1;padding-bottom:env(safe-area-inset-bottom,16px)}
-        .ef-bs-sec{padding:11px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8)}
-        .ef-bs-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tm-text-muted);margin-bottom:3px}
-        .ef-bs-val{font-size:14px;color:var(--tm-text)}
-        .ef-bs-edit{width:calc(100% - 32px);height:48px;background:var(--tm-blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin:14px 16px 0}
-        .ef-fs-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:flex-end}
-        .ef-fs-overlay.open{display:flex}
-        .ef-fs{background:var(--tm-bg);border-radius:20px 20px 0 0;width:100%;max-height:75vh;display:flex;flex-direction:column;animation:bsUp .25s cubic-bezier(.16,1,.3,1)}
-        .ef-fs-handle{display:flex;justify-content:center;padding:10px 0 4px;flex-shrink:0}
-        .ef-fs-handle div{width:36px;height:4px;border-radius:2px;background:var(--tm-border)}
-        .ef-fs-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 12px;border-bottom:1px solid var(--tm-border);flex-shrink:0}
-        .ef-fs-title{font-size:16px;font-weight:600;color:var(--tm-text)}
-        .ef-fs-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--tm-border);background:var(--tm-surface);color:var(--tm-text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
-        .ef-fs-body{overflow-y:auto;flex:1;padding:8px 0 env(safe-area-inset-bottom,16px)}
-        .ef-fs-opt{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:0.5px solid var(--tm-border-light,#f0f4f8);cursor:pointer;font-size:15px;color:var(--tm-text)}
-        .ef-fs-opt.active{color:var(--tm-blue);font-weight:500}
-        .ef-fs-check{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--tm-border);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .ef-fs-opt.active .ef-fs-check{background:var(--tm-blue);border-color:var(--tm-blue);color:#fff;font-size:11px}
-        .kz-mc{background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:12px;padding:14px;cursor:pointer;transition:border-color .15s}
-        .kz-mc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
-        .kz-mc-date{font-size:12px;font-weight:600;color:var(--tm-text)}
-        .kz-mc-title{font-size:15px;font-weight:600;margin-bottom:2px}
-        .kz-mc-proj{font-size:12px;color:var(--tm-text-muted);margin-bottom:8px}
-        .kz-mc-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px}
-        .kz-mc-foot{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:0.5px solid var(--tm-border);font-size:12px;color:var(--tm-text-muted)}
-      </style>
-      <div class="kz-shell">
-        <div class="kz-left">
-          <div class="kz-sb-hdr">
-            <span class="kz-sb-title">Filter</span>
-            ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\',jahr:\'\',kategorie:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
-          </div>
-          <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
-            <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
-          </div>
-          ${jahrSec}${verrSec}${firmaSec}${projektSec}${personSec}${katSec}
+      ui.render(`
+        <div class="tm-page-header">
+          <div><div class="tm-page-title">Konzeption & Admin</div><div class="tm-page-meta">${list.length} Einträge</div></div>
+          <div class="tm-page-actions"><button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button></div>
         </div>
-        <div class="kz-main">
-          <div class="kz-toolbar">
-            <div style="flex:1">
-              <div class="kz-title">${(()=>{
-                const parts=[];
-                if(f.firma) parts.push(h.esc(f.firma));
-                else if(f.projekt){ const p=state.enriched.projekte.find(p=>p.id===+f.projekt); if(p) parts.push(h.esc(p.title)); }
-                if(f.person) parts.push(h.esc(f.person.split(" ").pop()));
-                return parts.length ? parts.join(" · ")+" · Konzeption & Admin" : "Konzeption & Admin";
-              })()}</div>
-              <div class="kz-meta">${list.length} Einträge</div>
-            </div>
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
-          </div>
-          <div class="kz-kpi">
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Zur Abrechnung</div><div class="kz-kpi-val green">CHF ${h.chf(sumF)}</div></div>
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">In Klärung</div><div class="kz-kpi-val amber">CHF ${h.chf(sumK)}</div></div>
-            <div class="kz-kpi-item"><div class="kz-kpi-lbl">Inklusive</div><div class="kz-kpi-val">CHF ${h.chf(sumI)}</div></div>
-          </div>
-          <!-- MOBILE: Chip-Strip -->
-          <div class="kz-chip-strip">
-            ${[
-              ["verrechenbar", f.verrechenbar||"", "Verrechenbar"],
-              ["firma", f.firma||"", "Firma"],
-              ["projekt", f.projekt ? (state.enriched.projekte.find(p=>p.id===+f.projekt)?.title||"Projekt") : "", "Projekt"],
-              ["person", f.person||"", "Person"]
-            ].map(([key, activeVal, label]) => {
-              const isActive = !!activeVal;
-              return '<button class="kz-cs-chip'+(isActive?" active":"")+'" data-action="open-kz-filter-sheet" data-filter-key="'+key+'">'
-                +h.esc(isActive&&activeVal.length>16?activeVal.slice(0,16)+"…":isActive?activeVal:label)
-                +(isActive?'<span class="kz-cs-x" data-action="clear-kz-filter" data-fkey="'+key+'">×</span>':"")
-                +'</button>';
-            }).join("")}
-          </div>
-          <!-- MOBILE: Cards -->
-          <div class="kz-mobile-cards">
-            ${list.length ? list.map(k => {
-              const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-              const fn = proj?.firmaName||"";
-              const fc = firmaColorMap[fn];
-              const fb = fn ? '<span class="kz-mc-badge" style="background:'+fc?.bg+';color:'+fc?.tx+'">'+h.esc(fn)+'</span>' : "";
-              return '<div class="kz-mc" onclick="ctrl.openKzBs('+k.id+')">'
-                +'<div class="kz-mc-top"><div class="kz-mc-date">'+h.esc(k.datumFmt)+'</div>'+h.verrBadge(k.verrechenbar)+'</div>'
-                +'<div class="kz-mc-title">'+h.esc(k.title)+'</div>'
-                +'<div class="kz-mc-proj">'+fb+' '+h.esc(k.projektTitle)+'</div>'
-                +'<div class="kz-mc-foot"><span>'+h.esc(k.personName)+'</span><span>'+h.esc(k.kategorie)+' · '+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</span>'+(k.anzeigeBetrag!==null?'<span style="font-weight:600;color:var(--tm-blue)">CHF '+h.chf(k.anzeigeBetrag)+'</span>':"")+'</div>'
-                +'</div>';
-            }).join("") : '<div style="padding:40px;text-align:center;color:var(--tm-text-muted)">Keine Einträge.</div>'}
-          </div>
-          <!-- MOBILE: Bottom Sheet -->
-          <div class="ef-bs-overlay" id="ef-bs-overlay" onclick="if(event.target===this){ctrl.closeBs()}">
-            <div class="ef-bs">
-              <div class="ef-bs-handle"><div></div></div>
-              <div class="ef-bs-hdr">
-                <div><div class="ef-bs-title" id="ef-bs-title">—</div><div class="ef-bs-sub" id="ef-bs-sub">—</div></div>
-                <div class="ef-bs-close" onclick="ctrl.closeBs()">×</div>
-              </div>
-              <div class="ef-bs-body" id="ef-bs-body"></div>
-            </div>
-          </div>
-          <!-- MOBILE: Filter-Sheet -->
-          <div class="ef-fs-overlay" id="kz-fs-overlay" onclick="if(event.target===this){ctrl.closeKzFs()}">
-            <div class="ef-fs">
-              <div class="ef-fs-handle"><div></div></div>
-              <div class="ef-fs-hdr"><div class="ef-fs-title" id="kz-fs-title">Filter</div><div class="ef-fs-close" onclick="ctrl.closeKzFs()">×</div></div>
-              <div class="ef-fs-body" id="kz-fs-body"></div>
-            </div>
-          </div>
-          <div class="kz-tbl-scroll">${tblHtml}</div>
+        <div class="tm-kpi-row" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+          <div class="tm-kpi"><div class="tm-kpi-label">Zur Abrechnung</div><div class="tm-kpi-value green tm-chf">CHF ${h.chf(sumF)}</div></div>
+          <div class="tm-kpi"><div class="tm-kpi-label">In Klärung</div><div class="tm-kpi-value amber tm-chf">CHF ${h.chf(sumK)}</div></div>
+          <div class="tm-kpi"><div class="tm-kpi-label">Inklusive</div><div class="tm-kpi-value tm-chf">CHF ${h.chf(sumI)}</div></div>
         </div>
-        <div class="kz-right">${detailHtml}</div>
-      </div>
-`);
+        <div class="tm-filter-bar">
+          <input type="search" placeholder="Suche…" value="${h.esc(f.search)}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)">
+          <select onchange="state.filters.konzeption.verrechenbar=this.value;ctrl.render()">
+            <option value="">Verrechenbar: alle</option>
+            ${state.choices.konzVerrechenbar.map(s => `<option value="${s}" ${f.verrechenbar===s?"selected":""}>${s}</option>`).join("")}
+          </select>
+        </div>
+        ${list.length ? `<div class="tm-table-wrap"><table class="tm-table">
+          <thead><tr><th>Datum</th><th>Beschreibung / Projekt</th><th>Kategorie</th><th>Person</th><th>Stunden</th><th>Betrag</th><th>Verrechenbar</th><th></th></tr></thead>
+          <tbody>${list.map(k => `<tr>
+            <td class="tm-nowrap">${h.esc(k.datumFmt)}</td>
+            <td><div style="font-weight:500">${h.esc(k.title)}</div><div style="font-size:11px;color:var(--tm-text-muted)">${h.esc(k.projektTitle)}</div></td>
+            <td class="tm-muted">${h.esc(k.kategorie)}</td>
+            <td class="tm-muted">${h.esc(k.personName)}</td>
+            <td class="tm-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
+            <td class="tm-right tm-chf">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
+            <td>${h.verrBadge(k.verrechenbar)}</td>
+            <td><div class="tm-actions"><button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎</button><button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" title="Löschen" style="color:var(--tm-red)">🗑</button></div></td>
+          </tr>`).join("")}</tbody></table></div>` : ui.empty("Keine Konzeptionsaufwände gefunden.")}
+      `);
     },
 
     firmen() {
@@ -2217,7 +2030,7 @@
                 const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
                 const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
                 const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenAnzeige||0),0);
+                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
                 return `<div class="fd-row">
                   <div>
                     <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
@@ -2263,7 +2076,7 @@
         const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
         const eSum = einsaetze.reduce((t,e) => t+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
         const kSum = konz.reduce((t,k) => t+(k.anzeigeBetrag||0),0);
-        const wSum = einsaetze.reduce((t,e) => t+(e.spesenAnzeige||0),0);
+        const wSum = einsaetze.reduce((t,e) => t+(e.spesenBerechnet||0),0);
         const sSum = (a.spesenZusatzBetrag||0)+wSum;
         return { eSum, kSum, sSum, total: eSum+kSum+sSum, einsaetze, konz };
       };
@@ -2426,14 +2239,12 @@
     navigate(route) {
       state.form = null;
       state.filters.route = route;
-      if (route !== "projekt-detail") state.selection.projektId = null;
-      if (route !== "firma-detail")   state.selection.firmaId   = null;
-      // Alle offenen Sheets schliessen
-      document.querySelectorAll('.ef-fs-overlay.open, .ef-bs-overlay.open').forEach(el => {
-        el.classList.remove('open');
-        el.style.display = 'none';
-      });
-      document.body.style.overflow = "";
+      if (route !== "projekt-detail") {
+        state.selection.projektId = null;
+        state.ui.selectedProjektEinsatzId = null;
+        state.ui.selectedProjektKonzId = null;
+      }
+      if (route !== "firma-detail") state.selection.firmaId = null;
       this.render();
       window.scrollTo(0, 0);
     },
@@ -2450,6 +2261,8 @@
       state.form = null;
       state.selection.projektId = id;
       state.filters.route = "projekt-detail";
+      state.ui.selectedProjektEinsatzId = null;
+      state.ui.selectedProjektKonzId = null;
       this.render();
       window.scrollTo(0, 0);
     },
@@ -2821,7 +2634,7 @@
     // - SpesenZusatz + SpesenFinal entfernt
     // - Beschreibung zwischen Projekt und Kategorie
     // - Desktop: 2-spaltig, kein Scroll
-    openEinsatzForm(id, projektId = null, preselectKat = null, copy = null) {
+    openEinsatzForm(id, projektId = null, preselectKat = null) {
       const e          = id ? state.enriched.einsaetze.find(e => e.id === id) : null;
       const prefProjId = projektId || (e?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
@@ -2829,8 +2642,8 @@
       // preselectKat: beim Duplizieren Kategorie vorwählen (wenn vorhanden)
       const selKat     = e?.kategorie || (preselectKat && kats.includes(preselectKat) ? preselectKat : "");
       const defPerson  = h.defaultPerson();
-      const selPerson  = e ? e.personLookupId : (copy?.personId || defPerson?.id || null);
-      const selCoPerson = e?.coPersonLookupId || copy?.coPersonId || null;
+      const selPerson  = e ? e.personLookupId : (defPerson?.id || null);
+      const selCoPerson = e?.coPersonLookupId || null;
       const isTagKat   = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
       const betragBer   = selProjekt && selKat ? h.berechneBetrag(selProjekt, selKat, 1, e?.dauerStunden, e?.anzahlStueck) : null;
@@ -2863,9 +2676,9 @@
       // Spesen: Km aus Projekt vorbelegen falls vorhanden
       const kmVorbelegt = selProjekt?.kmZumKunden || "";
       const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = id ? !!(e?.spesenBerechnet) : !!(copy?.spesenAktiv);
-      const kmGespeichert = kmVorbelegt || "";
-      const spesenTotal = kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0;
+      const hasSp       = !!(e?.spesenBerechnet);
+      const kmGespeichert = (hasSp && ansatzKm) ? Math.round(e.spesenBerechnet / ansatzKm) : (kmVorbelegt || "");
+      const spesenTotal = hasSp ? e.spesenBerechnet : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0);
 
       // Einsatz-Status berechnet (Geplant/Durchgeführt)
       const statusAnzeige = (() => {
@@ -2878,8 +2691,6 @@
       ui.renderModal(`<style>
         .ef-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:560px;max-height:92vh;overflow:hidden;display:flex;flex-direction:column;animation:efUp .25s cubic-bezier(.16,1,.3,1)}
         @media(min-width:700px){.ef-m{max-width:820px}}
-        @media(max-width:699px){.ef-m{max-width:100%;max-height:100vh;height:100vh;border-radius:0;animation:none}}
-        @media(max-width:699px){#tm-modal-bd{align-items:flex-end;padding:0}}
         @keyframes efUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
         .ef-hd{background:#004078;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
         .ef-hd-l{display:flex;align-items:center;gap:10px}
@@ -2924,11 +2735,6 @@
         .ef-addco{display:inline-flex;align-items:center;gap:5px;background:none;border:1.5px dashed #dde4ec;border-radius:100px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;cursor:pointer;transition:all .15s}
         .ef-addco:hover{border-color:#0a5a9e;color:#0a5a9e}
         .ef-ta-wrap{display:none}
-        .ef-ta-wrap .tm-typeahead{position:relative}
-        .ef-ta-wrap .tm-ta-input{width:100%;padding:8px 12px;font-size:14px;border:1.5px solid var(--tm-blue);border-radius:8px;background:var(--tm-bg);color:var(--tm-text);outline:none;font-family:inherit}
-        .ef-ta-wrap .tm-ta-dd{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--tm-bg);border:1px solid var(--tm-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:50;max-height:180px;overflow-y:auto}
-        .ef-ta-wrap .tm-ta-item{padding:10px 14px;font-size:14px;cursor:pointer;color:var(--tm-text)}
-        .ef-ta-wrap .tm-ta-item:hover{background:var(--tm-surface)}
         /* Betrag */
         .ef-betrag-box{background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden}
         .ef-betrag-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;gap:8px}
@@ -3006,7 +2812,7 @@
                 <div class="ef-l">Datum & Ort</div>
                 <div class="ef-r2">
                   <div class="ef-iw"><input type="date" name="datum" value="${h.esc(e ? h.toDateInput(e.datum) : "")}" required></div>
-                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || copy?.ort || "")}" placeholder="Ort, Virtuell…"></div>
+                  <div class="ef-iw"><input type="text" name="ort" value="${h.esc(e?.ort || "")}" placeholder="Ort, Virtuell…"></div>
                 </div>
               </div>
 
@@ -3041,7 +2847,7 @@
               <!-- Beschreibung -->
               <div class="ef-s">
                 <div class="ef-l">Beschreibung</div>
-                <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || copy?.titel || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
+                <div class="ef-iw"><input type="text" name="titel" value="${h.esc(e?.title || "")}" placeholder="z.B. Kick-off Workshop, Modul 3…"></div>
               </div>
 
               <!-- Kategorie -->
@@ -3145,18 +2951,19 @@
                   ${hasSp ? "Wegspesen verrechnen ✓" : "Wegspesen verrechnen"}
                 </button>
                 <div class="ef-weg-detail${hasSp ? " show" : ""}" id="ef-weg-detail">
-                  <div class="ef-weg-row" id="ef-weg-km-row" style="${ansatzKm ? "" : "display:none"}">
+                  ${ansatzKm ? `
+                  <div class="ef-weg-row">
                     <input type="number" class="ef-weg-inp" id="ef-km-inp" name="kmAnzahl" min="0" step="1"
                       value="${kmGespeichert}" placeholder="km" oninput="ctrl.efCalcKm(this.value)">
                     <span class="ef-weg-hint">km (Hin &amp; Zurück)</span>
                   </div>
-                  <div style="display:flex;align-items:center;gap:6px;${ansatzKm ? "" : "display:none"}" id="ef-weg-ansatz-row">
-                    <span class="ef-weg-hint" id="ef-weg-hint-ansatz">CHF ${h.chf(ansatzKm||0)}/km</span>
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="ef-weg-hint">CHF ${h.chf(ansatzKm)}/km</span>
                     <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
                   </div>
-                  <span class="ef-weg-noansatz" id="ef-weg-noansatz" style="${ansatzKm ? "display:none" : ""}">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>
+                  <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${hasSp ? (e?.spesenBerechnet ?? "") : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : "")}">
+                  ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
                 </div>
-                <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${spesenTotal || ""}">
               </div>
 
               <div class="ef-dv"></div>
@@ -3184,7 +2991,7 @@
               <!-- Bemerkungen -->
               <div class="ef-s">
                 <div class="ef-l">Bemerkungen</div>
-                <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || copy?.bemerkungen || "")}</textarea></div>
+                <div class="ef-iw"><textarea name="bemerkungen" placeholder="Interne Notizen…">${h.esc(e?.bemerkungen || "")}</textarea></div>
               </div>
 
             </div><!-- /ef-col-r -->
@@ -3233,12 +3040,7 @@
       if (!ta || !pill) return;
       pill.style.display = "none";
       ta.style.display = "block";
-      const inp = ta.querySelector(".tm-ta-input");
-      if (inp) {
-        inp.value = "";  // leeren damit sofort alle Optionen sichtbar
-        inp.focus();
-        h.taOpen(inp);   // Dropdown sofort öffnen
-      }
+      ta.querySelector(".tm-ta-input")?.focus();
     },
 
     efToggleCo(show) {
@@ -3276,290 +3078,6 @@
     },
 
     // Wegspesen-Toggle (einfacher 1-Stufen-Toggle)
-    openKzFs(key) {
-      const overlay = document.getElementById("kz-fs-overlay");
-      const title   = document.getElementById("kz-fs-title");
-      const body    = document.getElementById("kz-fs-body");
-      if (!overlay||!title||!body) return;
-      const f = state.filters.konzeption;
-      const all = state.enriched.konzeption;
-      const chip = (fkey, val, lbl) => {
-        const isActive = f[fkey]===String(val);
-        return `<div class="ef-fs-opt${isActive?" active":""}" data-kz-fkey="${fkey}" data-kz-fval="${String(val).replace(/"/g,'&quot;')}">
-          <span>${h.esc(lbl)}</span><span class="ef-fs-check">${isActive?"✓":""}</span>
-        </div>`;
-      };
-      body.onclick = ev => {
-        const opt = ev.target.closest("[data-kz-fkey]");
-        if (!opt) return;
-        const fk=opt.dataset.kzFkey, fv=opt.dataset.kzFval;
-        state.filters.konzeption[fk] = state.filters.konzeption[fk]===fv ? "" : fv;
-        state.ui.selectedKonzId=null;
-        ctrl.closeKzFs();
-        ctrl.render();
-      };
-      if (key==="verrechenbar") {
-        title.textContent="Verrechenbar";
-        body.innerHTML = chip("verrechenbar","","Alle")+state.choices.konzVerrechenbar.map(v=>chip("verrechenbar",v,v)).join("");
-      } else if (key==="firma") {
-        title.textContent="Firma";
-        const firmen=[...new Set(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
-        body.innerHTML=chip("firma","","Alle Firmen")+firmen.map(n=>chip("firma",n,n)).join("");
-      } else if (key==="projekt") {
-        title.textContent="Projekt";
-        const proj=[...new Map(all.map(k=>{const p=state.enriched.projekte.find(p=>p.id===k.projektLookupId);const nr=p?.projektNr||"";return [k.projektLookupId,nr?"#"+nr+" "+k.projektTitle:k.projektTitle];})).entries()].filter(([,t])=>t);
-        body.innerHTML=chip("projekt","","Alle Projekte")+proj.map(([id,t])=>chip("projekt",id,t)).join("");
-      } else if (key==="person") {
-        title.textContent="Person";
-        const personen=[...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
-        body.innerHTML=chip("person","","Alle Personen")+personen.map(n=>chip("person",n,n)).join("");
-      }
-      overlay.classList.add("open");
-      document.body.style.overflow="hidden";
-    },
-
-    closeKzFs() {
-      const overlay=document.getElementById("kz-fs-overlay");
-      if(overlay) overlay.classList.remove("open");
-      document.body.style.overflow="";
-    },
-
-    openKzBs(id) {
-      const k = state.enriched.konzeption.find(x=>x.id===id);
-      if (!k) return;
-      const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
-      // Reuse existing BS overlay
-      const overlay = document.getElementById("ef-bs-overlay");
-      const bsTitle = document.getElementById("ef-bs-title");
-      const bsSub   = document.getElementById("ef-bs-sub");
-      const bsBody  = document.getElementById("ef-bs-body");
-      if (!overlay||!bsTitle||!bsBody) return;
-      bsTitle.textContent = k.title;
-      bsSub.textContent   = proj?.firmaName||"";
-      bsBody.innerHTML =
-        '<div class="ef-bs-sec"><div class="ef-bs-lbl">Datum</div><div class="ef-bs-val">'+h.esc(k.datumFmt)+'</div></div>'
-        +(proj?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Projekt</div><div class="ef-bs-val">'+h.esc(proj.title)+(proj.projektNr?' <span style="color:var(--tm-text-muted);font-size:12px">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></div>':"")
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Person</div><div class="ef-bs-val">'+h.esc(k.personName)+'</div></div>'
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Kategorie</div><div class="ef-bs-val">'+h.esc(k.kategorie||"—")+'</div></div>'
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Dauer</div><div class="ef-bs-val">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">'+(k.anzeigeBetrag!==null?'CHF '+h.chf(k.anzeigeBetrag):'—')+'</div></div>'
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Verrechenbar</div><div class="ef-bs-val">'+h.verrBadge(k.verrechenbar)+'</div></div>'
-        +(k.bemerkungen?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Bemerkungen</div><div class="ef-bs-val" style="font-size:13px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(k.bemerkungen)+'</div></div>':"")
-        +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">'+h.abrBadge(k.abrechnung)+'</div></div>'
-        +'<div style="padding:14px 16px 20px"><button class="ef-bs-edit" onclick="ctrl.closeBs();ctrl.openKonzeptionForm('+k.id+')">Bearbeiten</button></div>';
-      overlay.classList.add("open");
-      document.body.style.overflow="hidden";
-    },
-
-    updateMobileCards() {
-      const container = document.getElementById("ef-mobile-cards");
-      if (!container) return;
-      const f = state.filters.einsaetze;
-      const firmaColorMap = state.ui._firmaColorMap || {};
-      let list = [...state.enriched.einsaetze];
-      if (f.search)       list = list.filter(e => h.inc(e.title,f.search)||h.inc(e.projektTitle,f.search)||h.inc(e.personName,f.search));
-      if (f.jahr)         list = list.filter(e => e.datum && new Date(e.datum).getFullYear()===+f.jahr);
-      if (f.firma)        list = list.filter(e => { const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName===f.firma; });
-      if (f.projekt)      list = list.filter(e => e.projektLookupId===+f.projekt);
-      if (f.einsatzStatus) list = list.filter(e => e.einsatzStatus===f.einsatzStatus);
-      if (f.person)       list = list.filter(e => e.personName===f.person);
-      if (f.abrechnung)   list = list.filter(e => e.abrechnung===f.abrechnung);
-      list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
-      const initials = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
-      container.innerHTML = list.length ? list.map(e => {
-        const proj = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
-        const isCancelled = ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-        const fn = proj?.firmaName||"";
-        const fc = firmaColorMap[fn];
-        const fb = fn ? `<span class="ef-mc-badge" style="background:${fc?.bg||"var(--tm-surface)"};color:${fc?.tx||"var(--tm-text-muted)"}">${h.esc(fn)}</span>` : "";
-        return `<div class="ef-mc${isCancelled?" cancelled":""}" data-action="open-bs" data-id="${e.id}">
-          <div class="ef-mc-top"><div class="ef-mc-date">${h.esc(e.datumFmt)}</div><div class="ef-mc-status">${h.statusBadge(e)}</div></div>
-          <div class="ef-mc-title">${h.esc(e.title||e.kategorie)}</div>
-          <div class="ef-mc-kat">${h.esc(e.kategorie)}</div>
-          <div class="ef-mc-row">${fb}<span class="ef-mc-proj">${h.esc(e.projektTitle||"")}${proj?.projektNr?` #${h.esc(proj.projektNr)}`:""}</span></div>
-          <div class="ef-mc-foot">
-            <div class="ef-mc-person"><span class="ef-av" style="width:20px;height:20px;font-size:8px">${initials(e.personName||"?")}</span>${e.coPersonName&&e.coPersonName!=="—"?`<span class="ef-av" style="width:20px;height:20px;font-size:8px;margin-left:-6px">${initials(e.coPersonName)}</span>`:""}<span>${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName.split(" ").pop())}`:""}</span></div>
-            ${e.ort ? `<div class="ef-mc-ort">${h.esc(e.ort)}</div>` : ""}
-          </div>
-        </div>`;
-      }).join("") : `<div style="padding:40px;text-align:center;color:var(--tm-text-muted);font-size:14px">Keine Einsätze gefunden.</div>`;
-    },
-
-    updateKonzDetailPanel() {
-      const panel = document.querySelector(".kz-right");
-      if (!panel) return;
-      const selId = state.ui.selectedKonzId;
-      const sel = selId ? state.enriched.konzeption.find(k => k.id === selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
-      if (!sel) { panel.innerHTML = '<div class="kz-detail-empty">Zeile auswählen<br>für Details</div>'; return; }
-      panel.innerHTML =
-        '<div class="kz-detail-hdr"><button class="kz-detail-edit" onclick="ctrl.openKonzeptionForm('+sel.id+')">Bearbeiten</button><div class="kz-detail-title">'+h.esc(sel.title)+'</div><div class="kz-detail-sub">'+(selProj&&selProj.firmaName?h.esc(selProj.firmaName):'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Datum</div><div class="kz-detail-val">'+h.esc(sel.datumFmt)+'</div></div>'
-        +(selProj?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Projekt</div><div class="kz-detail-val">'+h.esc(selProj.title)+(selProj.projektNr?' <span style="font-size:11px;color:var(--tm-text-muted)">#'+h.esc(selProj.projektNr)+'</span>':'')+'</div></div>':"")
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Person</div><div class="kz-detail-val">'+h.esc(sel.personName)+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Kategorie</div><div class="kz-detail-val">'+h.esc(sel.kategorie||'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Dauer</div><div class="kz-detail-val">'+(sel.aufwandStunden!==null?sel.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Betrag</div><div class="kz-detail-val" style="color:var(--tm-text-muted)">'+(sel.anzeigeBetrag!==null?'CHF '+h.chf(sel.anzeigeBetrag):'—')+'</div></div>'
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Verrechenbar</div><div class="kz-detail-val">'+h.verrBadge(sel.verrechenbar)+'</div></div>'
-        +(sel.bemerkungen?'<div class="kz-detail-sec"><div class="kz-detail-lbl">Bemerkungen</div><div class="kz-detail-val" style="font-size:12px;color:var(--tm-text-muted);white-space:pre-wrap">'+h.esc(sel.bemerkungen)+'</div></div>':"")
-        +'<div class="kz-detail-sec"><div class="kz-detail-lbl">Abrechnung</div><div class="kz-detail-val">'+h.abrBadge(sel.abrechnung)+'</div></div>';
-    },
-
-    updateDetailPanel() {
-      const panel = document.querySelector(".ef-detail");
-      if (!panel) return;
-      const selId = state.ui.selectedEinsatzId;
-      const sel = selId ? state.enriched.einsaetze.find(e => e.id === selId) : null;
-      const selProj = sel ? state.enriched.projekte.find(p => p.id === sel.projektLookupId) : null;
-      if (!sel) {
-        panel.innerHTML = `<div class="ef-detail-empty">Zeile auswählen<br>für Details</div>`;
-        return;
-      }
-      panel.innerHTML = `
-        <div class="ef-detail-hdr">
-          <button class="ef-detail-edit" onclick="ctrl.openEinsatzForm(${sel.id})">Bearbeiten</button>
-          <div class="ef-detail-title">${h.esc(sel.title||sel.kategorie)}</div>
-          <div class="ef-detail-sub">${selProj?.firmaName?h.esc(selProj.firmaName):"—"}</div>
-        </div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Datum</div><div class="ef-detail-val">${h.esc(sel.datumFmt)}</div></div>
-        ${selProj ? `<div class="ef-detail-sec"><div class="ef-detail-lbl">Projekt</div><div class="ef-detail-val">${h.esc(selProj.title||"—")}${selProj.projektNr?` <span style="color:var(--tm-text-muted);font-size:11px">#${h.esc(selProj.projektNr)}</span>`:""}</div></div>` : ""}
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Beschreibung</div><div class="ef-detail-val">${h.esc(sel.title||"—")}</div></div>
-        <div class="ef-detail-sec">
-          <div class="ef-detail-lbl">Personen</div>
-          <div class="ef-detail-person">
-            <div class="ef-av-md">${sel.personName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div>
-          </div>
-          ${sel.coPersonName&&sel.coPersonName!=="—"?`<div class="ef-detail-person" style="margin-top:6px">
-            <div class="ef-av-md" style="background:var(--tm-surface);color:var(--tm-text-muted);border:1px solid var(--tm-border)">${sel.coPersonName.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase()}</div>
-            <div><div style="font-size:13px;font-weight:500">${h.esc(sel.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div>
-          </div>`:""}
-        </div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Status</div><div class="ef-detail-val">${h.statusBadge(sel)}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Kategorie</div><div class="ef-detail-val">${h.esc(sel.kategorie||"—")}</div></div>
-        ${sel.bemerkungen?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Bemerkungen</div><div class="ef-detail-val" style="white-space:pre-wrap;font-size:12px;color:var(--tm-text-muted)">${h.esc(sel.bemerkungen)}</div></div>`:""}
-        ${sel.ort?`<div class="ef-detail-sec"><div class="ef-detail-lbl">Ort</div><div class="ef-detail-val">${h.esc(sel.ort)}</div></div>`:""}
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Betrag</div><div class="ef-detail-val" style="font-variant-numeric:tabular-nums;color:var(--tm-text-muted)">${sel.anzeigeBetrag!==null?"CHF "+h.chf(sel.anzeigeBetrag):"—"}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Wegspesen</div><div class="ef-detail-val" style="color:var(--tm-text-muted)">${sel.spesenAnzeige?"CHF "+h.chf(sel.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
-        <div class="ef-detail-sec"><div class="ef-detail-lbl">Abrechnung</div><div class="ef-detail-val">${h.abrBadge(sel.abrechnung)}</div></div>`;
-    },
-
-    openFs(key) {
-      const overlay = document.getElementById("ef-fs-overlay");
-      const title   = document.getElementById("ef-fs-title");
-      const body    = document.getElementById("ef-fs-body");
-      if (!overlay||!title||!body) return;
-      const f = state.filters.einsaetze;
-      const all = state.enriched.einsaetze;
-      const chip = (fkey, val, lbl) => {
-        const isActive = f[fkey]===String(val);
-        return `<div class="ef-fs-opt${isActive?" active":""}" data-action="fs-select" data-fkey="${fkey}" data-fval="${String(val).replace(/"/g,"&quot;")}">
-          <span>${h.esc(lbl)}</span>
-          <span class="ef-fs-check">${isActive?"✓":""}</span>
-        </div>`;
-      };
-      if (key==="search") {
-        title.textContent = "Suche";
-        body.innerHTML = `<div style="padding:14px 16px">
-          <input type="search" placeholder="Titel, Projekt, Person…" value="${h.esc(f.search||"")}"
-            style="width:100%;padding:12px 14px;font-size:16px;border:1.5px solid var(--tm-border);border-radius:10px;background:var(--tm-bg);color:var(--tm-text);outline:none;box-sizing:border-box"
-            oninput="state.filters.einsaetze.search=this.value;ctrl.updateMobileCards()" autofocus>
-        </div>`;
-      } else if (key==="jahr") {
-        title.textContent = "Jahr";
-        const jahre = [...new Set(all.map(e=>e.datum?new Date(e.datum).getFullYear():null).filter(Boolean))].sort((a,b)=>b-a);
-        body.innerHTML = chip("jahr","","Alle Jahre") + jahre.map(j=>chip("jahr",j,j)).join("");
-      } else if (key==="firma") {
-        title.textContent = "Firma";
-        const firmen = [...new Set(all.map(e=>{const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId);return p?.firmaName||"";}).filter(Boolean))].sort();
-        body.innerHTML = chip("firma","","Alle Firmen") + firmen.map(n=>chip("firma",n,n)).join("");
-      } else if (key==="projekt") {
-        title.textContent = "Projekt";
-        const proj = [...new Map(all.map(e=>{
-          const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId);
-          const nr=p?.projektNr||""; const lbl=nr?`#${nr} ${e.projektTitle}`:e.projektTitle;
-          return [e.projektLookupId,lbl];
-        })).entries()].filter(([,t])=>t).sort((a,b)=>{
-          const na=a[1].match(/#(\d+)/)?.[1]||""; const nb=b[1].match(/#(\d+)/)?.[1]||"";
-          return na&&nb?+na - +nb:a[1].localeCompare(b[1]);
-        });
-        body.innerHTML = chip("projekt","","Alle Projekte") + proj.map(([id,t])=>chip("projekt",id,t)).join("");
-      } else if (key==="einsatzStatus") {
-        title.textContent = "Status";
-        body.innerHTML = chip("einsatzStatus","","Alle Status") +
-          [["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]].map(([v,l])=>chip("einsatzStatus",v,l)).join("");
-      } else if (key==="person") {
-        title.textContent = "Person";
-        const personen = [...new Set([
-          ...all.map(e=>e.personName).filter(n=>n&&n!=="—"),
-          ...all.map(e=>e.coPersonName).filter(n=>n&&n!=="—")
-        ])].sort((a,b)=>a.split(" ").pop().localeCompare(b.split(" ").pop()));
-        body.innerHTML = chip("person","","Alle Personen") + personen.map(n=>chip("person",n,n)).join("");
-      } else if (key==="abrechnung") {
-        title.textContent = "Abrechnung";
-        body.innerHTML = chip("abrechnung","","Alle") + state.choices.einsatzAbrechnung.map(s=>chip("abrechnung",s,s)).join("");
-      }
-      // fs-select click delegation inside sheet
-      body.onclick = ev => {
-        const opt = ev.target.closest("[data-action='fs-select']");
-        if (!opt) return;
-        const fk=opt.dataset.fkey, fv=opt.dataset.fval;
-        state.filters.einsaetze[fk] = state.filters.einsaetze[fk]===fv ? "" : fv;
-        state.ui.selectedEinsatzId=null;
-        ctrl.closeFs();
-        ctrl.render();
-      };
-      overlay.classList.add("open");
-      document.body.style.overflow="hidden";
-    },
-
-    closeFs() {
-      const overlay = document.getElementById("ef-fs-overlay");
-      if (overlay) overlay.classList.remove("open");
-      document.body.style.overflow="";
-    },
-
-    openBs(id) {
-      const e = state.enriched.einsaetze.find(x=>x.id===id);
-      if (!e) return;
-      const proj = state.enriched.projekte.find(p=>p.id===e.projektLookupId);
-      const initials = n => n.split(" ").filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
-      const overlay = document.getElementById("ef-bs-overlay");
-      const bsTitle = document.getElementById("ef-bs-title");
-      const bsSub   = document.getElementById("ef-bs-sub");
-      const bsBody  = document.getElementById("ef-bs-body");
-      if (!overlay||!bsTitle||!bsBody) return;
-      bsTitle.textContent = e.title||e.kategorie;
-      bsSub.textContent   = proj?.firmaName||"";
-      const av = n => `<div class="ef-bs-av">${initials(n||"?")}</div>`;
-      bsBody.innerHTML = `
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Datum</div><div class="ef-bs-val">${h.esc(e.datumFmt)}</div></div>
-        ${proj?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Projekt</div><div class="ef-bs-val">${h.esc(proj.title)}${proj.projektNr?` <span style="color:var(--tm-text-muted);font-size:12px">#${h.esc(proj.projektNr)}</span>`:""}</div></div>`:""}
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Beschreibung</div><div class="ef-bs-val">${h.esc(e.title||"—")}</div></div>
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Kategorie</div><div class="ef-bs-val">${h.esc(e.kategorie||"—")}</div></div>
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Personen</div>
-          <div class="ef-bs-person">${av(e.personName)}<div><div style="font-size:14px;font-weight:500">${h.esc(e.personName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Lead</div></div></div>
-          ${e.coPersonName&&e.coPersonName!=="—"?`<div class="ef-bs-person" style="margin-top:6px">${av(e.coPersonName)}<div><div style="font-size:14px;font-weight:500">${h.esc(e.coPersonName)}</div><div style="font-size:11px;color:var(--tm-text-muted)">Co-Lead</div></div></div>`:""}
-        </div>
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Status</div><div class="ef-bs-val">${h.statusBadge(e)}</div></div>
-        ${e.ort?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Ort</div><div class="ef-bs-val">${h.esc(e.ort)}</div></div>`:""}
-        ${e.bemerkungen?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Bemerkungen</div><div class="ef-bs-val" style="font-size:13px;color:var(--tm-text-muted);white-space:pre-wrap">${h.esc(e.bemerkungen)}</div></div>`:""}
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.anzeigeBetrag!==null?"CHF "+h.chf(e.anzeigeBetrag):"—"}</div></div>
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Wegspesen</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.spesenAnzeige?"CHF "+h.chf(e.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">${h.abrBadge(e.abrechnung)}</div></div>
-        <div style="padding:14px 16px 20px">
-          <button class="ef-bs-edit" onclick="ctrl.closeBs();ctrl.openEinsatzForm(${e.id})">Bearbeiten</button>
-        </div>`;
-      overlay.classList.add("open");
-      document.body.style.overflow = "hidden";
-    },
-
-    closeBs() {
-      const overlay = document.getElementById("ef-bs-overlay");
-      if (overlay) overlay.classList.remove("open");
-      document.body.style.overflow = "";
-    },
-
     efToggleWeg() {
       const btn    = document.getElementById("ef-weg-btn");
       const detail = document.getElementById("ef-weg-detail");
@@ -3567,16 +3085,7 @@
       const on = btn.classList.toggle("on");
       detail.classList.toggle("show", on);
       btn.textContent = on ? "Wegspesen verrechnen \u2713" : "Wegspesen verrechnen";
-      if (on) {
-        // Km aus Projekt vorbelegen wenn Feld noch leer
-        const kmInp = document.getElementById("ef-km-inp");
-        if (kmInp && !kmInp.value) {
-          const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
-          const proj = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-          const kmVal = proj?.kmZumKunden || "";
-          if (kmVal) { kmInp.value = String(kmVal); ctrl.efCalcKm(kmVal); }
-        }
-      } else {
+      if (!on) {
         // Felder zurücksetzen
         const km  = document.getElementById("ef-km-inp");    if (km) km.value = "";
         const ber = document.getElementById("ef-sp-ber");    if (ber) ber.value = "";
@@ -3642,32 +3151,6 @@
       // Betrag-Anzeige zurücksetzen
       const bvl = document.getElementById("ef-bval-lead");
       if (bvl) { bvl.textContent = "Kategorie wählen"; bvl.className = "ef-betrag-val warn"; }
-
-      // Wegspesen: Km und Ansatz aus neuem Projekt laden
-      const ansatzKm = p?.ansatzKmSpesen || null;
-      const kmVal    = p?.kmZumKunden || "";
-      const wegHint  = document.getElementById("ef-weg-hint-ansatz");
-      const kmInp    = document.getElementById("ef-km-inp");
-      const kmRow    = document.getElementById("ef-weg-km-row");
-      const ansatzRow = document.getElementById("ef-weg-ansatz-row");
-      const noansatz = document.getElementById("ef-weg-noansatz");
-      const wegBtn   = document.getElementById("ef-weg-btn");
-
-      if (ansatzKm) {
-        if (wegHint) wegHint.textContent = "CHF " + h.chf(ansatzKm) + "/km";
-        if (kmInp) { kmInp.value = String(kmVal); }
-        if (kmRow) kmRow.style.display = "";
-        if (ansatzRow) ansatzRow.style.display = "";
-        if (noansatz) noansatz.style.display = "none";
-        if (kmVal && kmInp) ctrl.efCalcKm(kmVal);
-      } else {
-        if (wegBtn) { wegBtn.classList.remove("on"); wegBtn.textContent = "Wegspesen verrechnen"; }
-        const detail = document.getElementById("ef-weg-detail");
-        if (detail) detail.classList.remove("show");
-        if (kmRow) kmRow.style.display = "none";
-        if (ansatzRow) ansatzRow.style.display = "none";
-        if (noansatz) noansatz.style.display = "";
-      }
     },
 
     onKatChange(kat) {
@@ -3712,23 +3195,14 @@
 
         debug.log("saveEinsatz:formData", { datum, kat, projId, mode, itemId });
 
-        const showFormErr = msg => {
-          let el = document.getElementById("ef-form-err");
-          if (!el) {
-            el = document.createElement("div");
-            el.id = "ef-form-err";
-            el.style.cssText = "background:#fce7f3;color:#950e13;border:1px solid #f4c0d1;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:500;margin:0 20px 12px;display:flex;align-items:center;gap:8px";
-            const bd = document.querySelector(".ef-bd");
-            if (bd) bd.insertBefore(el, bd.firstChild);
-          }
-          el.textContent = "⚠ " + msg;
-          el.scrollIntoView({behavior:"smooth",block:"nearest"});
-        };
-        if (!datum) { showFormErr("Datum fehlt — bitte auswählen."); document.querySelector("[name='datum']")?.focus(); return; }
-        if (!projId) { showFormErr("Bitte Projekt wählen."); return; }
-        if (!kat)    { showFormErr("Bitte Kategorie wählen."); return; }
+        if (!datum) {
+          document.querySelector("[name='datum']")?.focus();
+          throw new Error("Bitte Datum auswählen.");
+        }
+        if (!projId) throw new Error("Bitte Projekt wählen.");
+        if (!kat)    throw new Error("Bitte Kategorie wählen.");
         const personIdCheck = h.num(fd.get("personLookupId"));
-        if (!personIdCheck) { showFormErr("Bitte Lead-Person wählen."); return; }
+        if (!personIdCheck) throw new Error("Bitte Lead-Person wählen.");
 
         const p            = state.enriched.projekte.find(p => p.id === projId);
         const dauerTage    = h.num(fd.get("dauerTage"));
@@ -3767,11 +3241,9 @@
         if (ort) fields.Ort = ort;
         const bem = (fd.get("bemerkungen") || "").trim();
         if (bem) fields.Bemerkungen = bem;
-        // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag direkt aus DOM (nicht FormData)
+        // Wegspesen: Toggle-Zustand aus ef-weg-btn, Betrag aus hidden field
         const wegAktiv = document.getElementById("ef-weg-btn")?.classList.contains("on");
-        const spBerEl  = document.getElementById("ef-sp-ber");
-        const spBerVal = spBerEl ? h.num(spBerEl.value) : null;
-        fields.SpesenBerechnet = wegAktiv ? (spBerVal ?? 0) : 0;
+        fields.SpesenBerechnet = wegAktiv ? (h.num(fd.get("spesenBerechnet")) ?? 0) : 0;
         // SpesenZusatz + SpesenFinal nicht mehr im Modal gesetzt — bestehende Werte erhalten
         // (werden im späteren Abrechnungsdialog verwaltet)
         const status = fd.get("status");
@@ -3818,8 +3290,6 @@
       if (!confirm(`Einsatz "${label}" wirklich löschen?`)) return;
       try {
         await api.deleteItem(CONFIG.lists.einsaetze, id);
-        ui.closeModal();
-        state.ui.selectedEinsatzId = null;
         ui.setMsg("Einsatz gelöscht.", "success");
         await api.loadAll();
         ctrl.render();
@@ -3909,19 +3379,11 @@
     },
 
     copyEinsatz(id) {
+      // Einsatz duplizieren: neues Formular öffnen mit Projekt und Kategorie vorbelegt,
+      // Datum leer damit der User bewusst ein neues Datum wählt.
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
-      // Alle Felder ausser Datum übernehmen
-      ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie, {
-        ort:            e.ort||"",
-        titel:          e.title||"",
-        personId:       e.personLookupId||null,
-        coPersonId:     e.coPersonLookupId||null,
-        bemerkungen:    e.bemerkungen||"",
-        spesenAktiv:    !!(e.spesenBerechnet),
-        betragBerechnet: e.betragBerechnet||null,
-        betragFinal:    e.betragFinal||null
-      });
+      ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie);
     },
 
     // ── Abrechnungsdialog ─────────────────────────────────────────────────
@@ -4050,7 +3512,7 @@
               <tbody>
                 ${einsaetze.map(e => {
                   const betrag = (h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (h.num(e.coBetragFinal) ?? h.num(e.coBetragBerechnet) ?? 0);
-                  const spesen = e.spesenAnzeige || 0;
+                  const spesen = e.spesenBerechnet || 0;
                   return `<tr class="${e.einsatzStatus==="abgesagt-chf"?"cancelled":""}">
                     <td><input type="checkbox" class="ad-cb ad-e-cb"
                       data-id="${e.id}" data-betrag="${betrag}" data-spesen="${spesen}"
@@ -4261,10 +3723,10 @@
 
       const einsaetze  = state.enriched.einsaetze.filter(e => checkedIds.includes(e.id));
       const konzeption = state.enriched.konzeption.filter(k => checkedKonzIds.includes(k.id));
-      const spesen     = einsaetze.filter(e => (e.spesenAnzeige || 0) > 0);
+      const spesen     = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
 
       const totalEinsatz = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
-      const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenAnzeige || 0), 0) + (zusatzBetrag || 0);
+      const totalSpesen  = spesen.reduce((s,e) => s + (e.spesenBerechnet || 0), 0) + (zusatzBetrag || 0);
       const totalKonz    = konzeption.reduce((s,k) => s + (k.anzeigeBetrag || 0), 0);
       const grandTotal   = totalEinsatz + totalSpesen + totalKonz;
 
@@ -4311,7 +3773,7 @@
           <div class="sm-sec">
             <div class="sm-sec-t">Spesen</div>
             ${spesen.length ? spesen.map(e => `
-              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · Wegspesen</span><span class="val">CHF ${h.chf(e.spesenAnzeige)}</span></div>`).join("") : ""}
+              <div class="sm-row"><span class="lbl">${h.esc(e.datumFmt)} · Wegspesen</span><span class="val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`).join("") : ""}
             ${zusatzBetrag ? `<div class="sm-row"><span class="lbl">${h.esc(zusatzBem || "Zusatzspesen")}</span><span class="val">CHF ${h.chf(zusatzBetrag)}</span></div>` : ""}
             ${!spesen.length && !zusatzBetrag ? `<div class="sm-empty">Keine Spesen</div>` : ""}
             ${(spesen.length || zusatzBetrag) ? `<div class="sm-row" style="font-weight:700"><span class="lbl">Total Spesen</span><span class="val" style="color:#004078">CHF ${h.chf(totalSpesen)}</span></div>` : ""}
@@ -4417,8 +3879,8 @@
         .filter(k => (checkedKonzIds || []).includes(k.id));
 
       // Spesen: nur aus gewählten Einsätzen
-      const spesenEinsaetze = einsaetze.filter(e => (e.spesenAnzeige || 0) > 0);
-      const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenAnzeige || 0), 0);
+      const spesenEinsaetze = einsaetze.filter(e => (e.spesenBerechnet || 0) > 0);
+      const spesenTotal     = spesenEinsaetze.reduce((s,e) => s + (e.spesenBerechnet || 0), 0);
 
       // Totals
       const einsatzTotal = einsaetze.reduce((s,e) => s + ((h.num(e.betragFinal) ?? h.num(e.betragBerechnet) ?? 0) + (e.coAnzeigeBetrag || 0)), 0);
@@ -4546,7 +4008,7 @@
           e.datumFmt,
           (e.title || e.kategorie) + " \u2014 " + (p.firmaName || ""),
           "Wegspesen",
-          h.chf(e.spesenAnzeige)
+          h.chf(e.spesenBerechnet)
         ]);
         if (spesenZusatzBetrag) {
           spesenRows.push([datum, spesenZusatzBem || "Zusatzspesen", "Spesen", h.chf(spesenZusatzBetrag)]);
