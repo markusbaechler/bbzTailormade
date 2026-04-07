@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {} },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -857,11 +857,14 @@
         if (a(".ef-chip[data-fkey]"))              { const c = a(".ef-chip[data-fkey]"); const k = c.dataset.fkey, v = c.dataset.fval; state.filters.einsaetze[k] = state.filters.einsaetze[k] === v ? "" : v; ctrl.render(); return; }
         if (a("[data-action='reset-einsatz-filters']")) { state.filters.einsaetze = {search:"",abrechnung:"",einsatzStatus:"",jahr:"",projekt:"",firma:"",projektNr:"",person:""}; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
         if (a("[data-action='ei-filter']")) { const el=a("[data-action='ei-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.einsaetze[k]=state.filters.einsaetze[k]===v?"":v; state.ui.selectedEinsatzId=null; ctrl.render(); return; }
+        if (a("[data-action='ei-mob-filter']"))       { state.ui.eiMobFilter = true;  ctrl.render(); return; }
+        if (a("[data-action='ei-mob-filter-close']")) { state.ui.eiMobFilter = false; ctrl.render(); return; }
         if (a("[data-action='select-einsatz']")) {
           const id = +a("[data-action='select-einsatz']").dataset.id;
+          if (window.innerWidth <= 899) { ctrl.eiMobOpenEinsatz(id); return; }
           state.ui.selectedEinsatzId = state.ui.selectedEinsatzId===id ? null : id;
           document.querySelectorAll("[data-action='select-einsatz']").forEach(tr => {
-            tr.classList.toggle("ef-row-sel", +tr.dataset.id === state.ui.selectedEinsatzId);
+            tr.classList.toggle("ei-row-sel", +tr.dataset.id === state.ui.selectedEinsatzId);
           });
           ctrl.updateDetailPanel(); return;
         }
@@ -1617,11 +1620,12 @@
         </style>
 
         <div class="ei-wrap">
-          <div class="ei-shell">
+          <div class="ei-shell${state.ui.eiMobFilter ? " ei-mob-filter" : ""}">
 
             <!-- SIDEBAR -->
             <div class="ei-sidebar">
               <div class="ei-sb-head">
+                <button class="tm-btn tm-btn-sm ei-mob-filter-btn" data-action="ei-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zur Liste</button>
                 <input type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="einsaetze.search"
                   oninput="h.searchInput('einsaetze.search',this.value)">
@@ -1650,7 +1654,10 @@
                   })()}</div>
                   <div class="ei-meta">${list.length} Einträge · Total CHF ${h.chf(totalBetrag)}</div>
                 </div>
-                <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="tm-btn tm-btn-sm ei-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="ei-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
+                </div>
               </div>
               <div class="ei-tbl-wrap">
                 <table class="ei-tbl">
@@ -3623,6 +3630,53 @@
       state.filters.route = "firma-detail";
       this.render();
       window.scrollTo(0, 0);
+    },
+
+    eiMobOpenEinsatz(id) {
+      const e = state.enriched.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+      const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      ui.renderModal(`
+        <style>
+          .ei-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .ei-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .ei-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .ei-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .ei-bs-title{font-size:16px;font-weight:700}
+          .ei-bs-sub{font-size:12px;color:#8896a5;margin-top:2px;font-weight:600}
+          .ei-bs-body{padding:4px 16px 14px}
+          .ei-bs-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .ei-bs-row:last-child{border-bottom:none}
+          .ei-bs-key{color:#8896a5;font-weight:600;font-size:13px}
+          .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
+          .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="ei-bs-bd" id="tm-modal-bd">
+          <div class="ei-bs">
+            <div class="ei-bs-handle"></div>
+            <div class="ei-bs-head">
+              <div class="ei-bs-title">${h.esc(e.title||e.kategorie)}</div>
+              <div class="ei-bs-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+            </div>
+            <div class="ei-bs-body">
+              <div class="ei-bs-row"><span class="ei-bs-key">Datum</span><span class="ei-bs-val">${h.esc(e.datumFmt)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Projekt</span><span class="ei-bs-val">${h.esc(e.projektTitle||"—")}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Kategorie</span><span class="ei-bs-val">${h.esc(e.kategorie)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Person</span><span class="ei-bs-val">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span></div>
+              ${e.ort?`<div class="ei-bs-row"><span class="ei-bs-key">Ort</span><span class="ei-bs-val">${h.esc(e.ort)}</span></div>`:""}
+              <div class="ei-bs-row"><span class="ei-bs-key">Status</span><span class="ei-bs-val">${h.statusBadge(e)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Betrag</span><span class="ei-bs-val" style="color:#004078">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+              ${e.spesenBerechnet?`<div class="ei-bs-row"><span class="ei-bs-key">Wegspesen</span><span class="ei-bs-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+              <div class="ei-bs-row"><span class="ei-bs-key">Abrechnung</span><span class="ei-bs-val">${h.abrBadge(e.abrechnung)}</span></div>
+            </div>
+            <div class="ei-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
     },
 
     openProjekt(id) {
