@@ -716,3 +716,25 @@ html, body {
   .pd-table td:nth-child(4) { display:none; }
   .pd-table td { white-space:normal !important; max-width:none !important; }
 }
+
+/* ── Projekt-Detail Mobile KPI Collapse ───────────────────────────────────── */
+.pd-kpi-chevron { font-size:11px; color:#8896a5; display:none; flex-shrink:0; margin-top:2px; }
+@media(max-width:899px) {
+  .pd-kpi-chevron { display:block; }
+  .pd-kpis-collapsed { display:none !important; }
+  .pd-proj-header { padding:10px 14px !important; }
+  .pd-proj-title { font-size:15px !important; }
+
+  /* Filter-Bar auf Mobile: nur 1 Zeile mit Filter-Button */
+  .pd-filter-bar { display:none !important; }
+  .pd-mob-filter-bar { display:flex !important; }
+}
+.pd-mob-filter-bar {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  border-bottom: 1px solid #dde3ea;
+  flex-shrink: 0;
+}
