@@ -2250,7 +2250,6 @@
       // ── CRM-Link Badge ─────────────────────────────────────────────────────
       const crmBadge = `<a href="${crmUrl}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ CRM bearbeiten</a>`;
 
-      scrollWrap(() => {
       ui.render(`
         <style>
           .fd-back{font-size:13px;color:#004078;font-weight:600;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
@@ -2426,8 +2425,11 @@
 
         </div>
       `);
-      });
-    },
+    }
+
+  };
+
+  const ctrl = {
 
     render() {
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
