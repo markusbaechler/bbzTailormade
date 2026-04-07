@@ -143,8 +143,6 @@ html, body {
 .tm-view-root {
   height: calc(100vh - var(--tm-header-h));
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
   padding: 0;
   margin-top: 0;
 }
@@ -652,8 +650,7 @@ html, body {
 
 /* ── Scroll-View für nicht-Panel-Screens ──────────────────────────────────── */
 .tm-scroll-view {
-  flex: 1;
+  height: calc(100vh - var(--tm-header-h));
   overflow-y: auto;
   padding: 24px 24px 40px;
-  min-height: 0;
 }
