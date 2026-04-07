@@ -5525,11 +5525,22 @@
         const personId = h.num(fd.get("personLookupId"));
         if (personId) lookupFields[F.konz_person_w] = personId;
 
+        const neuerVerrWert = fd.get("verrechenbar") || "";
+        const alteKonz      = mode === "edit" && itemId
+          ? state.enriched.konzeption.find(k => k.id === Number(itemId))
+          : null;
+
+        // Wenn Verrechenbar auf Klärung nötig oder Inklusive wechselt:
+        // Abrechnung auf offen zurücksetzen, Lookup wird nach dem Patch geleert
+        const verrWechselZuNichtVerr = alteKonz &&
+          alteKonz.verrechenbar === "verrechenbar" &&
+          neuerVerrWert !== "verrechenbar";
+
         const fields = {
           Kategorie:      kat,
           AufwandStunden: std,
-          Verrechenbar:   fd.get("verrechenbar") || "",
-          Abrechnung:     fd.get("abrechnung") || "offen"
+          Verrechenbar:   neuerVerrWert,
+          Abrechnung:     verrWechselZuNichtVerr ? "offen" : (fd.get("abrechnung") || "offen")
         };
         if (betragBer !== null) fields.BetragBerechnet = betragBer;
         const bf = h.num(fd.get("betragFinal"));
@@ -5543,6 +5554,10 @@
           fields.Datum = datum + "T12:00:00Z";
           await api.patch(CONFIG.lists.konzeption, eid, fields);
           await api.patchLookups(CONFIG.lists.konzeption, eid, lookupFields);
+          // Abrechnung-Lookup leeren wenn Verrechenbar-Wechsel
+          if (verrWechselZuNichtVerr) {
+            await api.patchLookups(CONFIG.lists.konzeption, eid, { [F.konz_abrechnung_w]: 0 });
+          }
         } else {
           const cr  = await api.post(CONFIG.lists.konzeption, titel);
           const nid = Number(cr?.id || cr?.fields?.id);
