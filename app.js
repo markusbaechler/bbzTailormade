@@ -1652,7 +1652,10 @@
             <!-- SIDEBAR -->
             <div class="ei-sidebar">
               <div class="ei-sb-head">
-                <button class="tm-btn tm-btn-sm ei-mob-filter-btn" data-action="ei-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Einsätze</button>
+                <div class="ei-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <button class="tm-btn tm-btn-sm" data-action="ei-mob-filter-close">← Einsätze</button>
+                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="reset-einsatz-filters">✕ Filter löschen</button>`:""}
+                </div>
                 <input type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="einsaetze.search"
                   oninput="h.searchInput('einsaetze.search',this.value)">
@@ -1665,7 +1668,7 @@
                 ${sbSec("person",   "Person",     personen.map(n=>[n,n]))}
                 ${sbSec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(v=>[v,v]))}
               </div>
-              ${hasFilter ? `<div class="ei-sb-footer"><button class="ei-sb-reset" data-action="reset-einsatz-filters">✕ Alle Filter löschen</button></div>` : ""}
+              <div class="ei-sb-footer"${hasFilter?"":`style="display:none"`}><button class="ei-sb-reset" data-action="reset-einsatz-filters">✕ Alle Filter löschen</button></div>
             </div>
 
             <!-- MAIN -->
@@ -1808,6 +1811,7 @@
           <td>
             ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span>`:""}
             <div class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</div>
+            <div class="kz-c2 kz-mob-desc">${h.esc(k.title)}</div>
           </td>
           <td><div class="kz-c1">${h.esc(k.title)}</div></td>
           <td class="kz-td-muted">${h.esc(k.personName||"—")}</td>
@@ -1883,7 +1887,10 @@
             <!-- SIDEBAR -->
             <div class="kz-sidebar">
               <div class="kz-sb-head">
-                <button class="tm-btn tm-btn-sm kz-mob-filter-btn" data-action="kz-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Konzeption</button>
+                <div class="kz-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <button class="tm-btn tm-btn-sm" data-action="kz-mob-filter-close">← Konzeption</button>
+                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="kz-reset-filters">✕ Filter löschen</button>`:""}
+                </div>
                 <input type="search" placeholder="Suche Konzeption, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="konzeption.search"
                   oninput="h.searchInput('konzeption.search',this.value)">
@@ -1896,7 +1903,7 @@
                 ${sbSec("person",      "Person",      personen.map(n=>[n,n]))}
                 ${sbSec("abrechnung",  "Abrechnung",  state.choices.konzAbrechnung.map(v=>[v,v]))}
               </div>
-              ${hasFilter?`<div class="kz-sb-footer"><button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button></div>`:""}
+              <div class="kz-sb-footer"${hasFilter?"":`style="display:none"`}><button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button></div>
             </div>
 
             <!-- MAIN -->
