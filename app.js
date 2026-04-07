@@ -2942,6 +2942,66 @@
 
   const ctrl = {
 
+    async login() {
+      try {
+        const r = await state.auth.msal.loginPopup({ scopes: CONFIG.graph.scopes });
+        state.auth.account = r.account;
+        state.auth.isAuth  = true;
+        ui.setAuth(r.account.name || r.account.username);
+        await api.loadAll();
+        ctrl.navigate("projekte");
+      } catch (e) {
+        debug.err("login", e);
+        ui.setMsg("Anmeldung fehlgeschlagen: " + e.message, "error");
+      }
+    },
+
+    async logout() {
+      try {
+        await state.auth.msal.logoutPopup();
+        state.auth.account = null;
+        state.auth.isAuth  = false;
+        location.reload();
+      } catch (e) {
+        debug.err("logout", e);
+      }
+    },
+
+    navigate(route) {
+      // Formular-Lock: nicht navigieren wenn Formular aktiv
+      if (state.form && route !== state.filters.route) {
+        const form = document.getElementById("projekt-form");
+        if (form) {
+          const fd = new FormData(form);
+          const p  = state.form?.id ? state.enriched.projekte.find(p => p.id === state.form.id) : null;
+          const dirty = p
+            ? (fd.get("title") !== (p.title||"") || fd.get("status") !== (p.status||""))
+            : !!(fd.get("title") || "").trim();
+          if (dirty && !confirm("Änderungen verwerfen?")) return;
+        }
+        state.form = null;
+      }
+      // Mobile Filter-States bei Route-Wechsel zurücksetzen
+      state.ui.eiMobFilter  = false;
+      state.ui.kzMobFilter  = false;
+      state.ui.abrMobFilter = false;
+      state.ui.fiMobFilter  = false;
+      state.filters.route   = route;
+      ctrl.render();
+    },
+
+    openProjekt(id) {
+      state.selection.projektId = id;
+      state.filters.route = "projekt-detail";
+      ctrl.render();
+    },
+
+    async refresh() {
+      ui.setMsg("Aktualisiere…", "info");
+      await api.loadAll();
+      ctrl.render();
+    },
+
     render() {
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
       if (state.form) return;
@@ -3402,6 +3462,238 @@
 
 
     // ── Projekt-Formular ───────────────────────────────────────────────────
+    openFirma(id) {
+      state.form = null;
+      state.selection.firmaId = id;
+      state.filters.route = "firma-detail";
+      this.render();
+      window.scrollTo(0, 0);
+    },
+
+    eiMobOpenEinsatz(id) {
+      const e = state.enriched.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+      ui.renderModal(`
+        <style>
+          .ei-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .ei-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .ei-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .ei-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .ei-bs-title{font-size:16px;font-weight:700}
+          .ei-bs-sub{font-size:12px;color:#8896a5;margin-top:2px;font-weight:600}
+          .ei-bs-body{padding:4px 16px 14px}
+          .ei-bs-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .ei-bs-row:last-child{border-bottom:none}
+          .ei-bs-key{color:#8896a5;font-weight:600;font-size:13px}
+          .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
+          .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="ei-bs-bd" id="tm-modal-bd">
+          <div class="ei-bs">
+            <div class="ei-bs-handle"></div>
+            <div class="ei-bs-head">
+              <div class="ei-bs-title">${h.esc(e.title||e.kategorie)}</div>
+              <div class="ei-bs-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+            </div>
+            <div class="ei-bs-body">
+              <div class="ei-bs-row"><span class="ei-bs-key">Datum</span><span class="ei-bs-val">${h.esc(e.datumFmt)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Projekt</span><span class="ei-bs-val">${h.esc(e.projektTitle||"—")}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Kategorie</span><span class="ei-bs-val">${h.esc(e.kategorie)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Person</span><span class="ei-bs-val">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span></div>
+              ${e.ort?`<div class="ei-bs-row"><span class="ei-bs-key">Ort</span><span class="ei-bs-val">${h.esc(e.ort)}</span></div>`:""}
+              <div class="ei-bs-row"><span class="ei-bs-key">Status</span><span class="ei-bs-val">${h.statusBadge(e)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Betrag</span><span class="ei-bs-val" style="color:#004078">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+              ${e.spesenBerechnet?`<div class="ei-bs-row"><span class="ei-bs-key">Wegspesen</span><span class="ei-bs-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+              <div class="ei-bs-row"><span class="ei-bs-key">Abrechnung</span><span class="ei-bs-val">${h.abrBadge(e.abrechnung)}</span></div>
+            </div>
+            <div class="ei-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
+    },
+
+    openProjekt(id) {
+      state.form = null;
+      state.selection.projektId = id;
+      state.filters.route = "projekt-detail";
+      state.ui.selectedProjektEinsatzId = null;
+      state.ui.selectedProjektKonzId = null;
+      this.render();
+      window.scrollTo(0, 0);
+    },
+
+    pdMobOpenEinsatz(id) {
+      const p = state.enriched.projekte.find(p => p.id === state.selection.projektId);
+      const e = p?.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      ui.renderModal(`
+        <style>
+          .pd-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .pd-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .pd-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .pd-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .pd-bs-title{font-size:16px;font-weight:700;color:var(--tm-text)}
+          .pd-bs-body{padding:14px 16px}
+          .pd-bs-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .pd-bs-row:last-child{border-bottom:none}
+          .pd-bs-key{color:var(--tm-text-muted);font-weight:600}
+          .pd-bs-val{text-align:right;font-weight:600;max-width:60%}
+          .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
+          .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="pd-bs-bd" id="tm-modal-bd">
+          <div class="pd-bs">
+            <div class="pd-bs-handle"></div>
+            <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(e.title)}</div></div>
+            <div class="pd-bs-body">
+              <div class="pd-bs-row"><span class="pd-bs-key">Datum</span><span class="pd-bs-val">${h.esc(e.datumFmt)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Kategorie</span><span class="pd-bs-val">${h.esc(e.kategorie)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Person</span><span class="pd-bs-val">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span></div>
+              ${e.ort?`<div class="pd-bs-row"><span class="pd-bs-key">Ort</span><span class="pd-bs-val">${h.esc(e.ort)}</span></div>`:""}
+              <div class="pd-bs-row"><span class="pd-bs-key">Status</span><span class="pd-bs-val">${h.statusBadge(e)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Betrag</span><span class="pd-bs-val" style="color:var(--tm-blue)">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+              ${e.spesenBerechnet?`<div class="pd-bs-row"><span class="pd-bs-key">Wegspesen</span><span class="pd-bs-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+              <div class="pd-bs-row"><span class="pd-bs-key">Abrechnung</span><span class="pd-bs-val">${h.abrBadge(e.abrechnung)}</span></div>
+              ${e.bemerkungen?`<div class="pd-bs-note">${h.esc(e.bemerkungen)}</div>`:""}
+            </div>
+            <div class="pd-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉ Duplizieren</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
+    },
+
+    pdMobOpenKonz(id) {
+      const p = state.enriched.projekte.find(p => p.id === state.selection.projektId);
+      const k = p?.konzeintraege.find(k => k.id === id);
+      if (!k) return;
+      ui.renderModal(`
+        <style>
+          .pd-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .pd-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .pd-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .pd-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .pd-bs-title{font-size:16px;font-weight:700;color:var(--tm-text)}
+          .pd-bs-body{padding:14px 16px}
+          .pd-bs-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .pd-bs-row:last-child{border-bottom:none}
+          .pd-bs-key{color:var(--tm-text-muted);font-weight:600}
+          .pd-bs-val{text-align:right;font-weight:600;max-width:60%}
+          .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
+          .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="pd-bs-bd" id="tm-modal-bd">
+          <div class="pd-bs">
+            <div class="pd-bs-handle"></div>
+            <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(k.title)}</div></div>
+            <div class="pd-bs-body">
+              <div class="pd-bs-row"><span class="pd-bs-key">Datum</span><span class="pd-bs-val">${h.esc(k.datumFmt)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Kategorie</span><span class="pd-bs-val">${h.esc(k.kategorie)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Person</span><span class="pd-bs-val">${h.esc(k.personName||"—")}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Aufwand</span><span class="pd-bs-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Betrag</span><span class="pd-bs-val" style="color:var(--tm-blue)">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Verrechenbar</span><span class="pd-bs-val">${h.verrBadge(k.verrechenbar)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Abrechnung</span><span class="pd-bs-val">${h.abrBadge(k.abrechnung)}</span></div>
+              ${k.bemerkungen?`<div class="pd-bs-note">${h.esc(k.bemerkungen)}</div>`:""}
+            </div>
+            <div class="pd-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
+    },
+
+    setTab(route, tab) { state.filters.activeTab[route] = tab; this.render(); },
+    closeModal() { ui.closeModal(); },
+
+    async resetKonzeptionAbrechnung(id) {
+      const k = state.enriched.konzeption.find(k => k.id === id);
+      if (!k) return;
+      if (!confirm(
+        `Abrechnung zurücksetzen für: «${k.title || k.datumFmt}»\n\n` +
+        `Dieser Konzeptionsaufwand ist als «abgerechnet» markiert, hat aber keine verknüpfte Abrechnung mehr.\n\n` +
+        `Der Status wird auf «offen» zurückgesetzt.\n\nFortfahren?`
+      )) return;
+      try {
+        ui.setMsg("Wird zurückgesetzt…", "info");
+        await api.patch(CONFIG.lists.konzeption, id, { Abrechnung: "offen" });
+        ui.closeModal();
+        ui.setMsg(`Konzeptionsaufwand zurückgesetzt.`, "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (err) {
+        debug.err("resetKonzeptionAbrechnung", err);
+        ui.setMsg("Fehler: " + err.message, "error");
+      }
+    },
+
+    async resetEinsatzAbrechnung(id) {
+      const e = state.enriched.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      if (!confirm(
+        `Abrechnung zurücksetzen für: «${e.title || e.datumFmt}»\n\n` +
+        `Dieser Einsatz ist als «abgerechnet» markiert, hat aber keine verknüpfte Abrechnung mehr.\n\n` +
+        `Der Status wird auf «offen» zurückgesetzt.\n\nFortfahren?`
+      )) return;
+      try {
+        ui.setMsg("Wird zurückgesetzt…", "info");
+        await api.patch(CONFIG.lists.einsaetze, id, { Abrechnung: "offen" });
+        ui.closeModal();
+        ui.setMsg(`Einsatz zurückgesetzt.`, "success");
+        await api.loadAll();
+        ctrl.render();
+      } catch (err) {
+        debug.err("resetEinsatzAbrechnung", err);
+        ui.setMsg("Fehler: " + err.message, "error");
+      }
+    },
+
+    async abrSetStatus(id, newStatus) {
+      try {
+        await api.patch(CONFIG.lists.abrechnungen, id, { Status: newStatus });
+        const a = state.enriched.abrechnungen.find(a => a.id === id);
+        if (a) a.status = newStatus;
+        const raw = state.data.abrechnungen.find(r => Number(r.id) === id);
+        if (raw) raw.Status = newStatus;
+        ui.setMsg(`Status auf «${newStatus}» gesetzt.`, "success");
+        this.render();
+      } catch (e) {
+        debug.err("abrSetStatus", e);
+        ui.setMsg("Fehler: " + e.message, "error");
+      }
+    },
+
+    async abrDownloadPdf(id) {
+      const a = state.enriched.abrechnungen.find(a => a.id === id);
+      if (!a) { ui.setMsg("Abrechnung nicht gefunden.", "error"); return; }
+      const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
+      if (!proj) { ui.setMsg("Projekt nicht gefunden.", "error"); return; }
+      const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === id);
+      const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === id);
+      ui.setMsg("PDF wird generiert…", "info");
+      try {
+        await ctrl.generateAbrechnungPDF(
+          proj.id,
+          einsaetze.map(e => e.id),
+          konz.map(k => k.id),
+          a.spesenZusatzBetrag || 0,
+          a.spesenZusatzBemerkung || "",
+          a.datum
+        );
+        ui.setMsg("PDF heruntergeladen.", "success");
+      } catch(e) {
+        debug.err("abrDownloadPdf", e);
+        ui.setMsg("PDF fehlgeschlagen: " + e.message, "error");
+      }
+    },
+
     openProjektForm(id) {
       const p  = id ? state.enriched.projekte.find(p => p.id === id) : null;
       const cv = (k, fb = "") => p ? (p[k] ?? fb) : fb;
