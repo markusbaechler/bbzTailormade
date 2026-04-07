@@ -1652,7 +1652,7 @@
             <!-- SIDEBAR -->
             <div class="ei-sidebar">
               <div class="ei-sb-head">
-                <button class="tm-btn tm-btn-sm ei-mob-filter-btn" data-action="ei-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zur Liste</button>
+                <button class="tm-btn tm-btn-sm ei-mob-filter-btn" data-action="ei-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Einsätze</button>
                 <input type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="einsaetze.search"
                   oninput="h.searchInput('einsaetze.search',this.value)">
@@ -1683,7 +1683,7 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm ei-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="ei-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
-                  <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
+                  <button class="tm-btn tm-btn-sm tm-btn-primary ei-mob-hide" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
                 </div>
               </div>
               <div class="ei-tbl-wrap">
@@ -1883,7 +1883,7 @@
             <!-- SIDEBAR -->
             <div class="kz-sidebar">
               <div class="kz-sb-head">
-                <button class="tm-btn tm-btn-sm kz-mob-filter-btn" data-action="kz-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zur Liste</button>
+                <button class="tm-btn tm-btn-sm kz-mob-filter-btn" data-action="kz-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Konzeption</button>
                 <input type="search" placeholder="Suche Konzeption, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="konzeption.search"
                   oninput="h.searchInput('konzeption.search',this.value)">
@@ -1908,7 +1908,7 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm kz-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="kz-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
-                  <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
+                  <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
               </div>
               <div class="kz-tbl-wrap">
