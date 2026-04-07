@@ -843,3 +843,9 @@ html, body {
   /* Suche in Sidebar auf Mobile ausblenden */
   .fi-sb-head input { display:none !important; }
 }
+
+/* ── firmaDetail: view-root scrollbar ────────────────────────────────────── */
+.tm-view-root.fd-scroll {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
