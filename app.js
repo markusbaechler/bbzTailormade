@@ -2204,6 +2204,9 @@
       const p = state.enriched.projekte.find(p => p.id === projektId);
       if (!p) { ctrl.navigate("abrechnungen"); return; }
 
+      // aeUpdateTotal global registrieren bevor HTML gerendert wird
+      ctrl._initAeUpdateTotal();
+
       const einsaetze = state.enriched.einsaetze
         .filter(e => e.projektLookupId === projektId)
         .filter(e => e.einsatzStatus !== "abgesagt")
@@ -2289,13 +2292,19 @@
             .ae-btn-cancel{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
             .ae-btn-submit{padding:7px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(29,158,117,.3)}
             .ae-btn-submit:hover{background:#0F6E56}
-            /* Mobile: kompakte Zeilen statt Tabelle */
+            /* Mobile ≤640px */
             @media(max-width:640px){
-              .ae-page{padding:12px 12px 120px}
-              .ae-col-hide{display:none}
-              .ae-table td{padding:7px 8px}
+              .ae-page{padding:10px 10px 110px}
+              .ae-col-hide{display:none!important}
+              .ae-table td{padding:7px 8px;font-size:12px}
               .ae-footer-sums{display:none}
+              .ae-konz-sum{grid-template-columns:1fr 1fr!important}
+              .ae-header{border-radius:10px;padding:12px 14px}
+              .ae-header-t{font-size:14px}
+              .ae-kl-btn{font-size:10px;padding:2px 7px}
             }
+            /* hide Co row when empty */
+            .ae-co-empty{display:none}
           </style>
 
           <div>
@@ -2342,8 +2351,7 @@
                     <td class="muted" style="white-space:nowrap">${h.esc(e.datumFmt)}</td>
                     <td style="font-weight:500">
                       ${h.esc(e.title || e.datumFmt)}
-                      ${e.coPersonName ? `<br><span style="font-size:11px;color:#8896a5">Co: ${h.esc(e.coPersonName)}</span>` : ""}
-                      ${spesen ? `<span class="ae-col-hide" style="display:none"></span><br class="ae-mob-sp"><span style="font-size:11px;color:#1a8a5e;display:none" class="ae-mob-sp">Spesen: ${h.chf(spesen)}</span>` : ""}
+                      ${(e.coPersonName && e.coPersonName !== "—") ? `<br><span style="font-size:11px;color:#8896a5">Co: ${h.esc(e.coPersonName)}</span>` : ""}
                     </td>
                     <td class="muted ae-col-hide">${h.esc(e.kategorie)}</td>
                     <td class="muted ae-col-hide">${h.esc(e.personName||"")}</td>
@@ -2395,10 +2403,10 @@
             <div class="ae-sec-hd">
               <span class="ae-sec-lbl">Konzeption — verrechenbar</span>
             </div>
-            <div class="ae-konz-sum">
+            <div class="ae-konz-sum" style="${konzKlaer.length ? '' : 'grid-template-columns:1fr 1fr'}">
               <div class="ae-kc"><div class="ae-kc-lbl">Total Aufwand</div><div class="ae-kc-val">CHF ${h.chf(konzTotalBetrag)}</div><div class="ae-kc-sub">${konzTotalStd.toFixed(1)} h</div></div>
               <div class="ae-kc verr"><div class="ae-kc-lbl">Verrechenbar</div><div class="ae-kc-val">CHF ${h.chf(konzVerrBetrag)}</div><div class="ae-kc-sub">${konzVerrStd.toFixed(1)} h</div></div>
-              <div class="ae-kc klaer"><div class="ae-kc-lbl">Klärung nötig</div><div class="ae-kc-val">CHF ${h.chf(konzKlaerBetrag)}</div><div class="ae-kc-sub">${konzKlaerStd.toFixed(1)} h</div></div>
+              ${konzKlaer.length ? `<div class="ae-kc klaer"><div class="ae-kc-lbl">Klärung nötig</div><div class="ae-kc-val">CHF ${h.chf(konzKlaerBetrag)}</div><div class="ae-kc-sub">${konzKlaerStd.toFixed(1)} h</div></div>` : ""}
             </div>
             ${konzVerr.length ? `
             <div style="display:flex;justify-content:flex-end;padding:8px 16px 0">
@@ -2456,36 +2464,10 @@
           </div>
         </div>
 
-        <script>
-        window.aeUpdateTotal = function() {
-          let honorar = 0, wegspesen = 0, kTotal = 0;
-          document.querySelectorAll(".ae-e-cb:checked").forEach(cb => {
-            honorar   += parseFloat(cb.dataset.honorar) || 0;
-            wegspesen += parseFloat(cb.dataset.spesen)  || 0;
-          });
-          document.querySelectorAll(".ae-k-cb:checked").forEach(cb => {
-            kTotal += parseFloat(cb.dataset.betrag) || 0;
-          });
-          const zusatz = parseFloat(document.getElementById("ae-zusatz-betrag")?.value) || 0;
-          const grand  = honorar + wegspesen + zusatz + kTotal;
-          const fmt = v => v.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
-          const s = id => document.getElementById(id);
-          // Einsatz-Subtotal-Zeile
-          if(s("ae-einsatz-honorar"))    s("ae-einsatz-honorar").textContent    = "CHF " + fmt(honorar);
-          if(s("ae-einsatz-spesen-sub")) s("ae-einsatz-spesen-sub").textContent = "CHF " + fmt(wegspesen);
-          if(s("ae-einsatz-total"))      s("ae-einsatz-total").textContent      = "CHF " + fmt(honorar + wegspesen);
-          // Konzeption
-          if(s("ae-konz-total")) s("ae-konz-total").textContent = "CHF " + fmt(kTotal);
-          if(s("ae-ft-konz"))    s("ae-ft-konz").textContent    = "CHF " + fmt(kTotal);
-          // Zusatzspesen Header + Footer
-          if(s("ae-spesen-hd"))    s("ae-spesen-hd").textContent    = zusatz > 0 ? "CHF " + fmt(zusatz) : "CHF 0.00";
-          if(s("ae-ft-zusatz"))    s("ae-ft-zusatz").textContent    = "CHF " + fmt(zusatz);
-          if(s("ae-ft-honorar"))   s("ae-ft-honorar").textContent   = "CHF " + fmt(honorar);
-          if(s("ae-ft-wegspesen")) s("ae-ft-wegspesen").textContent = "CHF " + fmt(wegspesen);
-          if(s("ae-grand-total"))  s("ae-grand-total").textContent  = "CHF " + fmt(grand);
-        };
-        <\/script>
       `);
+      // WICHTIG: <script> in innerHTML wird nicht ausgeführt.
+      // aeUpdateTotal muss nach dem Render direkt aufgerufen werden.
+      window.aeUpdateTotal();
     },
 
     firmen() {
@@ -4783,6 +4765,36 @@
         betragFinal:     e.betragFinal || null,
         coBetragFinal:   e.coBetragFinal || null
       });
+    },
+
+    // ── Abrechnung Inline-Helfer ─────────────────────────────────────────
+
+    _initAeUpdateTotal() {
+      // aeUpdateTotal als globale Funktion registrieren (muss vor render() verfügbar sein)
+      window.aeUpdateTotal = () => {
+        let honorar = 0, wegspesen = 0, kTotal = 0;
+        document.querySelectorAll(".ae-e-cb:checked").forEach(cb => {
+          honorar   += parseFloat(cb.dataset.honorar) || 0;
+          wegspesen += parseFloat(cb.dataset.spesen)  || 0;
+        });
+        document.querySelectorAll(".ae-k-cb:checked").forEach(cb => {
+          kTotal += parseFloat(cb.dataset.betrag) || 0;
+        });
+        const zusatz = parseFloat(document.getElementById("ae-zusatz-betrag")?.value) || 0;
+        const grand  = honorar + wegspesen + zusatz + kTotal;
+        const fmt = v => v.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
+        const s = id => document.getElementById(id);
+        if(s("ae-einsatz-honorar"))    s("ae-einsatz-honorar").textContent    = "CHF " + fmt(honorar);
+        if(s("ae-einsatz-spesen-sub")) s("ae-einsatz-spesen-sub").textContent = "CHF " + fmt(wegspesen);
+        if(s("ae-einsatz-total"))      s("ae-einsatz-total").textContent      = "CHF " + fmt(honorar + wegspesen);
+        if(s("ae-konz-total"))  s("ae-konz-total").textContent  = "CHF " + fmt(kTotal);
+        if(s("ae-ft-konz"))     s("ae-ft-konz").textContent     = "CHF " + fmt(kTotal);
+        if(s("ae-spesen-hd"))   s("ae-spesen-hd").textContent   = "CHF " + fmt(zusatz);
+        if(s("ae-ft-zusatz"))   s("ae-ft-zusatz").textContent   = "CHF " + fmt(zusatz);
+        if(s("ae-ft-honorar"))  s("ae-ft-honorar").textContent  = "CHF " + fmt(honorar);
+        if(s("ae-ft-wegspesen"))s("ae-ft-wegspesen").textContent= "CHF " + fmt(wegspesen);
+        if(s("ae-grand-total")) s("ae-grand-total").textContent = "CHF " + fmt(grand);
+      };
     },
 
     // ── Abrechnung Inline-Helfer ─────────────────────────────────────────
