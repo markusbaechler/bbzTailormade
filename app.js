@@ -350,9 +350,11 @@
       const m = {
         "offen":          ["tm-badge tm-badge-open",   "offen"],
         "zur Abrechnung": ["tm-badge tm-badge-billing","zur Abrechnung"],
-        "abgerechnet":    ["tm-badge tm-badge-billed", "abgerechnet"]
+        "abgerechnet":    ["tm-badge tm-badge-billed", "abgerechnet"],
+        "keine Verrechnung":        ["tm-badge tm-badge-incl","—"],
+        "Inklusive (ohne Verrechnung)": ["tm-badge tm-badge-incl","—"]
       };
-      const [c,l] = m[v] || ["tm-badge", v||"—"];
+      const [c,l] = m[v] || ["tm-badge tm-badge-open", "offen"];
       return h.badge(c, l);
     },
     verrBadge(v) {
@@ -1213,7 +1215,7 @@
               <td class="pd-td-muted">${h.esc(k.kategorie)}</td>
               <td class="pd-td-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
               <td>${h.verrBadge(k.verrechenbar)}</td>
-              <td>${h.abrBadge(k.abrechnung)}</td>
+              <td>${k.verrechenbar === "Inklusive (ohne Verrechnung)" ? "" : h.abrBadge(k.abrechnung)}</td>
             </tr>`).join("")}</tbody>
           </table>
         </div>`;
@@ -2218,7 +2220,6 @@
 
       const konzKlaer = state.enriched.konzeption
         .filter(k => k.projektLookupId === projektId && k.verrechenbar === "Klärung nötig")
-        .filter(k => k.abrechnung !== "Inklusive (ohne Verrechnung)")
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
       const konzAlle = state.enriched.konzeption.filter(k => k.projektLookupId === projektId);
@@ -4854,23 +4855,30 @@
       try {
         if (btn) btn.disabled = true;
 
-        // SP patchen: Verrechenbar + bei inklusive auch Abrechnung-Status
-        const INKL = "Inklusive (ohne Verrechnung)";
+        // SP patchen: nur Verrechenbar setzen
+        // Abrechnung-Feld hat nur: offen / zur Abrechnung / abgerechnet
+        // "Inklusive (ohne Verrechnung)" ist ein Verrechenbar-Wert, kein Abrechnung-Wert
         const fields = { Verrechenbar: neuerWert };
-        if (neuerWert === INKL) fields.Abrechnung = INKL;
+        // Bei Rückstufung auf Klärung nötig: Abrechnung auf offen zurücksetzen
+        const isRevert = neuerWert === "Klärung nötig";
+        if (isRevert) fields.Abrechnung = "offen";
         await api.patch(CONFIG.lists.konzeption, konzId, fields);
+        // Bei Rückstufung: Abrechnung-Lookup leeren
+        if (isRevert) {
+          await api.patchLookups(CONFIG.lists.konzeption, konzId, { [F.konz_abrechnung_w]: 0 });
+        }
 
         // State lokal aktualisieren
         const k = state.enriched.konzeption.find(k => k.id === konzId);
         if (k) {
           k.verrechenbar = neuerWert;
-          if (neuerWert === INKL) k.abrechnung = INKL;
+          if (isRevert) { k.abrechnung = "offen"; k.abrechnungLookupId = null; }
         }
-        // Raw-State auch aktualisieren (verhindert Überschreiben bei nächstem enrichAll)
+        // Raw-State aktualisieren
         const raw = state.data.konzeption.find(r => Number(r.id) === konzId);
         if (raw) {
           raw.Verrechenbar = neuerWert;
-          if (neuerWert === INKL) raw.Abrechnung = INKL;
+          if (isRevert) raw.Abrechnung = "offen";
         }
 
         // Bei verrechenbar: sofort in Auswahl aufnehmen
