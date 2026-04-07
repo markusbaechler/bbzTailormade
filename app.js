@@ -1097,7 +1097,7 @@
         ];
 
         return filterBar + `<div class="pd-table-wrap">
-          <table class="pd-table">
+          <table class="pd-table pd-tbl-einsaetze">
             ${thead}
             <tbody>${rows.join("")}</tbody>
           </table>
@@ -1142,7 +1142,7 @@
         if (!list.length) return filterBar + ui.empty("Keine Konzeptionsaufwände für diese Filter.");
 
         return filterBar + `<div class="pd-table-wrap">
-          <table class="pd-table">
+          <table class="pd-table pd-tbl-konzeption">
             <thead><tr>
               <th style="width:88px">Datum ↓</th>
               <th>Beschreibung</th>
