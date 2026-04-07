@@ -2487,7 +2487,7 @@
           .fd-proj-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
           .fd-proj-row:last-child{border-bottom:none}
         </style>
-
+        <div class="tm-scroll-view" style="padding:0">
         <!-- Header -->
         <div class="fd-header">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -2625,8 +2625,9 @@
           </div>
 
         </div>
+        </div>
       `);
-    }
+    },
 
   };
 
@@ -2655,7 +2656,7 @@
       if (r === "konzeption")     { views.konzeption(); return; }
       if (r === "abrechnungen")   { views.abrechnungen(); return; }
       if (r === "firmen")         { views.firmen(); return; }
-      if (r === "firma-detail")   { scrollWrap(() => views.firmaDetail(state.selection.firmaId)); return; }
+      if (r === "firma-detail")   { views.firmaDetail(state.selection.firmaId); return; }
     },
 
     openKzFs(key) {
