@@ -2232,73 +2232,69 @@
       ui.render(`
         <div class="ae-page">
           <style>
-            .ae-page{max-width:860px;margin:0 auto;padding:16px 20px 40px;display:flex;flex-direction:column;gap:20px}
+            .ae-page{max-width:900px;margin:0 auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:16px}
             .ae-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#004078;background:none;border:none;cursor:pointer;padding:0;font-family:inherit}
             .ae-back:hover{text-decoration:underline}
-            .ae-header{background:#004078;border-radius:14px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-            .ae-header-t{color:#fff;font-size:16px;font-weight:700}
-            .ae-header-s{color:rgba(255,255,255,.6);font-size:12px;margin-top:2px}
+            .ae-header{background:#004078;border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+            .ae-header-t{color:#fff;font-size:15px;font-weight:700}
+            .ae-header-s{color:rgba(255,255,255,.6);font-size:12px;margin-top:1px}
             .ae-datum-row{display:flex;align-items:center;gap:8px}
-            .ae-datum-lbl{color:rgba(255,255,255,.7);font-size:12px;font-weight:600}
-            .ae-datum-inp{padding:5px 10px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-family:inherit;font-size:13px;font-weight:600;outline:none;width:150px;-webkit-appearance:none;color-scheme:dark}
+            .ae-datum-lbl{color:rgba(255,255,255,.7);font-size:12px;font-weight:600;white-space:nowrap}
+            .ae-datum-inp{padding:5px 10px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-family:inherit;font-size:13px;font-weight:600;outline:none;width:140px;-webkit-appearance:none;color-scheme:dark}
             .ae-datum-inp:focus{border-color:rgba(255,255,255,.7)}
             .ae-card{background:#fff;border:1.5px solid #dde4ec;border-radius:12px;overflow:hidden}
-            .ae-sec-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #f0f4f8;background:#f8fafc}
+            .ae-sec-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f0f4f8;background:#f8fafc;gap:8px;flex-wrap:wrap}
             .ae-sec-lbl{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
             .ae-sec-total{font-size:13px;font-weight:700;color:#004078}
+            /* Tabelle — responsive */
             .ae-table{width:100%;border-collapse:collapse;font-size:13px}
-            .ae-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;padding:8px 12px;border-bottom:1px solid #dde4ec;text-align:left;background:#fafbfc}
+            .ae-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;padding:8px 10px;border-bottom:1px solid #dde4ec;text-align:left;background:#fafbfc;white-space:nowrap}
             .ae-table th.r{text-align:right}
-            .ae-table td{padding:9px 12px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
+            .ae-table td{padding:9px 10px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
             .ae-table td.r{text-align:right;font-weight:600;color:#1a2332}
             .ae-table td.muted{color:#8896a5;font-size:12px}
             .ae-table tr:last-child td{border-bottom:none}
-            .ae-cb{width:15px;height:15px;cursor:pointer;accent-color:#004078}
+            .ae-cb{width:15px;height:15px;cursor:pointer;accent-color:#004078;flex-shrink:0}
             .ae-check-all{display:flex;align-items:center;gap:6px;font-size:12px;color:#8896a5;cursor:pointer}
-            .ae-empty{font-size:13px;color:#8896a5;padding:14px 18px;font-style:italic}
-            .ae-subtotal{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:10px 18px;border-top:1.5px solid #dde4ec;background:#f8fafc}
+            .ae-empty{font-size:13px;color:#8896a5;padding:14px 16px;font-style:italic}
+            .ae-subtotal{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:10px 16px;border-top:1.5px solid #dde4ec;background:#f8fafc}
             .ae-subtotal-lbl{font-size:12px;color:#8896a5}
             .ae-subtotal-val{font-size:15px;font-weight:700;color:#004078}
-            /* Spesen */
-            .ae-spesen-info{padding:12px 18px;background:#f8fafc;border-bottom:1px solid #f0f4f8}
-            .ae-spesen-note{font-size:11px;color:#8896a5;margin-bottom:8px;font-style:italic}
-            .ae-spesen-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
-            .ae-spesen-row .lbl{color:#4a5568}
-            .ae-spesen-row .val{font-weight:600;color:#1a2332}
-            .ae-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 18px}
+            /* Spesen — nur Zusatzspesen */
+            .ae-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px}
             .ae-zusatz-lbl{font-size:12px;color:#8896a5;white-space:nowrap;font-weight:600}
             .ae-zusatz input{padding:7px 10px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:7px;font-family:inherit;outline:none;transition:border-color .15s}
             .ae-zusatz input:focus{border-color:#0a5a9e;background:#fff}
             .ae-zusatz input.wide{flex:1;min-width:160px}
             /* Konzeption Summary */
-            .ae-konz-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 18px;border-bottom:1px solid #f0f4f8}
-            @media(max-width:600px){.ae-konz-sum{grid-template-columns:1fr 1fr}}
-            .ae-kc{background:#f4f7fb;border-radius:8px;padding:10px 12px}
-            .ae-kc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:4px}
-            .ae-kc-val{font-size:15px;font-weight:700;color:#1a2332}
+            .ae-konz-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 16px;border-bottom:1px solid #f0f4f8}
+            @media(max-width:540px){.ae-konz-sum{grid-template-columns:1fr 1fr}}
+            .ae-kc{background:#f4f7fb;border-radius:8px;padding:9px 11px}
+            .ae-kc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:3px}
+            .ae-kc-val{font-size:14px;font-weight:700;color:#1a2332}
             .ae-kc-sub{font-size:11px;color:#8896a5;margin-top:2px}
             .ae-kc.verr .ae-kc-val{color:#1a8a5e}
             .ae-kc.klaer .ae-kc-val{color:#b45309}
             /* Klärung */
-            .ae-kl-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s}
+            .ae-kl-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
             .ae-kl-btn.verr{border-color:rgba(26,138,94,.4);color:#1a8a5e}
             .ae-kl-btn.inkl{border-color:rgba(107,114,128,.4);color:#6b7280}
-            /* Footer */
-            .ae-footer{position:sticky;bottom:0;background:#fff;border-top:2px solid #dde4ec;border-radius:0 0 12px 12px;padding:13px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:auto}
-            .ae-footer-sums{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#8896a5}
+            /* Footer sticky */
+            .ae-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #dde4ec;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 12px rgba(0,0,0,.07)}
+            .ae-footer-sums{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#8896a5;align-items:center}
             .ae-footer-sums strong{color:#004078;font-size:13px}
-            .ae-footer-total{display:flex;align-items:center;gap:16px}
-            .ae-footer-grand{font-size:18px;font-weight:700;color:#004078}
-            .ae-footer-grand-lbl{font-size:11px;color:#8896a5}
-            .ae-btn-cancel{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
-            .ae-btn-submit{padding:8px 24px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(29,158,117,.3)}
+            .ae-footer-total{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+            .ae-footer-grand{font-size:17px;font-weight:700;color:#004078}
+            .ae-footer-grand-lbl{font-size:10px;color:#8896a5;text-transform:uppercase;letter-spacing:.5px}
+            .ae-btn-cancel{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+            .ae-btn-submit{padding:7px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(29,158,117,.3)}
             .ae-btn-submit:hover{background:#0F6E56}
-            @media(max-width:600px){
-              .ae-table thead{display:none}
-              .ae-table td{display:block;border-bottom:none;padding:4px 12px}
-              .ae-table td:first-child{padding-top:10px}
-              .ae-table td:last-child{padding-bottom:10px;border-bottom:1px solid #f0f4f8}
-              .ae-table td.r{text-align:left}
+            /* Mobile: kompakte Zeilen statt Tabelle */
+            @media(max-width:640px){
+              .ae-page{padding:12px 12px 120px}
+              .ae-col-hide{display:none}
+              .ae-table td{padding:7px 8px}
+              .ae-footer-sums{display:none}
             }
           </style>
 
@@ -2328,29 +2324,40 @@
             <table class="ae-table">
               <thead><tr>
                 <th style="width:32px"></th>
-                <th>Datum</th><th>Beschreibung</th><th>Kategorie</th><th>Person</th>
-                <th class="r">Betrag CHF</th><th>Status</th>
+                <th>Datum</th><th>Beschreibung</th>
+                <th class="ae-col-hide">Kategorie</th>
+                <th class="ae-col-hide">Person</th>
+                <th class="r">Honorar CHF</th>
+                <th class="r ae-col-hide">Spesen CHF</th>
+                <th class="ae-col-hide">Status</th>
               </tr></thead>
               <tbody>
                 ${einsaetze.map(e => {
-                  const betrag = (e.totalBetrag || 0);
-                  const spesen = e.spesenBerechnet || 0;
+                  const honorar = (e.anzeigeBetrag||0) + (e.coAnzeigeBetrag||0);
+                  const spesen  = e.spesenBerechnet || 0;
                   return `<tr>
                     <td><input type="checkbox" class="ae-cb ae-e-cb"
-                      data-id="${e.id}" data-betrag="${betrag}" data-spesen="${spesen}"
+                      data-id="${e.id}" data-honorar="${honorar}" data-betrag="${honorar}" data-spesen="${spesen}"
                       onchange="aeUpdateTotal()"></td>
-                    <td class="muted">${h.esc(e.datumFmt)}</td>
-                    <td style="font-weight:500">${h.esc(e.title || e.datumFmt)}</td>
-                    <td class="muted">${h.esc(e.kategorie)}</td>
-                    <td class="muted">${h.esc(e.personName||"")}</td>
-                    <td class="r">${h.chf(e.anzeigeBetrag||0)}${e.coAnzeigeBetrag?`<br><span style="font-size:11px;color:#8896a5">Co: ${h.chf(e.coAnzeigeBetrag)}</span>`:""}${spesen?`<br><span style="font-size:11px;color:#1a8a5e">Spesen: ${h.chf(spesen)}</span>`:""}</td>
-                    <td class="muted">${h.esc(e.abrechnung)}</td>
+                    <td class="muted" style="white-space:nowrap">${h.esc(e.datumFmt)}</td>
+                    <td style="font-weight:500">
+                      ${h.esc(e.title || e.datumFmt)}
+                      ${e.coPersonName ? `<br><span style="font-size:11px;color:#8896a5">Co: ${h.esc(e.coPersonName)}</span>` : ""}
+                      ${spesen ? `<span class="ae-col-hide" style="display:none"></span><br class="ae-mob-sp"><span style="font-size:11px;color:#1a8a5e;display:none" class="ae-mob-sp">Spesen: ${h.chf(spesen)}</span>` : ""}
+                    </td>
+                    <td class="muted ae-col-hide">${h.esc(e.kategorie)}</td>
+                    <td class="muted ae-col-hide">${h.esc(e.personName||"")}</td>
+                    <td class="r">${h.chf(honorar)}</td>
+                    <td class="r ae-col-hide">${spesen ? h.chf(spesen) : "—"}</td>
+                    <td class="muted ae-col-hide">${h.esc(e.abrechnung)}</td>
                   </tr>`;
                 }).join("")}
               </tbody>
             </table>
-            <div class="ae-subtotal">
-              <span class="ae-subtotal-lbl">Einsätze gewählt:</span>
+            <div class="ae-subtotal" style="gap:20px">
+              <span style="font-size:12px;color:#8896a5">Honorar: <strong id="ae-einsatz-honorar" style="color:#004078">CHF 0.00</strong></span>
+              <span style="font-size:12px;color:#8896a5">Spesen: <strong id="ae-einsatz-spesen-sub" style="color:#1a8a5e">CHF 0.00</strong></span>
+              <span class="ae-subtotal-lbl">Total gewählt:</span>
               <span class="ae-subtotal-val" id="ae-einsatz-total">CHF 0.00</span>
             </div>` : `<div class="ae-empty">Keine offenen Einsätze vorhanden.</div>`}
           </div>
@@ -2375,7 +2382,7 @@
                       <button type="button" class="ae-kl-btn verr"
                         onclick="ctrl.aeKlaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
                       <button type="button" class="ae-kl-btn inkl"
-                        onclick="ctrl.aeKlaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this,${projektId})">→ inklusive</button>
+                        onclick="ctrl.aeKlaerungEntscheid(${k.id},'keine Verrechnung',this,${projektId})">→ inklusive</button>
                     </div>
                   </td>
                 </tr>`).join("")}
@@ -2394,6 +2401,9 @@
               <div class="ae-kc klaer"><div class="ae-kc-lbl">Klärung nötig</div><div class="ae-kc-val">CHF ${h.chf(konzKlaerBetrag)}</div><div class="ae-kc-sub">${konzKlaerStd.toFixed(1)} h</div></div>
             </div>
             ${konzVerr.length ? `
+            <div style="display:flex;justify-content:flex-end;padding:8px 16px 0">
+              <label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all" onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label>
+            </div>
             <table class="ae-table" id="ae-verr-table">
               <thead><tr><th style="width:32px"></th><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th></tr></thead>
               <tbody id="ae-verr-tbody">
@@ -2414,28 +2424,25 @@
             </div>` : `<div class="ae-empty">Keine verrechenbaren Konzeptionsaufwände.</div>`}
           </div>
 
-          <!-- Spesen -->
+          <!-- Zusatzspesen -->
           <div class="ae-card">
             <div class="ae-sec-hd">
-              <span class="ae-sec-lbl">Spesen</span>
+              <span class="ae-sec-lbl">Zusatzspesen</span>
               <span class="ae-sec-total" id="ae-spesen-hd">CHF 0.00</span>
             </div>
-            <div class="ae-spesen-info">
-              <div class="ae-spesen-note">Wegspesen der gewählten Einsätze — werden vollständig übertragen</div>
-              <div id="ae-spesen-rows"><span style="font-size:13px;color:#8896a5;font-style:italic">Keine Einsätze mit Wegspesen gewählt</span></div>
-            </div>
             <div class="ae-zusatz">
-              <span class="ae-zusatz-lbl">Zusatzspesen</span>
+              <span class="ae-zusatz-lbl">Betrag</span>
               <input type="number" id="ae-zusatz-betrag" step="0.01" min="0" placeholder="CHF" style="width:100px" oninput="aeUpdateTotal()">
               <input type="text" id="ae-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)">
             </div>
           </div>
 
-          <!-- Footer Sticky -->
+          <!-- Footer Sticky (fixed) -->
           <div class="ae-footer" id="ae-footer">
             <div class="ae-footer-sums">
-              <span>Einsätze: <strong id="ae-ft-einsatz">CHF 0.00</strong></span>
-              <span>Spesen: <strong id="ae-ft-spesen">CHF 0.00</strong></span>
+              <span>Honorar: <strong id="ae-ft-honorar">CHF 0.00</strong></span>
+              <span>Wegspesen: <strong id="ae-ft-wegspesen">CHF 0.00</strong></span>
+              <span>Zusatzspesen: <strong id="ae-ft-zusatz">CHF 0.00</strong></span>
               <span>Konzeption: <strong id="ae-ft-konz">CHF 0.00</strong></span>
             </div>
             <div class="ae-footer-total">
@@ -2443,7 +2450,7 @@
                 <div class="ae-footer-grand-lbl">Gesamttotal</div>
                 <div class="ae-footer-grand" id="ae-grand-total">CHF 0.00</div>
               </div>
-              <button type="button" class="ae-btn-cancel" onclick="ctrl.navigate('projekt-detail');ctrl.openProjekt(${p.id})">Abbrechen</button>
+              <button type="button" class="ae-btn-cancel" onclick="ctrl.openProjekt(${p.id})">Abbrechen</button>
               <button type="button" class="ae-btn-submit" onclick="ctrl.aeAbrechnen(${projektId})">✓ Abrechnen</button>
             </div>
           </div>
@@ -2451,39 +2458,31 @@
 
         <script>
         window.aeUpdateTotal = function() {
-          let eTotal = 0, sTotal = 0, kTotal = 0;
-          const spesenRows = [];
+          let honorar = 0, wegspesen = 0, kTotal = 0;
           document.querySelectorAll(".ae-e-cb:checked").forEach(cb => {
-            eTotal += parseFloat(cb.dataset.betrag) || 0;
-            const sp = parseFloat(cb.dataset.spesen) || 0;
-            if (sp > 0) {
-              const row = cb.closest("tr");
-              spesenRows.push({ datum: row?.cells[1]?.textContent?.trim()||"", title: row?.cells[2]?.textContent?.trim()||"", sp });
-              sTotal += sp;
-            }
+            honorar   += parseFloat(cb.dataset.honorar) || 0;
+            wegspesen += parseFloat(cb.dataset.spesen)  || 0;
           });
-          document.querySelectorAll(".ae-k-cb:checked").forEach(cb => { kTotal += parseFloat(cb.dataset.betrag) || 0; });
+          document.querySelectorAll(".ae-k-cb:checked").forEach(cb => {
+            kTotal += parseFloat(cb.dataset.betrag) || 0;
+          });
           const zusatz = parseFloat(document.getElementById("ae-zusatz-betrag")?.value) || 0;
-          sTotal += zusatz;
+          const grand  = honorar + wegspesen + zusatz + kTotal;
           const fmt = v => v.toLocaleString("de-CH",{minimumFractionDigits:2,maximumFractionDigits:2});
           const s = id => document.getElementById(id);
-          if(s("ae-einsatz-total")) s("ae-einsatz-total").textContent = "CHF " + fmt(eTotal);
-          if(s("ae-ft-einsatz"))    s("ae-ft-einsatz").textContent    = "CHF " + fmt(eTotal);
-          if(s("ae-konz-total"))    s("ae-konz-total").textContent    = "CHF " + fmt(kTotal);
-          if(s("ae-ft-konz"))       s("ae-ft-konz").textContent       = "CHF " + fmt(kTotal);
-          if(s("ae-ft-spesen"))     s("ae-ft-spesen").textContent     = "CHF " + fmt(sTotal);
-          if(s("ae-spesen-hd"))     s("ae-spesen-hd").textContent     = "CHF " + fmt(sTotal);
-          if(s("ae-grand-total"))   s("ae-grand-total").textContent   = "CHF " + fmt(eTotal + kTotal + sTotal);
-          const rowsEl = s("ae-spesen-rows");
-          if (rowsEl) {
-            if (spesenRows.length) {
-              rowsEl.innerHTML = spesenRows.map(r =>
-                \`<div class="ae-spesen-row"><span class="lbl">\${r.datum} · \${r.title}</span><span class="val">CHF \${fmt(r.sp)}</span></div>\`
-              ).join("") + (spesenRows.length > 1 ? \`<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding-top:6px;margin-top:4px;border-top:1px solid #dde4ec;color:#004078"><span>Total Wegspesen</span><span>CHF \${fmt(sTotal - zusatz)}</span></div>\` : "");
-            } else {
-              rowsEl.innerHTML = \`<span style="font-size:13px;color:#8896a5;font-style:italic">Keine Einsätze mit Wegspesen gewählt</span>\`;
-            }
-          }
+          // Einsatz-Subtotal-Zeile
+          if(s("ae-einsatz-honorar"))    s("ae-einsatz-honorar").textContent    = "CHF " + fmt(honorar);
+          if(s("ae-einsatz-spesen-sub")) s("ae-einsatz-spesen-sub").textContent = "CHF " + fmt(wegspesen);
+          if(s("ae-einsatz-total"))      s("ae-einsatz-total").textContent      = "CHF " + fmt(honorar + wegspesen);
+          // Konzeption
+          if(s("ae-konz-total")) s("ae-konz-total").textContent = "CHF " + fmt(kTotal);
+          if(s("ae-ft-konz"))    s("ae-ft-konz").textContent    = "CHF " + fmt(kTotal);
+          // Zusatzspesen Header + Footer
+          if(s("ae-spesen-hd"))    s("ae-spesen-hd").textContent    = zusatz > 0 ? "CHF " + fmt(zusatz) : "CHF 0.00";
+          if(s("ae-ft-zusatz"))    s("ae-ft-zusatz").textContent    = "CHF " + fmt(zusatz);
+          if(s("ae-ft-honorar"))   s("ae-ft-honorar").textContent   = "CHF " + fmt(honorar);
+          if(s("ae-ft-wegspesen")) s("ae-ft-wegspesen").textContent = "CHF " + fmt(wegspesen);
+          if(s("ae-grand-total"))  s("ae-grand-total").textContent  = "CHF " + fmt(grand);
         };
         <\/script>
       `);
@@ -4793,20 +4792,28 @@
       try {
         btn.disabled = true;
         if (row) row.style.opacity = "0.5";
-        await api.patch(CONFIG.lists.konzeption, konzId, { Verrechenbar: neuerWert });
+
+        // "keine Verrechnung" → Verrechenbar UND Abrechnung setzen
+        const fields = { Verrechenbar: neuerWert };
+        if (neuerWert === "keine Verrechnung") fields.Abrechnung = "keine Verrechnung";
+        await api.patch(CONFIG.lists.konzeption, konzId, fields);
+
         const k = state.enriched.konzeption.find(k => k.id === konzId);
-        if (k) k.verrechenbar = neuerWert;
+        if (k) {
+          k.verrechenbar = neuerWert;
+          if (neuerWert === "keine Verrechnung") k.abrechnung = "keine Verrechnung";
+        }
         // Zeile aus Klärung-Tabelle entfernen
         if (row) row.remove();
         // Falls verrechenbar: neue Zeile in Verrechenbar-Tabelle
         if (neuerWert === "verrechenbar" && k) {
           let tbody = document.getElementById("ae-verr-tbody");
           if (!tbody) {
-            // Tabelle war leer — dynamisch aufbauen
-            const card = document.querySelector(".ae-card:last-of-type");
-            const empty = card?.querySelector(".ae-empty");
+            const konzCard = document.getElementById("ae-verr-table")?.closest(".ae-card");
+            const empty = konzCard?.querySelector(".ae-empty");
             if (empty) {
-              empty.outerHTML = `<table class="ae-table" id="ae-verr-table">
+              empty.outerHTML = `<div style="display:flex;justify-content:flex-end;padding:8px 16px 0"><label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all" onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label></div>
+              <table class="ae-table" id="ae-verr-table">
                 <thead><tr><th style="width:32px"></th><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th></tr></thead>
                 <tbody id="ae-verr-tbody"></tbody>
               </table>
@@ -4832,7 +4839,8 @@
           if (card) card.style.display = "none";
         }
         if (window.aeUpdateTotal) aeUpdateTotal();
-        ui.setMsg(`Freigabe: ${neuerWert}`, "success");
+        const label = neuerWert === "verrechenbar" ? "→ verrechenbar" : "→ inklusive (keine Verrechnung)";
+        ui.setMsg(`Freigabe gesetzt: ${label}`, "success");
       } catch(e) {
         debug.err("aeKlaerungEntscheid", e);
         ui.setMsg("Fehler: " + e.message, "error");
