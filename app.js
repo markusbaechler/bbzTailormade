@@ -820,7 +820,7 @@
         const a = sel => e.target.closest(sel);
         if (a("[data-action='open-projekt']"))     {
           const id = +a("[data-action='open-projekt']").dataset.id;
-          if (window.innerWidth <= 699) state.ui.pdMobDetail = true;
+          if (window.innerWidth <= 899) state.ui.pdMobDetail = true;
           ctrl.openProjekt(id);
           return;
         }
@@ -829,14 +829,14 @@
         if (a("[data-action='pd-select-einsatz']")) {
           const el = a("[data-action='pd-select-einsatz']");
           const id = +el.dataset.id;
-          if (window.innerWidth <= 699) { ctrl.pdMobOpenEinsatz(id); return; }
+          if (window.innerWidth <= 899) { ctrl.pdMobOpenEinsatz(id); return; }
           state.ui.selectedProjektEinsatzId = id === state.ui.selectedProjektEinsatzId ? null : id;
           ctrl.render(); return;
         }
         if (a("[data-action='pd-select-konz']")) {
           const el = a("[data-action='pd-select-konz']");
           const id = +el.dataset.id;
-          if (window.innerWidth <= 699) { ctrl.pdMobOpenKonz(id); return; }
+          if (window.innerWidth <= 899) { ctrl.pdMobOpenKonz(id); return; }
           state.ui.selectedProjektKonzId = id === state.ui.selectedProjektKonzId ? null : id;
           ctrl.render(); return;
         }
@@ -1212,7 +1212,7 @@
           .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* ── Mobile: Sidebar fullscreen, kein Detail-Panel ─────────────── */
-          @media(max-width:699px) {
+          @media(max-width:899px) {
             .pd-sidebar { width:100%; min-width:0; border-right:none; }
             .pd-main { display:none; }
             .pd-detail { display:none; }
