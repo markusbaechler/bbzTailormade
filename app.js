@@ -1030,11 +1030,18 @@
 
         if (!list.length) return filterBar + ui.empty("Keine Einsätze für diese Filter.");
 
+        const sectionRow = label => `<tr class="pd-section-row"><td colspan="6">${label}</td></tr>`;
+
+        const rows = [
+          ...(geplant.length     ? [sectionRow(`Bevorstehend (${geplant.length})`),     ...geplant.map(eRow)]     : []),
+          ...(durchgefuehrt.length ? [sectionRow(`Vergangen (${durchgefuehrt.length})`), ...durchgefuehrt.map(eRow)] : [])
+        ];
+
         return filterBar + `<div class="pd-table-wrap">
-          ${geplant.length ? `<div class="pd-section-head">Geplante Einsätze (${geplant.length})</div>
-          <table class="pd-table">${thead}<tbody>${geplant.map(eRow).join("")}</tbody></table>` : ""}
-          ${durchgefuehrt.length ? `<div class="pd-section-head">Durchgeführte Einsätze (${durchgefuehrt.length})</div>
-          <table class="pd-table">${thead}<tbody>${durchgefuehrt.map(eRow).join("")}</tbody></table>` : ""}
+          <table class="pd-table">
+            ${thead}
+            <tbody>${rows.join("")}</tbody>
+          </table>
         </div>`;
       };
 
@@ -1245,7 +1252,8 @@
 
           /* Tabelle */
           .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; }
-          .pd-section-head { padding:5px 16px 4px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; background:var(--tm-surface); border-bottom:1px solid var(--tm-blue-pale); border-top:1px solid var(--tm-blue-pale); }
+          .pd-section-row td { padding:4px 10px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; background:var(--tm-surface); border-bottom:1px solid var(--tm-blue-pale); border-top:1px solid var(--tm-blue-pale); cursor:default; }
+          .pd-section-row:hover td { background:var(--tm-surface) !important; }
           .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
           .pd-table th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--tm-blue-pale); white-space:nowrap; background:#fff; }
           .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; }
