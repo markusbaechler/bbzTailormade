@@ -1546,11 +1546,11 @@
       ui.render(`
         <style>
           /* ── Einsätze 3-Panel ─────────────────────────────────────────────── */
-          .ei-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
+          .ei-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; background:#fff; }
           .ei-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* Sidebar */
-          .ei-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .ei-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; border-left:none; }
           .ei-sb-head { padding:10px 12px; }
           .ei-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
           .ei-sb-head input:focus { border-color:#004078; background:#fff; }
@@ -1571,7 +1571,7 @@
 
           /* Main */
           .ei-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
-          .ei-toolbar { display:flex; align-items:center; gap:12px; padding:10px 16px 8px; background:#fff; flex-shrink:0; border-bottom:1px solid #dde3ea; }
+          .ei-toolbar { display:flex; align-items:center; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid #dde3ea; }
           .ei-title { font-size:18px; font-weight:700; color:var(--tm-text); flex:1; }
           .ei-meta { font-size:12px; color:#8896a5; }
           .ei-tbl-wrap { flex:1; overflow-y:auto; }
@@ -1622,7 +1622,7 @@
             <!-- SIDEBAR -->
             <div class="ei-sidebar">
               <div class="ei-sb-head">
-                <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}"
+                <input type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}"
                   data-search-key="einsaetze.search"
                   oninput="h.searchInput('einsaetze.search',this.value)">
               </div>
@@ -1865,7 +1865,7 @@
             ${hasFilter ? '<button class="kz-sb-reset" onclick="state.filters.konzeption={search:\'\',verrechenbar:\'\',person:\'\',projekt:\'\',firma:\'\',jahr:\'\',kategorie:\'\'};state.ui.selectedKonzId=null;ctrl.render()">Alle löschen</button>' : ""}
           </div>
           <div style="padding:8px 12px;border-bottom:1px solid var(--tm-border)">
-            <input class="ef-search" type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
+            <input class="ef-search" type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}" data-search-key="konzeption.search" oninput="h.searchInput('konzeption.search',this.value)" style="width:100%;padding:5px 8px;font-size:12px">
           </div>
           ${jahrSec}${verrSec}${firmaSec}${projektSec}${personSec}${katSec}
         </div>
@@ -2522,7 +2522,7 @@
           root.appendChild(wrap);
         }
       };
-      if (r === "einsaetze")      { scrollWrap(() => views.einsaetze()); return; }
+      if (r === "einsaetze")      { views.einsaetze(); return; }
       if (r === "konzeption")     { scrollWrap(() => views.konzeption()); return; }
       if (r === "abrechnungen")   { scrollWrap(() => views.abrechnungen()); return; }
       if (r === "firmen")         { scrollWrap(() => views.firmen()); return; }
