@@ -807,6 +807,7 @@
       if (this.els.login)   this.els.login.addEventListener("click",   () => ctrl.login());
       if (this.els.refresh) this.els.refresh.addEventListener("click", () => ctrl.refresh());
       this.els.navBtns.forEach(b => b.addEventListener("click", () => ctrl.navigate(b.dataset.route)));
+      document.querySelectorAll(".tm-bn-item").forEach(b => b.addEventListener("click", () => ctrl.navigate(b.dataset.route)));
 
       // Form-Submit Delegation
       document.addEventListener("submit", e => {
@@ -895,7 +896,11 @@
       });
     },
 
-    setNav(route) { this.els.navBtns.forEach(b => b.classList.toggle("active", b.dataset.route === route)); },
+    setNav(route) {
+      this.els.navBtns.forEach(b => b.classList.toggle("active", b.dataset.route === route));
+      // Bottom nav
+      document.querySelectorAll(".tm-bn-item").forEach(b => b.classList.toggle("active", b.dataset.route === route));
+    },
     setLoading(v) { if (this.els.refresh) this.els.refresh.style.display = v ? "none" : ""; },
     setMsg(msg, type) {
       const el = this.els.msg;
