@@ -536,7 +536,8 @@
       datum:               raw.Datum,
       spesenZusatzBetrag:  h.num(raw.SpesenZusatzBetrag),
       spesenZusatzBemerkung: raw.SpesenZusatzBemerkung || "",
-      status:              raw.Status || "erstellt"
+      status:              raw.Status || "erstellt",
+      totalBetrag:         0
     };
     a.datumFmt    = h.fmtDate(a.datum);
     a.projektTitle = state.data.projekte.find(p => Number(p.id) === a.projektLookupId)?.Title || "";
@@ -552,6 +553,14 @@
     state.enriched.projekte.forEach(p => {
       p.einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === p.id);
       p.konzeintraege = state.enriched.konzeption.filter(k => k.projektLookupId === p.id);
+    });
+    // totalBetrag auf Abrechnungen: aus enriched Einsätzen + Konzeption
+    state.enriched.abrechnungen.forEach(a => {
+      const einsaetze = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
+      const konz      = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
+      a.totalBetrag = einsaetze.reduce((s,e) => s+(e.anzeigeBetrag||0), 0)
+                    + konz.reduce((s,k) => s+(k.anzeigeBetrag||0), 0)
+                    + (a.spesenZusatzBetrag||0);
     });
     debug.log("enrichAll", {
       projekte:     state.enriched.projekte.map(p => ({ id: p.id, firma: p.firmaName })),
@@ -891,6 +900,7 @@
         if (a("[data-action='abr-mob-filter-close']")){ state.ui.abrMobFilter=false; ctrl.render(); return; }
         if (a("[data-action='abr-select']")) {
           const id = +a("[data-action='abr-select']").dataset.id;
+          if (window.innerWidth <= 899) { ctrl.abrMobOpen(id); return; }
           state.ui.selectedAbrId = state.ui.selectedAbrId===id ? null : id;
           document.querySelectorAll("[data-action='abr-select']").forEach(c => c.classList.toggle("abr-card-sel", +c.dataset.id===state.ui.selectedAbrId));
           ctrl.updateAbrDetailPanel(); return;
@@ -2620,12 +2630,13 @@
                   oninput="h.searchInput('abrechnungen.search',this.value)">
               </div>
               <div class="abr-sb-scroll">
+                ${hasFilter?`<div class="abr-sb-footer" style="border-bottom:1px solid #dde3ea;border-top:none"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
                 ${sbSec("jahr",   "Jahr",   jahre.map(j=>[String(j),String(j)]))}
                 ${sbSec("firma",  "Firma",  firmen.map(n=>[n,n]))}
                 ${sbSec("projekt","Projekt",projekte.map(([id,t])=>[String(id),t]))}
                 ${sbSec("status", "Status", [["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]])}
               </div>
-              ${hasFilter?`<div class="abr-sb-footer"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
+              ${hasFilter?"":`<div class="abr-sb-footer"><span style="font-size:11px;color:#8896a5">${all.length} Abrechnungen total</span></div>`}
             </div>
 
             <!-- MAIN -->
@@ -2823,6 +2834,48 @@
           <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
           <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
         </div>`;
+    },
+
+    abrMobOpen(id) {
+      const a = state.enriched.abrechnungen.find(a=>a.id===id);
+      if (!a) return;
+      const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+      const status = a.status||"erstellt";
+      const abrStatusBadge = s => { const map={erstellt:"#B5D4F4:#0C447C",versendet:"#FEF3C7:#854F0B",bezahlt:"#D1FAE5:#0F6E56"}; const [bg,tx]=(map[s]||"#f1f5f9:#475569").split(":"); return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">${h.esc(s)}</span>`; };
+      ui.renderModal(`
+        <style>
+          .ei-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .ei-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .ei-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .ei-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .ei-bs-title{font-size:16px;font-weight:700}
+          .ei-bs-sub{font-size:12px;color:#8896a5;margin-top:2px;font-weight:600}
+          .ei-bs-body{padding:4px 16px 14px}
+          .ei-bs-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .ei-bs-row:last-child{border-bottom:none}
+          .ei-bs-key{color:#8896a5;font-weight:600;font-size:13px}
+          .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
+          .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="ei-bs-bd" id="tm-modal-bd">
+          <div class="ei-bs">
+            <div class="ei-bs-handle"></div>
+            <div class="ei-bs-head">
+              <div class="ei-bs-title">${h.esc(a.title||a.datumFmt)}</div>
+              <div class="ei-bs-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+            </div>
+            <div class="ei-bs-body">
+              <div class="ei-bs-row"><span class="ei-bs-key">Datum</span><span class="ei-bs-val">${h.esc(a.datumFmt)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Projekt</span><span class="ei-bs-val">${h.esc(a.projektTitle||"—")}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Status</span><span class="ei-bs-val">${abrStatusBadge(status)}</span></div>
+              <div class="ei-bs-row"><span class="ei-bs-key">Total</span><span class="ei-bs-val" style="color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
+            </div>
+            <div class="ei-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id});ui.closeModal()">⬇ PDF</button>
+              ${proj?`<button class="tm-btn tm-btn-sm" onclick="ui.closeModal();ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+            </div>
+          </div>
+        </div>`);
     },
 
     updateFirmaDetailPanel() {
