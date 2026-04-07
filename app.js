@@ -1194,9 +1194,9 @@
           .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* Sidebar */
-          .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#f5f7fa; display:flex; flex-direction:column; overflow:hidden; }
-          .pd-sb-head { padding:10px 12px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; }
-          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#eef0f3; outline:none; }
+          .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-sb-head { padding:10px 12px; border-bottom:1px solid rgba(0,0,0,0.09); background:#fff; }
+          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
           .pd-sb-head input:focus { border-color:var(--tm-blue); background:#fff; }
           .pd-sb-scroll { flex:1; overflow-y:auto; }
           .pd-firma-label { display:flex; align-items:center; gap:6px; padding:8px 12px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
@@ -1262,8 +1262,8 @@
           .pd-person-name { font-size:12px; color:var(--tm-text-muted); margin-left:4px; }
 
           /* Stammdaten */
-          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#fff; flex:1; min-height:0; align-content:start; }
-          .pd-stam-card { background:var(--tm-surface); border-radius:8px; padding:12px 14px; border:1px solid var(--tm-blue-pale); }
+          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#f5f7fa; flex:1; min-height:0; align-content:start; }
+          .pd-stam-card { background:#fff; border-radius:8px; padding:12px 14px; border:1px solid rgba(0,0,0,0.09); }
           .pd-stam-full { grid-column:1/-1; }
           .pd-stam-title { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; }
           .pd-stam-row { display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid var(--tm-blue-pale); font-size:12px; }
