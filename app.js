@@ -1196,7 +1196,7 @@
           /* Sidebar */
           .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .pd-sb-head { padding:10px 12px; background:#fff; }
-          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#e8ecf0; outline:none; }
           .pd-sb-head input:focus { border-color:var(--tm-blue); background:#fff; }
           .pd-sb-scroll { flex:1; overflow-y:auto; }
           .pd-firma-label { display:flex; align-items:center; gap:6px; padding:8px 12px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
@@ -1212,13 +1212,13 @@
           .pd-sb-new-btn:hover { background:var(--tm-blue-pale); }
 
           /* Main */
-          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#f5f7fa; }
-          .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; flex-shrink:0; }
+          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
+          .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; }
           .pd-topbar-actions { margin-left:auto; display:flex; gap:6px; }
-          .pd-proj-header { padding:12px 16px 14px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; flex-shrink:0; }
+          .pd-proj-header { padding:12px 16px 14px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; }
           .pd-proj-title { font-size:18px; font-weight:700; color:var(--tm-text); }
           .pd-proj-sub { display:flex; align-items:center; gap:6px; margin-top:3px; font-size:13px; color:var(--tm-text-muted); }
-          .pd-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; flex-shrink:0; }
+          .pd-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:12px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; }
           .pd-kpi { background:#fff; border-radius:8px; padding:10px 14px; border:1px solid var(--tm-blue-pale); }
           .pd-kpi-label { font-size:9px; font-weight:600; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:5px; }
           .pd-kpi-val { font-size:18px; font-weight:700; color:var(--tm-text); line-height:1.2; }
@@ -1227,7 +1227,7 @@
           .pd-kpi-bar-fill { height:3px; border-radius:2px; }
 
           /* Karteikarten-Tabs */
-          .pd-tabs-wrap { display:flex; align-items:flex-end; gap:2px; padding:10px 16px 0; background:#f5f7fa; border-bottom:2px solid rgba(0,0,0,0.12); flex-shrink:0; }
+          .pd-tabs-wrap { display:flex; align-items:flex-end; gap:2px; padding:10px 16px 0; background:#e8ecf0; border-bottom:2px solid rgba(0,0,0,0.12); flex-shrink:0; }
           .pd-tab { padding:8px 18px; font-size:13px; cursor:pointer; color:#8896a5; background:#dde1e7; border:1px solid rgba(0,0,0,0.12); border-bottom:none; border-radius:6px 6px 0 0; white-space:nowrap; position:relative; bottom:-2px; font-weight:600; font-family:inherit; transition:background 0.1s,color 0.1s; }
           .pd-tab:hover { background:#ced3da; color:#4a5568; }
           .pd-tab.active { background:#fff; color:#004078; font-weight:700; border-bottom-color:#fff; z-index:1; }
@@ -1242,8 +1242,8 @@
 
           /* Tabelle */
           .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; min-height:0; }
-          .pd-section-row td { padding:5px 10px 4px; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.07em; background:#f5f7fa; border-bottom:1px solid #dde3ea; border-top:1px solid #dde3ea; cursor:default; pointer-events:none; }
-          .pd-section-row:hover td { background:#f5f7fa !important; }
+          .pd-section-row td { padding:5px 10px 4px; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.07em; background:#e8ecf0; border-bottom:1px solid #dde3ea; border-top:1px solid #dde3ea; cursor:default; pointer-events:none; }
+          .pd-section-row:hover td { background:#e8ecf0 !important; }
           .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
           .pd-table th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--tm-blue-pale); white-space:nowrap; background:#fff; }
           .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; }
@@ -1260,7 +1260,7 @@
           .pd-person-name { font-size:12px; color:var(--tm-text-muted); margin-left:4px; }
 
           /* Stammdaten */
-          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#f5f7fa; flex:1; min-height:0; align-content:start; }
+          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#e8ecf0; flex:1; min-height:0; align-content:start; }
           .pd-stam-card { background:#fff; border-radius:8px; padding:12px 14px; border:1px solid rgba(0,0,0,0.09); }
           .pd-stam-full { grid-column:1/-1; }
           .pd-stam-title { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; }
@@ -1349,7 +1349,7 @@
               <button class="pd-tab${tab==="stammdaten"?" active":""}" data-tab="stammdaten" data-route="projekt-detail">Stammdaten &amp; Ansätze</button>
             </div>
 
-            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#f5f7fa">
+            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#e8ecf0">
               ${tabContent}
             </div>
           </div>
