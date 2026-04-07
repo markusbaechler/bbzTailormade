@@ -1983,6 +1983,203 @@
       `);
     },
 
+    abrechnungen() {
+      const f   = state.filters.abrechnungen;
+      const all = state.enriched.abrechnungen;
+      const selId = state.ui.selectedAbrId;
+
+      const jahre  = [...new Set(all.map(a => { const d=h.toDate(a.datum); return d?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>b-a);
+      const firmen = [...new Set(all.map(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
+      const projekte = [...new Map(all.map(a=>[a.projektLookupId,a.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
+
+      let list = [...all];
+      if (f.search)  list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return h.inc(a.title,f.search)||h.inc(a.projektTitle,f.search)||(p&&h.inc(p.firmaName,f.search)); });
+      if (f.jahr)    list = list.filter(a => { const d=h.toDate(a.datum); return d&&String(d.getFullYear())===f.jahr; });
+      if (f.firma)   list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName===f.firma; });
+      if (f.projekt) list = list.filter(a => String(a.projektLookupId)===f.projekt);
+      if (f.status)  list = list.filter(a => a.status===f.status);
+      list.sort((a,b) => h.toDate(b.datum)-h.toDate(a.datum));
+
+      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.status;
+      const total    = list.reduce((s,a)=>s+(a.totalBetrag||0),0);
+      const byStatus = s => list.filter(a=>(a.status||"erstellt")===s).length;
+      const sb = state.ui.sbOpen;
+
+      const abrStatusBadge = s => {
+        const map={erstellt:"#B5D4F4:#0C447C",versendet:"#FEF3C7:#854F0B",bezahlt:"#D1FAE5:#0F6E56"};
+        const [bg,tx]=(map[s]||"#f1f5f9:#475569").split(":");
+        return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(s||"erstellt")}</span>`;
+      };
+
+      const sbSec = (key, label, items) => {
+        const isOpen = sb["abr_"+key] !== false;
+        const isActive = !!f[key];
+        return `<div class="abr-sb-sec">
+          <div class="abr-sb-sec-hdr" data-action="abr-toggle-sec" data-sec="abr_${key}">
+            <span class="abr-sb-label">${label}</span>
+            ${isActive?`<span class="abr-sb-count">1</span>`:""}
+            <span class="abr-sb-toggle${isOpen?" open":""}">▶</span>
+          </div>
+          ${isOpen?`<div class="abr-sb-body">${items.map(([val,lbl])=>`
+            <div class="abr-sb-chip${f[key]===val?" active":""}" data-action="abr-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
+          `).join("")}</div>`:""}
+        </div>`;
+      };
+
+      const detailHtml = () => {
+        const a = selId ? list.find(a=>a.id===selId)||all.find(a=>a.id===selId) : null;
+        if (!a) return `<div class="abr-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Abrechnung auswählen</span></div>`;
+        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+        const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id);
+        const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id);
+        const status = a.status||"erstellt";
+        const flowBtns = ["erstellt","versendet","bezahlt"].map(s=>`<button class="abr-flow-btn${status===s?" abr-flow-active":""}" onclick="ctrl.abrSetStatus(${a.id},'${s}')">${h.esc(s)}</button>`).join("");
+        return `
+          <div class="abr-dp-title">${h.esc(a.title||a.datumFmt)}</div>
+          <div class="abr-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
+          <div class="abr-dp-flow">${flowBtns}</div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Datum</span><span class="abr-dp-val">${h.esc(a.datumFmt)}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Projekt</span><span class="abr-dp-val">${h.esc(a.projektTitle||"—")}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Status</span><span class="abr-dp-val">${abrStatusBadge(status)}</span></div>
+          <div class="abr-dp-row"><span class="abr-dp-key">Total</span><span class="abr-dp-val" style="font-weight:700;color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
+          ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
+          ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
+          <div class="abr-dp-footer">
+            <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+            ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+            <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
+          </div>`;
+      };
+
+      const abrCard = a => {
+        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+        const isSel = a.id===selId;
+        const status = a.status||"erstellt";
+        return `<div class="abr-card${isSel?" abr-card-sel":""}" data-action="abr-select" data-id="${a.id}">
+          <div class="abr-card-top">
+            <div><div class="abr-card-title">${h.esc(a.title||a.datumFmt)}</div>
+            <div class="abr-card-meta">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div></div>
+            <div style="text-align:right;flex-shrink:0">
+              <div class="abr-card-betrag">CHF ${h.chf(a.totalBetrag||0)}</div>
+              <div style="margin-top:3px">${abrStatusBadge(status)}</div>
+            </div>
+          </div>
+          <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
+        </div>`;
+      };
+
+      ui.render(`
+        <style>
+          .abr-wrap{display:flex;flex-direction:column;height:calc(100vh - var(--tm-header-h,52px));overflow:hidden}
+          .abr-shell{display:flex;flex:1;min-height:0;overflow:hidden}
+          .abr-sidebar{width:220px;min-width:220px;border-right:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+          .abr-sb-head{padding:10px 12px}
+          .abr-sb-head input{width:100%;padding:5px 9px;border:1px solid #dde3ea;border-radius:6px;font-size:12px;font-family:inherit;color:var(--tm-text);background:#f5f7fa;outline:none}
+          .abr-sb-head input:focus{border-color:#004078;background:#fff}
+          .abr-sb-scroll{flex:1;overflow-y:auto}
+          .abr-sb-sec{border-bottom:1px solid #dde3ea}
+          .abr-sb-sec-hdr{display:flex;align-items:center;gap:6px;padding:7px 12px 6px;cursor:pointer;user-select:none}
+          .abr-sb-sec-hdr:hover{background:#f5f7fa}
+          .abr-sb-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8896a5;flex:1}
+          .abr-sb-count{font-size:9px;background:#004078;color:#fff;border-radius:8px;padding:1px 5px;font-weight:700}
+          .abr-sb-toggle{font-size:9px;color:#8896a5;transition:transform .15s;display:inline-block}
+          .abr-sb-toggle.open{transform:rotate(90deg)}
+          .abr-sb-body{padding:2px 8px 8px}
+          .abr-sb-chip{font-size:12px;padding:5px 8px 5px 12px;border-radius:0;border:none;border-left:2px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;display:block;width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit;transition:background .1s}
+          .abr-sb-chip:hover{background:#f5f7fa}
+          .abr-sb-chip.active{background:#e6f1fb;border-left-color:#004078;color:#004078;font-weight:600}
+          .abr-sb-footer{padding:10px 12px;border-top:1px solid #dde3ea}
+          .abr-sb-reset{font-size:12px;color:#A32D2D;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;font-weight:600}
+          .abr-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#e8ecf0}
+          .abr-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;background:#e8ecf0;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .abr-title{font-size:18px;font-weight:700;color:var(--tm-text)}
+          .abr-meta{font-size:12px;color:#8896a5}
+          .abr-kpis{display:flex;gap:10px;padding:10px 16px;background:#e8ecf0;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .abr-kpi{flex:1;background:#fff;border-radius:8px;padding:8px 12px;border:1px solid rgba(0,0,0,0.09)}
+          .abr-kpi-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8896a5;margin-bottom:3px}
+          .abr-kpi-val{font-size:16px;font-weight:700;color:var(--tm-text)}
+          .abr-kpi-val.green{color:#0F6E56}
+          .abr-kpi-val.amber{color:#854F0B}
+          .abr-cards{flex:1;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:8px}
+          .abr-card{background:#fff;border-radius:8px;padding:10px 14px;border:1px solid rgba(0,0,0,0.09);cursor:pointer;transition:box-shadow .1s}
+          .abr-card:hover{box-shadow:0 2px 8px rgba(0,64,120,.1)}
+          .abr-card-sel{border-color:#004078;box-shadow:inset 3px 0 0 #004078}
+          .abr-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:4px}
+          .abr-card-title{font-size:13px;font-weight:700;color:var(--tm-text)}
+          .abr-card-meta{font-size:11px;color:#8896a5;margin-top:2px}
+          .abr-card-betrag{font-size:14px;font-weight:700;color:#004078;white-space:nowrap}
+          .abr-card-date{font-size:11px;color:#8896a5}
+          .abr-detail{width:272px;min-width:272px;border-left:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+          .abr-dp-head{display:flex;align-items:center;padding:9px 14px;border-bottom:1px solid #dde3ea;flex-shrink:0}
+          .abr-dp-label{font-size:10px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:0.06em}
+          .abr-dp-scroll{flex:1;overflow-y:auto;padding:14px}
+          .abr-dp-title{font-size:14px;font-weight:700;color:var(--tm-text);margin-bottom:4px}
+          .abr-dp-sub{font-size:12px;color:#8896a5;margin-bottom:10px;font-weight:600}
+          .abr-dp-flow{display:flex;gap:4px;margin-bottom:12px}
+          .abr-flow-btn{flex:1;padding:5px 6px;font-size:11px;font-weight:600;border-radius:6px;border:1px solid #dde3ea;background:#f5f7fa;color:#8896a5;cursor:pointer;font-family:inherit;text-align:center}
+          .abr-flow-btn:hover{background:#e6f1fb;color:#004078;border-color:#004078}
+          .abr-flow-active{background:#004078!important;color:#fff!important;border-color:#004078!important}
+          .abr-dp-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid #dde3ea}
+          .abr-dp-row:last-of-type{border-bottom:none}
+          .abr-dp-key{font-size:12px;color:#8896a5;font-weight:600}
+          .abr-dp-val{font-size:12px;color:var(--tm-text);text-align:right;font-weight:600}
+          .abr-dp-footer{margin-top:16px;padding-top:12px;border-top:1px solid #dde3ea;display:flex;gap:6px;flex-wrap:wrap}
+          .abr-dp-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#8896a5;font-size:13px;gap:8px;font-weight:600}
+          .abr-mob-filter-btn{display:none}
+          @media(max-width:899px){
+            .abr-sidebar{display:none!important}
+            .abr-detail{display:none!important}
+            .abr-shell.abr-mob-filter .abr-sidebar{display:flex!important;width:100%!important;min-width:0!important;border-right:none!important}
+            .abr-shell.abr-mob-filter .abr-main{display:none!important}
+            .abr-mob-filter-btn{display:flex!important}
+            .abr-kpis{gap:6px;padding:8px 12px;overflow-x:auto}
+            .abr-sb-head input{display:none!important}
+          }
+        </style>
+        <div class="abr-wrap">
+          <div class="abr-shell${state.ui.abrMobFilter?" abr-mob-filter":""}">
+            <div class="abr-sidebar">
+              <div class="abr-sb-head">
+                <button class="tm-btn tm-btn-sm abr-mob-filter-btn" data-action="abr-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Abrechnungen</button>
+                <input type="search" placeholder="Suche Abrechnung, Firma…" value="${h.esc(f.search||"")}" data-search-key="abrechnungen.search" oninput="h.searchInput('abrechnungen.search',this.value)">
+              </div>
+              <div class="abr-sb-scroll">
+                ${hasFilter?`<div class="abr-sb-footer" style="border-bottom:1px solid #dde3ea;border-top:none"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
+                ${sbSec("jahr","Jahr",jahre.map(j=>[String(j),String(j)]))}
+                ${sbSec("firma","Firma",firmen.map(n=>[n,n]))}
+                ${sbSec("projekt","Projekt",projekte.map(([id,t])=>[String(id),t]))}
+                ${sbSec("status","Status",[["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]])}
+              </div>
+              ${hasFilter?"":`<div class="abr-sb-footer"><span style="font-size:11px;color:#8896a5">${all.length} Abrechnungen total</span></div>`}
+            </div>
+            <div class="abr-main">
+              <div class="abr-toolbar">
+                <div>
+                  <div class="abr-title">${[f.firma,f.status].filter(Boolean).concat(["Abrechnungen"]).join(" · ")}</div>
+                  <div class="abr-meta">${list.length} Einträge · CHF ${h.chf(total)}</div>
+                </div>
+                <button class="tm-btn tm-btn-sm abr-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="abr-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+              </div>
+              <div class="abr-kpis">
+                <div class="abr-kpi"><div class="abr-kpi-label">Total</div><div class="abr-kpi-val">CHF ${h.chf(total)}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Erstellt</div><div class="abr-kpi-val amber">${byStatus("erstellt")}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Versendet</div><div class="abr-kpi-val amber">${byStatus("versendet")}</div></div>
+                <div class="abr-kpi"><div class="abr-kpi-label">Bezahlt</div><div class="abr-kpi-val green">${byStatus("bezahlt")}</div></div>
+              </div>
+              <div class="abr-cards">
+                ${list.length?list.map(abrCard).join(""):`<div style="text-align:center;padding:32px;color:#8896a5;font-size:13px;font-weight:600">Keine Abrechnungen gefunden.</div>`}
+              </div>
+            </div>
+            <div class="abr-detail">
+              <div class="abr-dp-head"><div class="abr-dp-label">Detail</div></div>
+              <div class="abr-dp-scroll">${detailHtml()}</div>
+            </div>
+          </div>
+        </div>
+      `);
+    },
+
+
     firmen() {
       const f   = state.filters.firmen;
       const all = [...state.data.firms];
