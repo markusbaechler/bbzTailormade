@@ -751,14 +751,22 @@ html, body {
   /* Konzeption Tabelle: kein horizontales Scrollen, Spalten ausblenden */
   .kz-tbl-wrap { overflow-x:hidden !important; }
   .kz-tbl { table-layout:fixed !important; }
-  .kz-tbl th:nth-child(2),
+  /* Zeige: Datum (1), Firma+Beschreibung (2+3), Dauer (5) → hide 4,6,7 */
   .kz-tbl th:nth-child(4),
-  .kz-tbl th:nth-child(5),
-  .kz-tbl th:nth-child(6) { display:none !important; }
-  .kz-tbl td:nth-child(2),
+  .kz-tbl th:nth-child(6),
+  .kz-tbl th:nth-child(7) { display:none !important; }
   .kz-tbl td:nth-child(4),
-  .kz-tbl td:nth-child(5),
-  .kz-tbl td:nth-child(6) { display:none !important; }
-  .kz-tbl th:nth-child(1) { width:90px; }
-  /* Zeige: Datum, Beschreibung (3), Abrechnung (7) */
+  .kz-tbl td:nth-child(6),
+  .kz-tbl td:nth-child(7) { display:none !important; }
+  .kz-tbl th:nth-child(1) { width:80px; }
+  .kz-tbl th:nth-child(5) { width:80px; }
+}
+
+/* ── Konzeption Mobile: Beschreibung in Spalte 2, Spalte 3 ausblenden ──────── */
+.kz-mob-desc { display:none; }
+@media(max-width:899px) {
+  .kz-mob-desc { display:block !important; font-weight:600; color:#1a2332; }
+  /* Spalte 3 (Beschreibung standalone) auf Mobile ausblenden */
+  .kz-tbl th:nth-child(3),
+  .kz-tbl td:nth-child(3) { display:none !important; }
 }
