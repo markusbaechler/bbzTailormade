@@ -2180,11 +2180,15 @@
             <!-- MAIN -->
             <div class="fi-main">
               <div class="fi-toolbar">
-                <div>
+                <div style="flex:1;min-width:0">
                   <div class="fi-title">Firmen</div>
                   <div class="fi-meta-txt">${list.length} ${f.showOhne||f.search?"Firmen":"mit Projekten"}</div>
                 </div>
-                <button class="tm-btn tm-btn-sm fi-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="fi-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input type="search" class="fi-mob-search" placeholder="Suche…" value="${h.esc(f.search||"")}"
+                    data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)">
+                  <button class="tm-btn tm-btn-sm fi-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="fi-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                </div>
               </div>
               <div class="fi-cards">
                 ${list.length ? list.map(fiCard).join("") : `<div style="text-align:center;padding:32px;color:#8896a5;font-size:13px;font-weight:600">Keine Firmen gefunden.</div>`}
@@ -2258,12 +2262,12 @@
           .fd-title{font-size:22px;font-weight:700;color:#1a2332}
           .fd-subtitle{font-size:13px;color:#8896a5;margin-top:3px}
           .fd-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px;background:#e8ecf0;border-bottom:1px solid rgba(0,0,0,0.09)}
-          @media(max-width:899px){.fd-kpis{grid-template-columns:1fr 1fr}}
+          @media(max-width:899px){.fd-kpis{grid-template-columns:1fr 1fr}}.fd-body-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:899px){.fd-body-grid{grid-template-columns:1fr}}
           .fd-kpi{background:#fff;border-radius:8px;padding:10px 14px;border:1px solid rgba(0,0,0,0.09)}
           .fd-kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8896a5;margin-bottom:4px}
           .fd-kpi-val{font-size:18px;font-weight:700;color:#1a2332;line-height:1.2}
           .fd-kpi-sub{font-size:11px;color:#8896a5;margin-top:2px}
-          .fd-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px}
+          .fd-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px;max-width:100%}
           @media(max-width:899px){.fd-body{grid-template-columns:1fr}}
           .fd-card{background:#fff;border-radius:8px;border:1px solid rgba(0,0,0,0.09);overflow:hidden}
           .fd-card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #dde3ea}
