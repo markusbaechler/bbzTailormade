@@ -3963,7 +3963,11 @@
       const selTitel    = e ? e.title             : (copyOpts?.titel      || "");
       const selOrt      = e ? e.ort               : (copyOpts?.ort        || "");
       const selBem      = e ? e.bemerkungen       : (copyOpts?.bemerkungen|| "");
-      const selDauerTage = e ? (e.dauerTage || 1) : (copyOpts?.dauerTage  || 1);
+      const selDauerTage   = e ? (e.dauerTage    || 1)    : (copyOpts?.dauerTage    || 1);
+      const selDauerStunden = e ? (e.dauerStunden || null) : (copyOpts?.dauerStunden || null);
+      const selAnzahlStueck = e ? (e.anzahlStueck || null) : (copyOpts?.anzahlStueck || null);
+      const selBetragFinal   = e ? (e.betragFinal  || null) : (copyOpts?.betragFinal  || null);
+      const selCoBetragFinal = e ? (e.coBetragFinal|| null) : (copyOpts?.coBetragFinal|| null);
       const isTagKat   = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
       const betragBer   = selProjekt && selKat ? h.berechneBetrag(selProjekt, selKat, selDauerTage, e?.dauerStunden, e?.anzahlStueck) : null;
@@ -3993,12 +3997,17 @@
       const lbi = leadBetragInfo();
       const cbi = coBetragInfo();
 
-      // Spesen: Km aus Projekt vorbelegen falls vorhanden
-      const kmVorbelegt = selProjekt?.kmZumKunden || "";
-      const ansatzKm    = selProjekt?.ansatzKmSpesen || null;
-      const hasSp       = !!(e?.spesenBerechnet);
-      const kmGespeichert = (hasSp && ansatzKm) ? Math.round(e.spesenBerechnet / ansatzKm) : (kmVorbelegt || "");
-      const spesenTotal = hasSp ? e.spesenBerechnet : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0);
+      // Spesen: aus Einsatz (edit) oder copyOpts (duplizieren) oder Projekt-Default (neu)
+      const kmVorbelegt  = selProjekt?.kmZumKunden || "";
+      const ansatzKm     = selProjekt?.ansatzKmSpesen || null;
+      const selSpBer     = e ? (e.spesenBerechnet || null) : (copyOpts?.spesenBerechnet || null);
+      const hasSp        = !!(e ? e.spesenBerechnet : copyOpts?.spesenAktiv);
+      // km rückrechnen: gespeicherter Wert / Ansatz; Fallback: Projekt-Km
+      const kmGespeichert = (hasSp && ansatzKm && selSpBer)
+        ? Math.round(selSpBer / ansatzKm)
+        : (hasSp ? (kmVorbelegt || "") : (kmVorbelegt || ""));
+      const spesenTotal  = hasSp && selSpBer ? selSpBer
+        : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : 0);
 
       // Einsatz-Status berechnet (Geplant/Durchgeführt)
       const statusAnzeige = (() => {
@@ -4184,12 +4193,12 @@
                 </div>
                 <div id="fd-std" class="ef-sub-inp${selKat === "Stunde" ? " show" : ""}">
                   <div class="ef-iw" style="max-width:180px">
-                    <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${e?.dauerStunden || ""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+                    <input type="number" name="dauerStunden" min="0.5" step="0.5" value="${selDauerStunden ?? ""}" placeholder="Anzahl Stunden" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
                   </div>
                 </div>
                 <div id="fd-stk" class="ef-sub-inp${selKat === "Stück" ? " show" : ""}">
                   <div class="ef-iw" style="max-width:180px">
-                    <input type="number" name="anzahlStueck" min="1" step="1" value="${e?.anzahlStueck || ""}" placeholder="Anzahl Stück" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
+                    <input type="number" name="anzahlStueck" min="1" step="1" value="${selAnzahlStueck ?? ""}" placeholder="Anzahl Stück" oninput="ctrl.onKatChange(document.getElementById('kat-hid').value)">
                   </div>
                 </div>
               </div>
@@ -4246,9 +4255,9 @@
                       style="${selKat && !lbi.warn ? "" : "display:none"}"
                       onclick="ctrl.efToggleOverride('ef-ov-lead')">Anpassen</button>
                   </div>
-                  <div class="ef-betrag-override${e?.betragFinal ? " show" : ""}" id="ef-ov-lead">
+                  <div class="ef-betrag-override${selBetragFinal ? " show" : ""}" id="ef-ov-lead">
                     <span style="font-size:11px;color:#8896a5">CHF</span>
-                    <input type="number" name="betragFinal" step="0.01" value="${e?.betragFinal ?? ""}" placeholder="Betrag">
+                    <input type="number" name="betragFinal" step="0.01" value="${selBetragFinal ?? ""}" placeholder="Betrag">
                     <span class="muted">leer = aus Projekt</span>
                   </div>
                   <!-- Co-Lead (nur wenn Tag-Kat + Co gesetzt) -->
@@ -4261,9 +4270,9 @@
                       </div>
                       <button type="button" class="ef-betrag-edit" onclick="ctrl.efToggleOverride('ef-ov-co')">Anpassen</button>
                     </div>
-                    <div class="ef-betrag-override${e?.coBetragFinal ? " show" : ""}" id="ef-ov-co">
+                    <div class="ef-betrag-override${selCoBetragFinal ? " show" : ""}" id="ef-ov-co">
                       <span style="font-size:11px;color:#8896a5">CHF</span>
-                      <input type="number" name="coBetragFinal" step="0.01" value="${e?.coBetragFinal ?? ""}" placeholder="Betrag">
+                      <input type="number" name="coBetragFinal" step="0.01" value="${selCoBetragFinal ?? ""}" placeholder="Betrag">
                       <span class="muted">leer = aus Projekt</span>
                     </div>
                   </div>
@@ -4287,7 +4296,7 @@
                     <span class="ef-weg-hint">CHF ${h.chf(ansatzKm)}/km</span>
                     <span class="ef-weg-calc" id="ef-km-calc">${spesenTotal > 0 ? "= CHF " + h.chf(spesenTotal) : ""}</span>
                   </div>
-                  <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${hasSp ? (e?.spesenBerechnet ?? "") : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : "")}">
+                  <input type="hidden" name="spesenBerechnet" id="ef-sp-ber" value="${hasSp ? (selSpBer ?? "") : (kmVorbelegt && ansatzKm ? kmVorbelegt * ansatzKm : "")}">
                   ` : `<span class="ef-weg-noansatz">⚠ Kein Km-Ansatz im Projekt hinterlegt</span>`}
                 </div>
               </div>
@@ -4547,14 +4556,27 @@
 
         debug.log("saveEinsatz:formData", { datum, kat, projId, mode, itemId });
 
+        const showModalErr = msg => {
+          let el = document.getElementById("ef-inline-err");
+          if (!el) {
+            el = document.createElement("div");
+            el.id = "ef-inline-err";
+            el.style.cssText = "background:#fce7f3;color:#950e13;border:1px solid #f4c0d1;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:500;margin:0 0 4px;display:flex;align-items:center;gap:8px;grid-column:1/-1";
+            const bd = document.querySelector(".ef-bd");
+            if (bd) bd.insertBefore(el, bd.firstChild);
+          }
+          el.innerHTML = `<span style="flex-shrink:0">⚠</span> ${h.esc(msg)}`;
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        };
         if (!datum) {
+          showModalErr("Bitte Datum auswählen.");
           document.querySelector("[name='datum']")?.focus();
-          throw new Error("Bitte Datum auswählen.");
+          return;
         }
-        if (!projId) throw new Error("Bitte Projekt wählen.");
-        if (!kat)    throw new Error("Bitte Kategorie wählen.");
+        if (!projId) { showModalErr("Bitte Projekt wählen."); return; }
+        if (!kat)    { showModalErr("Bitte Kategorie wählen."); return; }
         const personIdCheck = h.num(fd.get("personLookupId"));
-        if (!personIdCheck) throw new Error("Bitte Lead-Person wählen.");
+        if (!personIdCheck) { showModalErr("Bitte Lead-Person wählen."); return; }
 
         const p            = state.enriched.projekte.find(p => p.id === projId);
         const dauerTage    = h.num(fd.get("dauerTage"));
@@ -4629,7 +4651,20 @@
         ctrl.render();
       } catch (e) {
         debug.err("saveEinsatz", e);
-        ui.setMsg(e.message || "Fehler.", "error");
+        // Fehler im Modal anzeigen (nicht in globaler Statusbar die hinter Modal liegt)
+        const showModalErr = msg => {
+          let el = document.getElementById("ef-inline-err");
+          if (!el) {
+            el = document.createElement("div");
+            el.id = "ef-inline-err";
+            el.style.cssText = "background:#fce7f3;color:#950e13;border:1px solid #f4c0d1;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:500;margin:0 0 4px;display:flex;align-items:center;gap:8px;grid-column:1/-1";
+            const bd = document.querySelector(".ef-bd");
+            if (bd) bd.insertBefore(el, bd.firstChild);
+          }
+          el.innerHTML = `<span style="flex-shrink:0">⚠</span> ${h.esc(msg)}`;
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        };
+        showModalErr(e.message || "Fehler beim Speichern.");
       } finally {
         ctrl._saveEinsatzBusy = false;
       }
@@ -4731,19 +4766,23 @@
     },
 
     copyEinsatz(id) {
-      // Einsatz duplizieren: neues Formular öffnen mit Projekt und Kategorie vorbelegt,
-      // Datum leer damit der User bewusst ein neues Datum wählt.
+      // Einsatz duplizieren: neues Formular mit allen Feldern ausser Datum
       const e = state.enriched.einsaetze.find(e => e.id === id);
       if (!e) return;
       ui.closeModal();
       ctrl.openEinsatzForm(null, e.projektLookupId, e.kategorie, {
-        ort:         e.ort || "",
-        titel:       e.title || "",
-        personId:    e.personLookupId || null,
-        coPersonId:  e.coPersonLookupId || null,
-        bemerkungen: e.bemerkungen || "",
-        dauerTage:   e.dauerTage || 1,
-        spesenAktiv: !!(e.spesenBerechnet)
+        ort:             e.ort || "",
+        titel:           e.title || "",
+        personId:        e.personLookupId || null,
+        coPersonId:      e.coPersonLookupId || null,
+        bemerkungen:     e.bemerkungen || "",
+        dauerTage:       e.dauerTage || 1,
+        dauerStunden:    e.dauerStunden || null,
+        anzahlStueck:    e.anzahlStueck || null,
+        spesenAktiv:     !!(e.spesenBerechnet),
+        spesenBerechnet: e.spesenBerechnet || null,
+        betragFinal:     e.betragFinal || null,
+        coBetragFinal:   e.coBetragFinal || null
       });
     },
 
