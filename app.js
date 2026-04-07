@@ -2451,7 +2451,6 @@
       // ── CRM-Link Badge ─────────────────────────────────────────────────────
       const crmBadge = `<a href="${crmUrl}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ CRM bearbeiten</a>`;
 
-      if (ui.els.root) ui.els.root.classList.add('fd-scroll');
       ui.render(`
         <style>
           .fd-back{font-size:13px;color:#004078;font-weight:600;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
@@ -2488,6 +2487,7 @@
           .fd-proj-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
           .fd-proj-row:last-child{border-bottom:none}
         </style>
+        <div style="height:calc(100vh - var(--tm-header-h,52px));overflow-y:auto;-webkit-overflow-scrolling:touch">
         <!-- Header -->
         <div class="fd-header">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -2624,6 +2624,7 @@
             </div>
           </div>
 
+        </div>
         </div>
       `);
     },
@@ -3884,7 +3885,6 @@
         state.ui.pdMobDetail = false;
       }
       if (route !== "firma-detail") state.selection.firmaId = null;
-      if (ui.els.root) ui.els.root.classList.remove('fd-scroll');
       // Reset alle Mobile-Filter-States beim Route-Wechsel
       state.ui.eiMobFilter  = false;
       state.ui.kzMobFilter  = false;
