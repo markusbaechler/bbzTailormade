@@ -2451,8 +2451,7 @@
       // ── CRM-Link Badge ─────────────────────────────────────────────────────
       const crmBadge = `<a href="${crmUrl}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ CRM bearbeiten</a>`;
 
-      // Allow view-root to scroll for this full-page view
-      if (ui.els.root) { ui.els.root.style.overflowY = 'auto'; }
+      if (ui.els.root) ui.els.root.classList.add('fd-scroll');
       ui.render(`
         <style>
           .fd-back{font-size:13px;color:#004078;font-weight:600;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
@@ -3885,8 +3884,7 @@
         state.ui.pdMobDetail = false;
       }
       if (route !== "firma-detail") state.selection.firmaId = null;
-      // Reset view-root overflow
-      if (ui.els.root) ui.els.root.style.overflowY = '';
+      if (ui.els.root) ui.els.root.classList.remove('fd-scroll');
       // Reset alle Mobile-Filter-States beim Route-Wechsel
       state.ui.eiMobFilter  = false;
       state.ui.kzMobFilter  = false;
