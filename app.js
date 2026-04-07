@@ -1195,7 +1195,7 @@
 
           /* Sidebar */
           .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .pd-sb-head { padding:10px 12px; border-bottom:1px solid rgba(0,0,0,0.09); background:#fff; }
+          .pd-sb-head { padding:10px 12px; background:#fff; }
           .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
           .pd-sb-head input:focus { border-color:var(--tm-blue); background:#fff; }
           .pd-sb-scroll { flex:1; overflow-y:auto; }
@@ -1214,8 +1214,6 @@
           /* Main */
           .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#f5f7fa; }
           .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; flex-shrink:0; }
-          .pd-back-btn { padding:4px 10px; border-radius:6px; border:1px solid var(--tm-blue-pale); background:#fff; color:var(--tm-text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
-          .pd-back-btn:hover { background:var(--tm-surface); color:var(--tm-text); }
           .pd-topbar-actions { margin-left:auto; display:flex; gap:6px; }
           .pd-proj-header { padding:12px 16px 14px; border-bottom:1px solid rgba(0,0,0,0.09); background:#f5f7fa; flex-shrink:0; }
           .pd-proj-title { font-size:18px; font-weight:700; color:var(--tm-text); }
@@ -1306,7 +1304,6 @@
           <!-- MAIN -->
           <div class="pd-main">
             <div class="pd-topbar">
-              <button class="pd-back-btn" data-action="back-to-projekte">← Projekte</button>
               <div class="pd-topbar-actions">
                 <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
