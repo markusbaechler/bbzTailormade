@@ -2204,12 +2204,10 @@
       const p = state.enriched.projekte.find(p => p.id === projektId);
       if (!p) { ctrl.navigate("abrechnungen"); return; }
 
-      // aeUpdateTotal global registrieren bevor HTML gerendert wird
       ctrl._initAeUpdateTotal();
 
       const einsaetze = state.enriched.einsaetze
-        .filter(e => e.projektLookupId === projektId)
-        .filter(e => e.einsatzStatus !== "abgesagt")
+        .filter(e => e.projektLookupId === projektId && e.einsatzStatus !== "abgesagt")
         .filter(e => ["offen","zur Abrechnung"].includes(e.abrechnung))
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
@@ -2229,93 +2227,192 @@
       const konzTotalStd    = konzAlle.reduce((s,k) => s+(k.aufwandStunden||0), 0);
       const konzVerrStd     = konzAlle.filter(k => k.verrechenbar==="verrechenbar").reduce((s,k) => s+(k.aufwandStunden||0), 0);
       const konzKlaerStd    = konzAlle.filter(k => k.verrechenbar==="Klärung nötig").reduce((s,k) => s+(k.aufwandStunden||0), 0);
-
       const today = new Date().toISOString().slice(0,10);
+
+      // Aktiver Tab: state merken
+      if (!state.ui.aeTab) state.ui.aeTab = "einsaetze";
+      const tab = state.ui.aeTab;
+
+      // ── Tab-Inhalte ────────────────────────────────────────────────────────
+      const tabEinsaetze = () => `
+        <div class="ae-tab-body">
+          ${einsaetze.length ? `
+          <div class="ae-list-hd">
+            <label class="ae-check-all"><input type="checkbox" id="ae-check-all"
+              onchange="document.querySelectorAll('.ae-e-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle</label>
+          </div>
+          <div class="ae-list">
+            ${einsaetze.map(e => {
+              const honorar = (e.anzeigeBetrag||0) + (e.coAnzeigeBetrag||0);
+              const spesen  = e.spesenBerechnet || 0;
+              const hasSpesen = spesen > 0;
+              return `<label class="ae-row">
+                <input type="checkbox" class="ae-cb ae-e-cb"
+                  data-id="${e.id}" data-honorar="${honorar}" data-betrag="${honorar}" data-spesen="${spesen}"
+                  onchange="aeUpdateTotal()">
+                <div class="ae-row-main">
+                  <div class="ae-row-top">
+                    <span class="ae-row-date">${h.esc(e.datumFmt)}</span>
+                    <span class="ae-row-title">${h.esc(e.title || e.kategorie)}</span>
+                    <span class="ae-row-amt">${h.chf(honorar)}</span>
+                  </div>
+                  <div class="ae-row-sub">
+                    <span>${h.esc(e.personName||"")}${(e.coPersonName&&e.coPersonName!=="—")?` · Co: ${h.esc(e.coPersonName)}`:""}</span>
+                    <span>${h.esc(e.kategorie)}</span>
+                    ${hasSpesen ? `<span style="color:#1a8a5e">Spesen: CHF ${h.chf(spesen)}</span>` : ""}
+                  </div>
+                </div>
+              </label>`;
+            }).join("")}
+          </div>
+          <div class="ae-subtotal-row">
+            <span>Honorar: <strong id="ae-einsatz-honorar">CHF 0.00</strong></span>
+            <span>Wegspesen: <strong id="ae-einsatz-spesen-sub" style="color:#1a8a5e">CHF 0.00</strong></span>
+            <span class="ae-subtotal-lbl">Total: <strong id="ae-einsatz-total" style="color:#004078;font-size:15px">CHF 0.00</strong></span>
+          </div>` : `<div class="ae-empty">Keine offenen Einsätze vorhanden.</div>`}
+        </div>`;
+
+      const tabKonzeption = () => `
+        <div class="ae-tab-body">
+          ${konzKlaer.length ? `
+          <div class="ae-klaer-section">
+            <div class="ae-klaer-hd">Klärung nötig (${konzKlaer.length}) — <span style="color:#b45309">CHF ${h.chf(konzKlaerBetrag)} · ${konzKlaerStd.toFixed(1)} h</span></div>
+            ${konzKlaer.map(k => `
+            <div class="ae-klaer-row" id="ae-kl-${k.id}">
+              <div class="ae-row-main" style="flex:1">
+                <div class="ae-row-top">
+                  <span class="ae-row-date">${h.esc(k.datumFmt)}</span>
+                  <span class="ae-row-title">${h.esc(k.title)}</span>
+                  <span class="ae-row-amt">${h.chf(k.anzeigeBetrag)}</span>
+                </div>
+                <div class="ae-row-sub"><span>${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</span></div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;margin-top:4px">
+                <button class="ae-kl-btn verr" onclick="ctrl.aeKlaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
+                <button class="ae-kl-btn inkl" onclick="ctrl.aeKlaerungEntscheid(${k.id},'keine Verrechnung',this,${projektId})">→ inklusive</button>
+              </div>
+            </div>`).join("")}
+          </div>` : ""}
+          <div class="ae-konz-kpi">
+            <div class="ae-kc"><div class="ae-kc-lbl">Total</div><div class="ae-kc-val">CHF ${h.chf(konzTotalBetrag)}</div><div class="ae-kc-sub">${konzTotalStd.toFixed(1)} h</div></div>
+            <div class="ae-kc verr"><div class="ae-kc-lbl">Verrechenbar</div><div class="ae-kc-val">CHF ${h.chf(konzVerrBetrag)}</div><div class="ae-kc-sub">${konzVerrStd.toFixed(1)} h</div></div>
+          </div>
+          ${konzVerr.length ? `
+          <div class="ae-list-hd">
+            <label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all"
+              onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label>
+          </div>
+          <div class="ae-list">
+            ${konzVerr.map(k => `
+            <label class="ae-row">
+              <input type="checkbox" class="ae-cb ae-k-cb" data-id="${k.id}" data-betrag="${k.anzeigeBetrag||0}" onchange="aeUpdateTotal()">
+              <div class="ae-row-main">
+                <div class="ae-row-top">
+                  <span class="ae-row-date">${h.esc(k.datumFmt)}</span>
+                  <span class="ae-row-title">${h.esc(k.title)}</span>
+                  <span class="ae-row-amt">${h.chf(k.anzeigeBetrag)}</span>
+                </div>
+                <div class="ae-row-sub"><span>${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</span><span>${h.esc(k.kategorie)}</span></div>
+              </div>
+            </label>`).join("")}
+          </div>
+          <div class="ae-subtotal-row">
+            <span class="ae-subtotal-lbl">Konzeption gewählt: <strong id="ae-konz-total" style="color:#004078;font-size:15px">CHF 0.00</strong></span>
+          </div>` : `<div class="ae-empty">Keine verrechenbaren Konzeptionsaufwände.</div>`}
+        </div>`;
+
+      const tabSpesen = () => `
+        <div class="ae-tab-body">
+          <div style="padding:16px">
+            <div class="ae-field-row">
+              <label class="ae-field-lbl">Betrag CHF</label>
+              <input type="number" id="ae-zusatz-betrag" step="0.01" min="0" placeholder="0.00"
+                style="width:130px;padding:9px 12px;font-size:14px;font-weight:600;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-family:inherit;outline:none"
+                oninput="aeUpdateTotal()">
+            </div>
+            <div class="ae-field-row" style="margin-top:12px">
+              <label class="ae-field-lbl">Beschreibung</label>
+              <input type="text" id="ae-zusatz-bem" placeholder="z.B. Parkgebühren, ÖV, Material…"
+                style="flex:1;padding:9px 12px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-family:inherit;outline:none">
+            </div>
+          </div>
+          <div class="ae-subtotal-row">
+            <span class="ae-subtotal-lbl">Zusatzspesen: <strong id="ae-spesen-hd" style="color:#004078;font-size:15px">CHF 0.00</strong></span>
+          </div>
+        </div>`;
 
       ui.render(`
         <div class="ae-page">
           <style>
-            .ae-page{max-width:900px;margin:0 auto;padding:16px 16px 120px;display:flex;flex-direction:column;gap:16px}
-            .ae-back{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#004078;background:none;border:none;cursor:pointer;padding:0;font-family:inherit}
-            .ae-back:hover{text-decoration:underline}
-            .ae-header{background:#004078;border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
-            .ae-header-t{color:#fff;font-size:15px;font-weight:700}
-            .ae-header-s{color:rgba(255,255,255,.6);font-size:12px;margin-top:1px}
+            .ae-page{max-width:760px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 56px)}
+            /* Header */
+            .ae-hdr{background:#004078;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;flex-shrink:0}
+            .ae-hdr-l{display:flex;flex-direction:column}
+            .ae-hdr-t{color:#fff;font-size:14px;font-weight:700}
+            .ae-hdr-s{color:rgba(255,255,255,.6);font-size:11px;margin-top:1px}
             .ae-datum-row{display:flex;align-items:center;gap:8px}
-            .ae-datum-lbl{color:rgba(255,255,255,.7);font-size:12px;font-weight:600;white-space:nowrap}
-            .ae-datum-inp{padding:5px 10px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-family:inherit;font-size:13px;font-weight:600;outline:none;width:140px;-webkit-appearance:none;color-scheme:dark}
-            .ae-datum-inp:focus{border-color:rgba(255,255,255,.7)}
-            .ae-card{background:#fff;border:1.5px solid #dde4ec;border-radius:12px;overflow:hidden}
-            .ae-sec-hd{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #f0f4f8;background:#f8fafc;gap:8px;flex-wrap:wrap}
-            .ae-sec-lbl{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5}
-            .ae-sec-total{font-size:13px;font-weight:700;color:#004078}
-            /* Tabelle — responsive */
-            .ae-table{width:100%;border-collapse:collapse;font-size:13px}
-            .ae-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;padding:8px 10px;border-bottom:1px solid #dde4ec;text-align:left;background:#fafbfc;white-space:nowrap}
-            .ae-table th.r{text-align:right}
-            .ae-table td{padding:9px 10px;border-bottom:1px solid #f0f4f8;vertical-align:middle}
-            .ae-table td.r{text-align:right;font-weight:600;color:#1a2332}
-            .ae-table td.muted{color:#8896a5;font-size:12px}
-            .ae-table tr:last-child td{border-bottom:none}
-            .ae-cb{width:15px;height:15px;cursor:pointer;accent-color:#004078;flex-shrink:0}
+            .ae-datum-lbl{color:rgba(255,255,255,.7);font-size:12px;font-weight:600}
+            .ae-datum-inp{padding:5px 10px;border-radius:7px;border:1.5px solid rgba(255,255,255,.3);background:rgba(255,255,255,.12);color:#fff;font-family:inherit;font-size:13px;font-weight:600;outline:none;width:130px;-webkit-appearance:none;color-scheme:dark}
+            /* Back */
+            .ae-back{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#004078;background:none;border:none;cursor:pointer;padding:10px 16px 4px;font-family:inherit;flex-shrink:0}
+            /* Tabs */
+            .ae-tabs{display:flex;border-bottom:2px solid #dde4ec;background:#fff;flex-shrink:0}
+            .ae-tab{flex:1;padding:10px 4px;font-family:inherit;font-size:12px;font-weight:600;color:#8896a5;background:none;border:none;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:2px}
+            .ae-tab.active{color:#004078;border-bottom-color:#004078}
+            .ae-tab-badge{font-size:10px;font-weight:700;background:#e8f1f9;color:#004078;border-radius:20px;padding:1px 6px}
+            .ae-tab.active .ae-tab-badge{background:#004078;color:#fff}
+            /* Tab content — scrollable */
+            .ae-tab-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+            /* List rows */
+            .ae-list{display:flex;flex-direction:column}
+            .ae-list-hd{display:flex;justify-content:flex-end;padding:8px 16px 4px;border-bottom:1px solid #f0f4f8}
+            .ae-row{display:flex;align-items:flex-start;gap:12px;padding:11px 16px;border-bottom:1px solid #f0f4f8;cursor:pointer;transition:background .12s}
+            .ae-row:hover{background:#f8fafc}
+            .ae-row input[type=checkbox]{margin-top:3px;flex-shrink:0;width:16px;height:16px;accent-color:#004078;cursor:pointer}
+            .ae-row-main{flex:1;min-width:0}
+            .ae-row-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+            .ae-row-date{font-size:11px;color:#8896a5;white-space:nowrap;flex-shrink:0}
+            .ae-row-title{font-size:13px;font-weight:600;color:#1a2332;flex:1;min-width:0}
+            .ae-row-amt{font-size:13px;font-weight:700;color:#1a2332;white-space:nowrap;margin-left:auto}
+            .ae-row-sub{display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;font-size:11px;color:#8896a5}
+            /* Subtotal */
+            .ae-subtotal-row{display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:10px 16px;background:#f8fafc;border-top:1.5px solid #dde4ec;font-size:12px;color:#8896a5;flex-shrink:0}
             .ae-check-all{display:flex;align-items:center;gap:6px;font-size:12px;color:#8896a5;cursor:pointer}
-            .ae-empty{font-size:13px;color:#8896a5;padding:14px 16px;font-style:italic}
-            .ae-subtotal{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:10px 16px;border-top:1.5px solid #dde4ec;background:#f8fafc}
-            .ae-subtotal-lbl{font-size:12px;color:#8896a5}
-            .ae-subtotal-val{font-size:15px;font-weight:700;color:#004078}
-            /* Spesen — nur Zusatzspesen */
-            .ae-zusatz{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px}
-            .ae-zusatz-lbl{font-size:12px;color:#8896a5;white-space:nowrap;font-weight:600}
-            .ae-zusatz input{padding:7px 10px;font-size:13px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:7px;font-family:inherit;outline:none;transition:border-color .15s}
-            .ae-zusatz input:focus{border-color:#0a5a9e;background:#fff}
-            .ae-zusatz input.wide{flex:1;min-width:160px}
-            /* Konzeption Summary */
-            .ae-konz-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 16px;border-bottom:1px solid #f0f4f8}
-            @media(max-width:540px){.ae-konz-sum{grid-template-columns:1fr 1fr}}
-            .ae-kc{background:#f4f7fb;border-radius:8px;padding:9px 11px}
+            .ae-empty{font-size:13px;color:#8896a5;padding:20px 16px;font-style:italic}
+            /* Konzeption KPI */
+            .ae-konz-kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 16px;border-bottom:1px solid #f0f4f8}
+            .ae-kc{background:#f4f7fb;border-radius:8px;padding:9px 12px}
             .ae-kc-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8896a5;margin-bottom:3px}
             .ae-kc-val{font-size:14px;font-weight:700;color:#1a2332}
-            .ae-kc-sub{font-size:11px;color:#8896a5;margin-top:2px}
+            .ae-kc-sub{font-size:11px;color:#8896a5}
             .ae-kc.verr .ae-kc-val{color:#1a8a5e}
-            .ae-kc.klaer .ae-kc-val{color:#b45309}
             /* Klärung */
-            .ae-kl-btn{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#f4f7fb;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap}
+            .ae-klaer-section{border-bottom:1px solid #f0f4f8;background:#fffbf0}
+            .ae-klaer-hd{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#b45309;padding:8px 16px 4px}
+            .ae-klaer-row{display:flex;flex-direction:column;padding:10px 16px;border-bottom:1px solid #f5e6c8;gap:6px}
+            .ae-kl-btn{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;border:1.5px solid #dde4ec;background:#fff;cursor:pointer;font-family:inherit;transition:all .15s}
             .ae-kl-btn.verr{border-color:rgba(26,138,94,.4);color:#1a8a5e}
             .ae-kl-btn.inkl{border-color:rgba(107,114,128,.4);color:#6b7280}
-            /* Footer sticky */
-            .ae-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #dde4ec;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;z-index:50;box-shadow:0 -2px 12px rgba(0,0,0,.07)}
-            .ae-footer-sums{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#8896a5;align-items:center}
-            .ae-footer-sums strong{color:#004078;font-size:13px}
-            .ae-footer-total{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+            /* Spesen-Felder */
+            .ae-field-row{display:flex;align-items:center;gap:12px}
+            .ae-field-lbl{font-size:12px;font-weight:600;color:#8896a5;width:100px;flex-shrink:0}
+            /* Footer */
+            .ae-footer{background:#fff;border-top:2px solid #dde4ec;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+            .ae-footer-sums{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#8896a5;align-items:center}
+            .ae-footer-sums strong{color:#004078;font-size:12px}
+            .ae-footer-r{display:flex;align-items:center;gap:10px}
             .ae-footer-grand{font-size:17px;font-weight:700;color:#004078}
-            .ae-footer-grand-lbl{font-size:10px;color:#8896a5;text-transform:uppercase;letter-spacing:.5px}
-            .ae-btn-cancel{padding:7px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
-            .ae-btn-submit{padding:7px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(29,158,117,.3)}
-            .ae-btn-submit:hover{background:#0F6E56}
-            /* Mobile ≤640px */
-            @media(max-width:640px){
-              .ae-page{padding:10px 10px 110px}
-              .ae-col-hide{display:none!important}
-              .ae-table td{padding:7px 8px;font-size:12px}
-              .ae-footer-sums{display:none}
-              .ae-konz-sum{grid-template-columns:1fr 1fr!important}
-              .ae-header{border-radius:10px;padding:12px 14px}
-              .ae-header-t{font-size:14px}
-              .ae-kl-btn{font-size:10px;padding:2px 7px}
-            }
-            /* hide Co row when empty */
-            .ae-co-empty{display:none}
+            .ae-footer-grand-lbl{font-size:10px;color:#8896a5;text-transform:uppercase;letter-spacing:.4px}
+            .ae-btn-c{padding:7px 14px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+            .ae-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer}
           </style>
 
-          <div>
-            <button class="ae-back" onclick="ctrl.navigate('projekt-detail');ctrl.openProjekt(${p.id})">← ${h.esc(p.title)}</button>
-          </div>
+          <button class="ae-back" onclick="ctrl.openProjekt(${p.id})">← ${h.esc(p.title)}</button>
 
-          <!-- Header mit Datum-Input -->
-          <div class="ae-header">
-            <div>
-              <div class="ae-header-t">Abrechnung erstellen</div>
-              <div class="ae-header-s">${h.esc(p.firmaName || "")} · ${h.esc(p.title)}</div>
+          <div class="ae-hdr">
+            <div class="ae-hdr-l">
+              <span class="ae-hdr-t">Abrechnung erstellen</span>
+              <span class="ae-hdr-s">${h.esc(p.firmaName||"")} · ${h.esc(p.title)}</span>
             </div>
             <div class="ae-datum-row">
               <span class="ae-datum-lbl">Datum</span>
@@ -2323,152 +2420,41 @@
             </div>
           </div>
 
-          <!-- Einsätze -->
-          <div class="ae-card">
-            <div class="ae-sec-hd">
-              <span class="ae-sec-lbl">Einsätze (${einsaetze.length})</span>
-              ${einsaetze.length ? `<label class="ae-check-all"><input type="checkbox" id="ae-check-all" onchange="document.querySelectorAll('.ae-e-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle</label>` : ""}
-            </div>
-            ${einsaetze.length ? `
-            <table class="ae-table">
-              <thead><tr>
-                <th style="width:32px"></th>
-                <th>Datum</th><th>Beschreibung</th>
-                <th class="ae-col-hide">Kategorie</th>
-                <th class="ae-col-hide">Person</th>
-                <th class="r">Honorar CHF</th>
-                <th class="r ae-col-hide">Spesen CHF</th>
-                <th class="ae-col-hide">Status</th>
-              </tr></thead>
-              <tbody>
-                ${einsaetze.map(e => {
-                  const honorar = (e.anzeigeBetrag||0) + (e.coAnzeigeBetrag||0);
-                  const spesen  = e.spesenBerechnet || 0;
-                  return `<tr>
-                    <td><input type="checkbox" class="ae-cb ae-e-cb"
-                      data-id="${e.id}" data-honorar="${honorar}" data-betrag="${honorar}" data-spesen="${spesen}"
-                      onchange="aeUpdateTotal()"></td>
-                    <td class="muted" style="white-space:nowrap">${h.esc(e.datumFmt)}</td>
-                    <td style="font-weight:500">
-                      ${h.esc(e.title || e.datumFmt)}
-                      ${(e.coPersonName && e.coPersonName !== "—") ? `<br><span style="font-size:11px;color:#8896a5">Co: ${h.esc(e.coPersonName)}</span>` : ""}
-                    </td>
-                    <td class="muted ae-col-hide">${h.esc(e.kategorie)}</td>
-                    <td class="muted ae-col-hide">${h.esc(e.personName||"")}</td>
-                    <td class="r">${h.chf(honorar)}</td>
-                    <td class="r ae-col-hide">${spesen ? h.chf(spesen) : "—"}</td>
-                    <td class="muted ae-col-hide">${h.esc(e.abrechnung)}</td>
-                  </tr>`;
-                }).join("")}
-              </tbody>
-            </table>
-            <div class="ae-subtotal" style="gap:20px">
-              <span style="font-size:12px;color:#8896a5">Honorar: <strong id="ae-einsatz-honorar" style="color:#004078">CHF 0.00</strong></span>
-              <span style="font-size:12px;color:#8896a5">Spesen: <strong id="ae-einsatz-spesen-sub" style="color:#1a8a5e">CHF 0.00</strong></span>
-              <span class="ae-subtotal-lbl">Total gewählt:</span>
-              <span class="ae-subtotal-val" id="ae-einsatz-total">CHF 0.00</span>
-            </div>` : `<div class="ae-empty">Keine offenen Einsätze vorhanden.</div>`}
+          <div class="ae-tabs">
+            <button class="ae-tab${tab==="einsaetze"?" active":""}" onclick="ctrl.aeSetTab('einsaetze',${projektId})">
+              Einsätze <span class="ae-tab-badge">${einsaetze.length}</span>
+            </button>
+            <button class="ae-tab${tab==="konzeption"?" active":""}" onclick="ctrl.aeSetTab('konzeption',${projektId})">
+              Konzeption <span class="ae-tab-badge">${konzVerr.length + konzKlaer.length}</span>
+            </button>
+            <button class="ae-tab${tab==="spesen"?" active":""}" onclick="ctrl.aeSetTab('spesen',${projektId})">
+              Zusatzspesen
+            </button>
           </div>
 
-          <!-- Konzeption Klärung nötig -->
-          ${konzKlaer.length ? `
-          <div class="ae-card" id="ae-klaer-card">
-            <div class="ae-sec-hd">
-              <span class="ae-sec-lbl">Konzeption — Klärung nötig (${konzKlaer.length})</span>
-              <span class="ae-sec-total">${h.chf(konzKlaerBetrag)} · ${konzKlaerStd.toFixed(1)} h</span>
-            </div>
-            <table class="ae-table">
-              <thead><tr><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th><th>Freigabe</th></tr></thead>
-              <tbody id="ae-klaer-tbody">
-                ${konzKlaer.map(k => `<tr id="ae-kl-${k.id}">
-                  <td class="muted">${h.esc(k.datumFmt)}</td>
-                  <td style="font-weight:500">${h.esc(k.title)}</td>
-                  <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-                  <td class="r">${h.chf(k.anzeigeBetrag)}</td>
-                  <td>
-                    <div style="display:flex;gap:5px;flex-wrap:wrap">
-                      <button type="button" class="ae-kl-btn verr"
-                        onclick="ctrl.aeKlaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
-                      <button type="button" class="ae-kl-btn inkl"
-                        onclick="ctrl.aeKlaerungEntscheid(${k.id},'keine Verrechnung',this,${projektId})">→ inklusive</button>
-                    </div>
-                  </td>
-                </tr>`).join("")}
-              </tbody>
-            </table>
-          </div>` : ""}
+          ${tab==="einsaetze" ? tabEinsaetze() : tab==="konzeption" ? tabKonzeption() : tabSpesen()}
 
-          <!-- Konzeption verrechenbar -->
-          <div class="ae-card">
-            <div class="ae-sec-hd">
-              <span class="ae-sec-lbl">Konzeption — verrechenbar</span>
-            </div>
-            <div class="ae-konz-sum" style="${konzKlaer.length ? '' : 'grid-template-columns:1fr 1fr'}">
-              <div class="ae-kc"><div class="ae-kc-lbl">Total Aufwand</div><div class="ae-kc-val">CHF ${h.chf(konzTotalBetrag)}</div><div class="ae-kc-sub">${konzTotalStd.toFixed(1)} h</div></div>
-              <div class="ae-kc verr"><div class="ae-kc-lbl">Verrechenbar</div><div class="ae-kc-val">CHF ${h.chf(konzVerrBetrag)}</div><div class="ae-kc-sub">${konzVerrStd.toFixed(1)} h</div></div>
-              ${konzKlaer.length ? `<div class="ae-kc klaer"><div class="ae-kc-lbl">Klärung nötig</div><div class="ae-kc-val">CHF ${h.chf(konzKlaerBetrag)}</div><div class="ae-kc-sub">${konzKlaerStd.toFixed(1)} h</div></div>` : ""}
-            </div>
-            ${konzVerr.length ? `
-            <div style="display:flex;justify-content:flex-end;padding:8px 16px 0">
-              <label class="ae-check-all"><input type="checkbox" id="ae-konz-check-all" onchange="document.querySelectorAll('.ae-k-cb').forEach(cb=>{cb.checked=this.checked});aeUpdateTotal()"> Alle verrechenbaren</label>
-            </div>
-            <table class="ae-table" id="ae-verr-table">
-              <thead><tr><th style="width:32px"></th><th>Datum</th><th>Beschreibung</th><th class="r">Stunden</th><th class="r">Betrag CHF</th></tr></thead>
-              <tbody id="ae-verr-tbody">
-                ${konzVerr.map(k => `<tr>
-                  <td><input type="checkbox" class="ae-cb ae-k-cb"
-                    data-id="${k.id}" data-betrag="${k.anzeigeBetrag || 0}"
-                    onchange="aeUpdateTotal()"></td>
-                  <td class="muted">${h.esc(k.datumFmt)}</td>
-                  <td style="font-weight:500">${h.esc(k.title)}</td>
-                  <td class="r muted">${k.aufwandStunden ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-                  <td class="r">${h.chf(k.anzeigeBetrag)}</td>
-                </tr>`).join("")}
-              </tbody>
-            </table>
-            <div class="ae-subtotal">
-              <span class="ae-subtotal-lbl">Konzeption gewählt:</span>
-              <span class="ae-subtotal-val" id="ae-konz-total">CHF 0.00</span>
-            </div>` : `<div class="ae-empty">Keine verrechenbaren Konzeptionsaufwände.</div>`}
-          </div>
-
-          <!-- Zusatzspesen -->
-          <div class="ae-card">
-            <div class="ae-sec-hd">
-              <span class="ae-sec-lbl">Zusatzspesen</span>
-              <span class="ae-sec-total" id="ae-spesen-hd">CHF 0.00</span>
-            </div>
-            <div class="ae-zusatz">
-              <span class="ae-zusatz-lbl">Betrag</span>
-              <input type="number" id="ae-zusatz-betrag" step="0.01" min="0" placeholder="CHF" style="width:100px" oninput="aeUpdateTotal()">
-              <input type="text" id="ae-zusatz-bem" class="wide" placeholder="Beschreibung (z.B. Parkgebühren, ÖV)">
-            </div>
-          </div>
-
-          <!-- Footer Sticky (fixed) -->
-          <div class="ae-footer" id="ae-footer">
+          <div class="ae-footer">
             <div class="ae-footer-sums">
               <span>Honorar: <strong id="ae-ft-honorar">CHF 0.00</strong></span>
               <span>Wegspesen: <strong id="ae-ft-wegspesen">CHF 0.00</strong></span>
-              <span>Zusatzspesen: <strong id="ae-ft-zusatz">CHF 0.00</strong></span>
               <span>Konzeption: <strong id="ae-ft-konz">CHF 0.00</strong></span>
+              <span>Zusatzspesen: <strong id="ae-ft-zusatz">CHF 0.00</strong></span>
             </div>
-            <div class="ae-footer-total">
-              <div>
-                <div class="ae-footer-grand-lbl">Gesamttotal</div>
+            <div class="ae-footer-r">
+              <div style="text-align:right">
+                <div class="ae-footer-grand-lbl">Total</div>
                 <div class="ae-footer-grand" id="ae-grand-total">CHF 0.00</div>
               </div>
-              <button type="button" class="ae-btn-cancel" onclick="ctrl.openProjekt(${p.id})">Abbrechen</button>
-              <button type="button" class="ae-btn-submit" onclick="ctrl.aeAbrechnen(${projektId})">✓ Abrechnen</button>
+              <button class="ae-btn-c" onclick="ctrl.openProjekt(${p.id})">Abbrechen</button>
+              <button class="ae-btn-s" onclick="ctrl.aeAbrechnen(${projektId})">✓ Abrechnen</button>
             </div>
           </div>
         </div>
-
       `);
-      // WICHTIG: <script> in innerHTML wird nicht ausgeführt.
-      // aeUpdateTotal muss nach dem Render direkt aufgerufen werden.
       window.aeUpdateTotal();
     },
+
 
     firmen() {
       const f   = state.filters.firmen;
@@ -2967,6 +2953,7 @@
       state.ui.kzMobFilter  = false;
       state.ui.abrMobFilter = false;
       state.ui.fiMobFilter  = false;
+      if (route !== "abrechnung-erstellen") state.ui.aeTab = "einsaetze";
       state.filters.route   = route;
       ctrl.render();
     },
@@ -4768,6 +4755,11 @@
     },
 
     // ── Abrechnung Inline-Helfer ─────────────────────────────────────────
+
+    aeSetTab(tab, projektId) {
+      state.ui.aeTab = tab;
+      views.abrechnungErstellen(projektId);
+    },
 
     _initAeUpdateTotal() {
       // aeUpdateTotal als globale Funktion registrieren (muss vor render() verfügbar sein)
