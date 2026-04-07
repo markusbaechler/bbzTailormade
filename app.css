@@ -654,3 +654,21 @@ html, body {
   overflow-y: auto;
   padding: 24px 24px 40px;
 }
+
+/* ── Projekt-Detail Mobile ────────────────────────────────────────────────── */
+@media(max-width:899px) {
+  .pd-sidebar { width:100% !important; min-width:0 !important; border-right:none !important; }
+  .pd-main { display:none !important; }
+  .pd-detail { display:none !important; }
+  .pd-shell.pd-mob-detail .pd-sidebar { display:none !important; }
+  .pd-shell.pd-mob-detail .pd-main { display:flex !important; }
+  .pd-mob-back { display:flex !important; }
+  .pd-kpis { grid-template-columns:1fr 1fr !important; gap:8px !important; padding:10px 12px !important; }
+  .pd-kpis > :last-child { grid-column:1/-1 !important; }
+  .pd-tabs-wrap { padding:6px 12px 0 !important; overflow-x:auto !important; }
+  .pd-tab { padding:7px 12px !important; font-size:12px !important; }
+  .pd-filter-bar { padding:6px 12px !important; gap:6px !important; flex-wrap:wrap !important; }
+  .pd-filter-select { font-size:11px !important; min-width:90px !important; }
+  .pd-table th { font-size:9px !important; padding:6px 8px !important; }
+  .pd-table td { padding:7px 8px !important; font-size:12px !important; }
+}
