@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -826,6 +826,7 @@
           return;
         }
         if (a("[data-action='pd-mob-back']"))      { state.ui.pdMobDetail = false; ctrl.render(); return; }
+        if (a("[data-action='pd-kpi-toggle']"))    { state.ui.pdKpiOpen = !state.ui.pdKpiOpen; ctrl.render(); return; }
         if (a("[data-action='back-to-projekte']")) { ctrl.navigate("projekte"); return; }
         if (a("[data-action='pd-select-einsatz']")) {
           const el = a("[data-action='pd-select-einsatz']");
@@ -1049,6 +1050,7 @@
           </tr>`;
         };
 
+        const hasFilter = f.jahr||f.person||f.einsatzStatus||f.abrechnung;
         const filterBar = `<div class="pd-filter-bar">
           <span class="pd-filter-label">Filter:</span>
           <select class="pd-filter-select" onchange="state.filters.projektDetail.jahr=this.value;state.ui.selectedProjektEinsatzId=null;ctrl.render()">
@@ -1070,7 +1072,11 @@
             <option value="">Alle Abrechn.</option>
             ${state.choices.einsatzAbrechnung.map(v=>`<option value="${h.esc(v)}" ${f.abrechnung===v?"selected":""}>${h.esc(v)}</option>`).join("")}
           </select>
-          ${(f.jahr||f.person||f.einsatzStatus||f.abrechnung)?`<span class="pd-filter-reset" onclick="state.filters.projektDetail.jahr='';state.filters.projektDetail.person='';state.filters.projektDetail.einsatzStatus='';state.filters.projektDetail.abrechnung='';state.ui.selectedProjektEinsatzId=null;ctrl.render()">✕ Zurücksetzen</span>`:""}
+          ${hasFilter?`<span class="pd-filter-reset" onclick="state.filters.projektDetail.jahr='';state.filters.projektDetail.person='';state.filters.projektDetail.einsatzStatus='';state.filters.projektDetail.abrechnung='';state.ui.selectedProjektEinsatzId=null;ctrl.render()">✕ Zurücksetzen</span>`:""}
+        </div>
+        <div class="pd-mob-filter-bar">
+          <span style="font-size:12px;color:#8896a5;font-weight:600;flex:1">${hasFilter?`Filter aktiv`:"Alle Einsätze"}</span>
+          ${hasFilter?`<button class="tm-btn tm-btn-sm" onclick="state.filters.projektDetail.jahr='';state.filters.projektDetail.person='';state.filters.projektDetail.einsatzStatus='';state.filters.projektDetail.abrechnung='';state.ui.selectedProjektEinsatzId=null;ctrl.render()">✕ Zurücksetzen</button>`:""}
         </div>`;
 
         const thead = `<thead><tr>
@@ -1371,21 +1377,26 @@
               </div>
             </div>
 
-            <div class="pd-proj-header">
-              <div class="pd-proj-title">${h.esc(p.title)}</div>
-              <div class="pd-proj-sub">
-                <span style="color:var(--tm-blue);font-weight:700">${h.esc(p.firmaName)}</span>
-                <span>·</span>
-                <span>#${h.esc(p.projektNr||String(p.id))}</span>
-                ${h.projStatusBadge(p.status)}
+            <div class="pd-proj-header" data-action="pd-kpi-toggle" style="cursor:pointer">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                  <div class="pd-proj-title">${h.esc(p.title)}</div>
+                  <div class="pd-proj-sub">
+                    <span style="color:var(--tm-blue);font-weight:700">${h.esc(p.firmaName)}</span>
+                    <span>·</span>
+                    <span>#${h.esc(p.projektNr||String(p.id))}</span>
+                    ${h.projStatusBadge(p.status)}
+                  </div>
+                </div>
+                <span class="pd-kpi-chevron">${state.ui.pdKpiOpen ? "▲" : "▼"}</span>
               </div>
             </div>
 
-            <div class="pd-kpis">
+            <div class="pd-kpis${state.ui.pdKpiOpen ? "" : " pd-kpis-collapsed"}">
               <div class="pd-kpi">
                 <div class="pd-kpi-label">Total Umsatz</div>
                 <div class="pd-kpi-val">CHF ${h.chf(p.totalBetrag)}</div>
-                <div class="pd-kpi-sub">${p.einsaetzeCount} Einsätze</div>
+                <div class="pd-kpi-sub">${p.einsaetzeCount} Einsätze${p.einsaetzeAbgerechnet ? ` · ${p.einsaetzeAbgerechnet} abgerechnet` : ""}</div>
               </div>
               <div class="pd-kpi">
                 <div class="pd-kpi-label">Konzeptionsbudget</div>
