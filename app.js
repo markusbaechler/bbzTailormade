@@ -1211,24 +1211,7 @@
           .pd-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h, 52px)); overflow:hidden; }
           .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
-          /* ── Mobile: Sidebar fullscreen, kein Detail-Panel ─────────────── */
-          @media(max-width:899px) {
-            .pd-sidebar { width:100%; min-width:0; border-right:none; }
-            .pd-main { display:none; }
-            .pd-detail { display:none; }
-            .pd-shell.pd-mob-detail .pd-sidebar { display:none; }
-            .pd-shell.pd-mob-detail .pd-main { display:flex; }
-            .pd-mob-back { display:flex !important; }
-            .pd-topbar-actions { flex-wrap:wrap; gap:4px; }
-            .pd-kpis { grid-template-columns:1fr 1fr; gap:8px; padding:10px 12px; }
-            .pd-kpis > :last-child { grid-column:1/-1; }
-            .pd-tabs-wrap { padding:6px 12px 0; gap:1px; overflow-x:auto; }
-            .pd-tab { padding:7px 12px; font-size:12px; }
-            .pd-filter-bar { padding:6px 12px; gap:6px; }
-            .pd-filter-select { font-size:11px; min-width:90px; }
-            .pd-table th { font-size:9px; padding:6px 8px; }
-            .pd-table td { padding:7px 8px; font-size:12px; }
-          }
+          /* Mobile styles in app.css */
           .pd-mob-back { display:none; }
 
           /* Sidebar */
