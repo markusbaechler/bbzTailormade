@@ -990,7 +990,6 @@
                 <span class="pd-person-name">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
               </div>
             </td>
-            <td class="pd-td-right">${e.anzeigeBetrag !== null ? h.chf(e.anzeigeBetrag) : "—"}</td>
             <td>${h.abrBadge(e.abrechnung)}</td>
           </tr>`;
         };
@@ -1023,14 +1022,13 @@
           <th style="width:88px">Datum ↓</th>
           <th>Beschreibung</th>
           <th style="width:130px">Kategorie</th>
-          <th style="width:160px">Lead / Co-Lead</th>
-          <th style="width:90px;text-align:right">Betrag</th>
+          <th style="width:180px">Lead / Co-Lead</th>
           <th style="width:110px">Abrechnung</th>
         </tr></thead>`;
 
         if (!list.length) return filterBar + ui.empty("Keine Einsätze für diese Filter.");
 
-        const sectionRow = label => `<tr class="pd-section-row"><td colspan="6">${label}</td></tr>`;
+        const sectionRow = label => `<tr class="pd-section-row"><td colspan="5">${label}</td></tr>`;
 
         const rows = [
           ...(geplant.length     ? [sectionRow(`Bevorstehend (${geplant.length})`),     ...geplant.map(eRow)]     : []),
@@ -1082,20 +1080,14 @@
 
         if (!list.length) return filterBar + ui.empty("Keine Konzeptionsaufwände für diese Filter.");
 
-        const budgetInfo = p.konzBudgetH
-          ? `Konzeption &amp; Admin — ${p.konzStunden.toFixed(1)} h / ${p.konzBudgetH} h Budget`
-          : "Konzeption &amp; Admin";
-
         return filterBar + `<div class="pd-table-wrap">
-          <div class="pd-section-head">${budgetInfo}</div>
           <table class="pd-table">
             <thead><tr>
               <th style="width:88px">Datum ↓</th>
               <th>Beschreibung</th>
               <th style="width:90px">Kategorie</th>
               <th style="width:75px;text-align:right">Aufwand</th>
-              <th style="width:90px;text-align:right">Betrag</th>
-              <th style="width:130px">Verrechenbar</th>
+              <th style="width:140px">Verrechenbar</th>
               <th style="width:110px">Abrechnung</th>
             </tr></thead>
             <tbody>${list.map(k => `<tr class="pd-row${k.id===sel?" pd-row-sel":""}" data-action="pd-select-konz" data-id="${k.id}">
@@ -1103,7 +1095,6 @@
               <td style="font-weight:600">${h.esc(k.title)}</td>
               <td class="pd-td-muted">${h.esc(k.kategorie)}</td>
               <td class="pd-td-right">${k.aufwandStunden !== null ? k.aufwandStunden.toFixed(1) + " h" : "—"}</td>
-              <td class="pd-td-right">${k.anzeigeBetrag !== null ? h.chf(k.anzeigeBetrag) : "—"}</td>
               <td>${h.verrBadge(k.verrechenbar)}</td>
               <td>${h.abrBadge(k.abrechnung)}</td>
             </tr>`).join("")}</tbody>
@@ -1253,8 +1244,8 @@
 
           /* Tabelle */
           .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; }
-          .pd-section-row td { padding:4px 10px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; background:var(--tm-surface); border-bottom:1px solid var(--tm-blue-pale); border-top:1px solid var(--tm-blue-pale); cursor:default; }
-          .pd-section-row:hover td { background:var(--tm-surface) !important; }
+          .pd-section-row td { padding:5px 10px 4px; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.07em; background:#f5f7fa; border-bottom:1px solid #dde3ea; border-top:1px solid #dde3ea; cursor:default; pointer-events:none; }
+          .pd-section-row:hover td { background:#f5f7fa !important; }
           .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
           .pd-table th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--tm-blue-pale); white-space:nowrap; background:#fff; }
           .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; }
