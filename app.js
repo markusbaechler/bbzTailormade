@@ -145,7 +145,7 @@
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
       konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "" },
       abrechnungen: { search: "", status: "", projekt: "", firma: "", jahr: "" },
-      firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false },
+      firmen:       { search: "", klassifizierung: "", vip: "", showOhne: false, projektFilter: "" },
       projektDetail: { jahr: "", person: "", einsatzStatus: "", abrechnung: "", konzJahr: "", konzKat: "", konzVerr: "", konzAbr: "" },
       activeTab:    {}
     },
@@ -757,6 +757,8 @@
           ort:              f.Ort || "",
           land:             f.Land || "",
           hauptnummer:      f.Hauptnummer || "",
+          telefon:          f.Hauptnummer || f.Telefon || "",
+          website:          f.Website || f.Webseite || "",
           klassifizierung:  f.Klassifizierung || "",
           vip:              f.VIP === true || f.VIP === 1 || String(f.VIP).toLowerCase() === "true"
         }));
@@ -765,6 +767,7 @@
           nachname:      c.Title || "",
           vorname:       c.Vorname || "",
           funktion:      c.Funktion || "",
+          rolle:         c.Rolle || "",
           email1:        c.Email1 || "",
           direktwahl:    c.Direktwahl || "",
           mobile:        c.Mobile || "",
@@ -883,7 +886,7 @@
         if (a("[data-action='kz-filter']"))         { const el=a("[data-action='kz-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.konzeption[k]=state.filters.konzeption[k]===v?"":v; state.ui.selectedKonzId=null; ctrl.render(); return; }
         if (a("[data-action='abr-filter']"))         { const el=a("[data-action='abr-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.abrechnungen[k]=state.filters.abrechnungen[k]===v?"":v; state.ui.selectedAbrId=null; ctrl.render(); return; }
         if (a("[data-action='fi-filter']"))          { const el=a("[data-action='fi-filter']"); const k=el.dataset.fkey,v=el.dataset.fval; state.filters.firmen[k]=state.filters.firmen[k]===v?"":v; state.ui.selectedFirmaId=null; ctrl.render(); return; }
-        if (a("[data-action='fi-reset-filters']"))   { state.filters.firmen={search:"",klassifizierung:"",vip:"",showOhne:false}; state.ui.selectedFirmaId=null; ctrl.render(); return; }
+        if (a("[data-action='fi-reset-filters']"))   { state.filters.firmen={search:"",klassifizierung:"",vip:"",showOhne:false,projektFilter:""}; state.ui.selectedFirmaId=null; ctrl.render(); return; }
         if (a("[data-action='fi-toggle-sec']"))      { const sec=a("[data-action='fi-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
         if (a("[data-action='fi-mob-filter']"))      { state.ui.fiMobFilter=true;  ctrl.render(); return; }
         if (a("[data-action='fi-mob-filter-close']")){ state.ui.fiMobFilter=false; ctrl.render(); return; }
@@ -2000,7 +2003,9 @@
       if (f.search)          list = list.filter(fi=>matchFirma(fi,f.search));
       if (f.klassifizierung) list = list.filter(fi=>fi.klassifizierung===f.klassifizierung);
       if (f.vip==="ja")      list = list.filter(fi=>fi.vip);
-      if (!f.search && !f.showOhne) list = list.filter(fi=>hatProjekt(fi));
+      if (f.projektFilter==="aktiv")        list = list.filter(fi=>state.enriched.projekte.some(p=>p.firmaLookupId===fi.id&&p.status==="aktiv"));
+      else if (f.projektFilter==="abgeschlossen") list = list.filter(fi=>state.enriched.projekte.some(p=>p.firmaLookupId===fi.id&&p.status==="abgeschlossen"));
+      else if (!f.search && !f.showOhne)   list = list.filter(fi=>hatProjekt(fi));
 
       list.sort((a,b) => {
         const pa=hatProjekt(a),pb=hatProjekt(b);
@@ -2159,8 +2164,13 @@
                 ${sbSec("klassifizierung","Klassifizierung",klassifizierungen.map(k=>[k,k]))}
                 ${sbSec("vip","VIP",[["ja","Nur VIP"]])}
                 <div class="fi-sb-sec">
-                  <div class="fi-sb-sec-hdr" data-action="fi-filter" data-fkey="showOhne" data-fval="${f.showOhne?"":"ja"}">
-                    <span class="fi-sb-chip${f.showOhne?" active":""}" style="padding:7px 0">Auch ohne Projekte zeigen</span>
+                  <div class="fi-sb-sec-hdr" style="cursor:default">
+                    <span class="fi-sb-label">Projekte</span>
+                  </div>
+                  <div class="fi-sb-body">
+                    <div class="fi-sb-chip${f.projektFilter==="aktiv"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="aktiv">Aktive Projekte</div>
+                    <div class="fi-sb-chip${f.projektFilter==="abgeschlossen"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="abgeschlossen">Abgeschlossene Projekte</div>
+                    <div class="fi-sb-chip${f.showOhne?" active":""}" data-action="fi-filter" data-fkey="showOhne" data-fval="${f.showOhne?"":"ja"}">Alle Kunden (inkl. ohne)</div>
                   </div>
                 </div>
               </div>
@@ -2193,488 +2203,231 @@
     },
 
     firmaDetail(id) {
-      const fi = state.data.firms.find(f => f.id === id);
-      if (!fi) { ui.render(`<p class="tm-muted">Firma nicht gefunden.</p>`); return; }
+      if (!id) { views.firmen(); return; }
+      const fi = state.data.firms.find(fi => fi.id === id);
+      if (!fi) { views.firmen(); return; }
 
-      const heute      = h.todayStart();
-      const crmUrl     = `https://markusbaechler.github.io/crm-spa/`;
-      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === id && !c.archiviert)
-        .sort((a,b) => (a.nachname+a.vorname).localeCompare(b.nachname+b.vorname,"de"));
+      // ── Daten zusammenstellen ──────────────────────────────────────────────
+      const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert);
       const kontaktIds = new Set(kontakte.map(c => c.id));
-      const projekte   = state.enriched.projekte
-        .filter(p => p.firmaLookupId === id && !p.archiviert)
-        .sort((a,b) => ({aktiv:0,geplant:1,abgeschlossen:2}[a.status]??9) - ({aktiv:0,geplant:1,abgeschlossen:2}[b.status]??9));
+      const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id);
+      const aktivProj  = projekte.filter(p => p.status === "aktiv");
+      const abgProj    = projekte.filter(p => p.status === "abgeschlossen");
+      const history    = state.data.history.filter(h2 => kontaktIds.has(h2.kontaktId))
+                          .sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+      const tasks      = state.data.tasks.filter(t => kontaktIds.has(t.kontaktId));
+      const offeneTasks= tasks.filter(t => t.status !== "erledigt");
+      const naechsteDeadline = offeneTasks
+        .filter(t => t.deadline)
+        .sort((a,b) => h.toDate(a.deadline) - h.toDate(b.deadline))[0];
 
-      // Aktivitäten + Aufgaben: alle Kontakte dieser Firma, chronologisch
-      const history = state.data.history
-        .filter(h2 => kontaktIds.has(h2.kontaktId))
-        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 20);
-      const tasks = state.data.tasks
-        .filter(t => kontaktIds.has(t.kontaktId) && t.status !== "erledigt")
-        .sort((a,b) => (a.deadline||"9999") > (b.deadline||"9999") ? 1 : -1);
+      // ── Umsatz ────────────────────────────────────────────────────────────
+      const thisYear  = new Date().getFullYear();
+      const einsaetze = state.enriched.einsaetze.filter(e => {
+        const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+        return p?.firmaLookupId === fi.id && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
+      });
+      const umsatzJahr  = einsaetze.filter(e => e.datum && new Date(e.datum).getFullYear() === thisYear)
+                            .reduce((s,e) => s+(e.anzeigeBetrag||0), 0);
+      const umsatzGesamt= einsaetze.reduce((s,e) => s+(e.anzeigeBetrag||0), 0);
 
-      const naechsteEinsaetze = state.enriched.einsaetze
-        .filter(e => {
-          const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-          return p?.firmaLookupId === id && h.toDate(e.datum) >= heute
-            && e.einsatzStatus !== "abgesagt" && e.einsatzStatus !== "abgesagt-chf";
-        })
-        .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum))
-        .slice(0, 8);
-
-      const letzteKonzeptionen = state.enriched.konzeption
-        .filter(k => { const p = state.enriched.projekte.find(p => p.id === k.projektLookupId); return p?.firmaLookupId === id; })
-        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 5);
-
-      const abrechnungen = state.enriched.abrechnungen
-        .filter(a => { const p = state.enriched.projekte.find(p => p.id === a.projektLookupId); return p?.firmaLookupId === id; })
-        .sort((a,b) => (b.datum||"") > (a.datum||"") ? 1 : -1)
-        .slice(0, 8);
-
-      const abrBadge2 = (v) => {
-        const m = {"erstellt":["tm-badge tm-badge-planned","erstellt"],"versendet":["tm-badge tm-badge-billing","versendet"],"bezahlt":["tm-badge tm-badge-billed","bezahlt"]};
-        const [c,l] = m[v]||["tm-badge",v||"—"]; return h.badge(c,l);
+      // ── Hilfsfunktionen ───────────────────────────────────────────────────
+      const initials = c => ((c.vorname||"")[0]||"").toUpperCase() + ((c.nachname||"")[0]||"").toUpperCase();
+      const avatar   = (init, bg="#B5D4F4", tx="#0C447C") =>
+        `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${tx};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${init}</div>`;
+      const fmtRel = d => {
+        if (!d) return "—";
+        const diff = Math.round((Date.now() - h.toDate(d)) / 86400000);
+        if (diff === 0) return "Heute";
+        if (diff === 1) return "Gestern";
+        if (diff < 7)  return `vor ${diff} Tagen`;
+        if (diff < 30) return `vor ${Math.round(diff/7)} Wo.`;
+        if (diff < 365)return `vor ${Math.round(diff/30)} Mon.`;
+        return `vor ${Math.round(diff/365)} J.`;
       };
+      const crmUrl = `https://markusbaechler.github.io/crm-spa/#firma-${fi.id}`;
 
-      // Sektion-Helfer
-      const sec = (title, count, body, action="") => `
-        <div class="fd-sec">
-          <div class="fd-sec-hd">
-            <span class="fd-sec-title">${title}</span>
-            <div style="display:flex;align-items:center;gap:8px">
-              ${count !== null ? `<span class="fd-sec-count">${count}</span>` : ""}
-              ${action}
-            </div>
-          </div>
-          <div class="fd-sec-bd">${body}</div>
-        </div>`;
-      const empty = txt => `<div class="fd-empty">${txt}</div>`;
-      const crmLink = (label) => `<a href="${crmUrl}" target="_blank" class="fd-crm-link">${label} →</a>`;
+      // ── CRM-Link Badge ─────────────────────────────────────────────────────
+      const crmBadge = `<a href="${crmUrl}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ CRM bearbeiten</a>`;
 
+      scrollWrap(() => {
       ui.render(`
         <style>
-          .fd-layout{display:grid;grid-template-columns:1fr;gap:14px}
-          @media(min-width:900px){.fd-layout{grid-template-columns:1fr 1fr;align-items:start}}
-          .fd-sec{background:#fff;border-radius:14px;border:1.5px solid #dde4ec;overflow:hidden}
-          .fd-sec-hd{padding:10px 16px;background:#f4f7fb;border-bottom:1px solid #dde4ec;display:flex;align-items:center;justify-content:space-between}
-          .fd-sec-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#8896a5}
-          .fd-sec-count{font-size:11px;font-weight:600;color:#004078}
-          .fd-sec-bd{padding:0 16px}
-          .fd-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:7px 0;border-bottom:1px solid #f0f4f8}
-          .fd-row:last-child{border:none}
-          .fd-lbl{color:#8896a5;font-size:12px}
-          .fd-val{font-weight:500;color:#1a2332}
-          .fd-kontakt{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0f4f8}
-          .fd-kontakt:last-child{border-bottom:none}
-          .fd-av{width:28px;height:28px;background:#004078;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;margin-top:1px}
-          .fd-kname{font-size:13px;font-weight:600;color:#1a2332}
-          .fd-kfunk{font-size:11px;color:#8896a5;margin-top:1px}
-          .fd-proj{padding:8px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
-          .fd-proj:hover .fd-proj-name{color:#0a5a9e;text-decoration:underline}
-          .fd-proj:last-child{border:none}
-          .fd-proj-name{font-size:13px;font-weight:600;color:#004078}
-          .fd-proj-meta{font-size:11px;color:#8896a5;margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-          .fd-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f8;font-size:13px}
-          .fd-item:last-child{border:none}
-          .fd-item-dot{width:6px;height:6px;border-radius:50%;background:#8896a5;flex-shrink:0;margin-top:5px}
-          .fd-item-dot.overdue{background:#950e13}
-          .fd-item-dot.soon{background:#e59c2e}
-          .fd-item-dot.ok{background:#1a6e40}
-          .fd-item-main{flex:1;min-width:0}
-          .fd-item-title{font-weight:500;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-          .fd-item-meta{font-size:11px;color:#8896a5;margin-top:1px}
-          .fd-einsatz{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f4f8;cursor:pointer}
-          .fd-einsatz:hover .fd-einsatz-title{color:#0a5a9e;text-decoration:underline}
-          .fd-einsatz:last-child{border:none}
-          .fd-einsatz-date{font-size:12px;font-weight:700;color:#004078;white-space:nowrap;min-width:72px}
-          .fd-einsatz-title{font-size:13px;font-weight:500;color:#1a2332}
-          .fd-empty{font-size:12px;color:#8896a5;font-style:italic;padding:10px 0}
-          .fd-crm-link{font-size:11px;font-weight:600;color:#0a5a9e;text-decoration:none;padding:3px 8px;border-radius:5px;border:1px solid #b8cde0;background:#f4f7fb;white-space:nowrap}
-          .fd-crm-link:hover{background:#e8f1f9}
-          .fd-new-proj{display:flex;align-items:center;gap:6px;padding:8px 0;font-size:12px;font-weight:600;color:#0a5a9e;cursor:pointer;border-top:1px solid #f0f4f8;margin-top:2px}
-          .fd-new-proj:hover{text-decoration:underline}
+          .fd-back{font-size:13px;color:#004078;font-weight:600;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+          .fd-back:hover{text-decoration:underline}
+          .fd-header{background:#e8ecf0;padding:14px 20px 12px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .fd-title{font-size:22px;font-weight:700;color:#1a2332}
+          .fd-subtitle{font-size:13px;color:#8896a5;margin-top:3px}
+          .fd-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px;background:#e8ecf0;border-bottom:1px solid rgba(0,0,0,0.09)}
+          @media(max-width:899px){.fd-kpis{grid-template-columns:1fr 1fr}}
+          .fd-kpi{background:#fff;border-radius:8px;padding:10px 14px;border:1px solid rgba(0,0,0,0.09)}
+          .fd-kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8896a5;margin-bottom:4px}
+          .fd-kpi-val{font-size:18px;font-weight:700;color:#1a2332;line-height:1.2}
+          .fd-kpi-sub{font-size:11px;color:#8896a5;margin-top:2px}
+          .fd-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px}
+          @media(max-width:899px){.fd-body{grid-template-columns:1fr}}
+          .fd-card{background:#fff;border-radius:8px;border:1px solid rgba(0,0,0,0.09);overflow:hidden}
+          .fd-card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #dde3ea}
+          .fd-card-title{font-size:12px;font-weight:700;color:#1a2332;text-transform:uppercase;letter-spacing:0.05em}
+          .fd-card-sub{font-size:11px;color:#8896a5}
+          .fd-card-body{padding:10px 14px}
+          .fd-stam-row{display:flex;padding:5px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
+          .fd-stam-row:last-child{border-bottom:none}
+          .fd-stam-key{color:#8896a5;font-weight:600;width:130px;flex-shrink:0}
+          .fd-stam-val{color:#1a2332;font-weight:600}
+          .fd-contact-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f7fa}
+          .fd-contact-row:last-child{border-bottom:none}
+          .fd-activity{padding:8px 0;border-bottom:1px solid #f5f7fa}
+          .fd-activity:last-child{border-bottom:none}
+          .fd-act-meta{font-size:11px;color:#8896a5;margin-bottom:3px}
+          .fd-act-text{font-size:13px;color:#1a2332;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+          .fd-task-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
+          .fd-task-row:last-child{border-bottom:none}
+          .fd-full{grid-column:1/-1}
+          .fd-proj-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
+          .fd-proj-row:last-child{border-bottom:none}
         </style>
 
-        <div class="tm-page-header">
-          <div>
-            <button class="tm-btn tm-btn-sm" onclick="ctrl.navigate('firmen')" style="margin-bottom:8px">← Firmen</button>
-            <div class="tm-page-title">${h.esc(fi.title)}</div>
-            <div class="tm-page-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              ${fi.klassifizierung ? `<span class="fi-badge-kl" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#e8f1f9;border:1px solid #b8cde0;color:#004078">${h.esc(fi.klassifizierung)}</span>` : ""}
-              ${fi.vip ? `<span class="fi-badge-vip" style="font-size:11px;padding:2px 8px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000">VIP</span>` : ""}
-              ${fi.ort ? `<span style="font-size:13px;color:#8896a5">${h.esc(fi.ort)}</span>` : ""}
-              ${fi.hauptnummer ? `<a href="tel:${h.esc(fi.hauptnummer)}" style="font-size:13px;color:#0a5a9e">${h.esc(fi.hauptnummer)}</a>` : ""}
-              <a href="${crmUrl}" target="_blank" class="fd-crm-link">In CRM-App öffnen →</a>
+        <!-- Header -->
+        <div class="fd-header">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <button class="fd-back" onclick="ctrl.navigate('firmen')">← Firmenliste</button>
+            ${crmBadge}
+          </div>
+          <div class="fd-title">${h.esc(fi.title)}</div>
+          <div class="fd-subtitle">
+            ${[fi.adresse,fi.ort,fi.land].filter(Boolean).join(" · ")}
+            ${fi.klassifizierung?` · <span style="background:#e8f1f9;color:#004078;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">${h.esc(fi.klassifizierung)}</span>`:""}
+            ${fi.vip?` <span style="background:#fff3cd;color:#7a5000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #e59c2e">VIP</span>`:""}
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="fd-kpis">
+          <div class="fd-kpi">
+            <div class="fd-kpi-lbl">Kontakte</div>
+            <div class="fd-kpi-val">${kontakte.length}</div>
+          </div>
+          <div class="fd-kpi">
+            <div class="fd-kpi-lbl">Offene Tasks</div>
+            <div class="fd-kpi-val" style="color:${offeneTasks.length>0?"#854F0B":"#0F6E56"}">${offeneTasks.length}</div>
+            ${naechsteDeadline?`<div class="fd-kpi-sub">Deadline: ${h.esc(h.fmtDate(naechsteDeadline.deadline))}</div>`:""}
+          </div>
+          <div class="fd-kpi">
+            <div class="fd-kpi-lbl">Projekte</div>
+            <div class="fd-kpi-val">${aktivProj.length} <span style="font-size:13px;color:#0F6E56">aktiv</span></div>
+            <div class="fd-kpi-sub">${abgProj.length} abgeschlossen</div>
+          </div>
+          <div class="fd-kpi">
+            <div class="fd-kpi-lbl">Umsatz ${thisYear}</div>
+            <div class="fd-kpi-val" style="font-size:15px">CHF ${h.chf(umsatzJahr)}</div>
+            <div class="fd-kpi-sub">Total CHF ${h.chf(umsatzGesamt)}</div>
+          </div>
+        </div>
+
+        <!-- Body Grid -->
+        <div class="fd-body">
+
+          <!-- Stammdaten -->
+          <div class="fd-card">
+            <div class="fd-card-head"><span class="fd-card-title">Stammdaten</span></div>
+            <div class="fd-card-body">
+              ${[
+                ["Klassifizierung", fi.klassifizierung||"—"],
+                ["VIP",             fi.vip?"Ja":"Nein"],
+                ["Adresse",         fi.adresse||"—"],
+                ["PLZ / Ort",       [fi.plz,fi.ort].filter(Boolean).join(" ")||"—"],
+                ["Land",            fi.land||"—"],
+                ["Telefon",         fi.telefon||"—"],
+                ["Website",         fi.website||"—"],
+              ].map(([k,v])=>`<div class="fd-stam-row"><span class="fd-stam-key">${k}</span><span class="fd-stam-val">${h.esc(String(v))}</span></div>`).join("")}
             </div>
           </div>
-        </div>
 
-        <div class="fd-layout">
-
-          <!-- LINKE SPALTE: CRM read-only -->
-          <div style="display:flex;flex-direction:column;gap:14px">
-
-            ${sec("Stammdaten", null,
-              [["Adresse",fi.adresse],["PLZ / Ort",[fi.plz,fi.ort].filter(Boolean).join(" ")],["Land",fi.land],["Telefon",fi.hauptnummer]]
-                .filter(([,v])=>v)
-                .map(([l,v])=>`<div class="fd-row"><span class="fd-lbl">${l}</span><span class="fd-val">${h.esc(v)}</span></div>`).join("")
-              || empty("Keine Stammdaten hinterlegt.")
-            )}
-
-            ${sec("Kontakte", kontakte.length,
-              (kontakte.length ? kontakte.map(c => {
-                const ini = [c.vorname?.[0],c.nachname?.[0]].filter(Boolean).join("").toUpperCase()||"?";
-                const kontaktHistory = history.filter(h2 => h2.kontaktId === c.id);
-                const kontaktTasks   = tasks.filter(t => t.kontaktId === c.id);
-                return `<div class="fd-kontakt">
-                  <div class="fd-av">${ini}</div>
+          <!-- Kontakte -->
+          <div class="fd-card">
+            <div class="fd-card-head">
+              <span class="fd-card-title">Kontakte</span>
+              <span class="fd-card-sub">${kontakte.length} Personen</span>
+            </div>
+            <div class="fd-card-body">
+              ${kontakte.length ? kontakte.map(c=>`
+                <div class="fd-contact-row">
+                  ${avatar(initials(c))}
                   <div style="flex:1;min-width:0">
-                    <div class="fd-kname">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
-                    <div class="fd-kfunk">${[c.funktion, c.email1, c.direktwahl].filter(Boolean).map(v=>h.esc(v)).join(" · ")||"—"}</div>
-                    ${kontaktHistory.length||kontaktTasks.length ? `<div style="font-size:10px;color:#8896a5;margin-top:3px">
-                      ${kontaktHistory.length ? `${kontaktHistory.length} Aktivität${kontaktHistory.length!==1?"en":""}` : ""}
-                      ${kontaktHistory.length&&kontaktTasks.length?" · ":""}
-                      ${kontaktTasks.length ? `${kontaktTasks.length} offene Aufgabe${kontaktTasks.length!==1?"n":""}` : ""}
-                    </div>` : ""}
+                    <div style="font-weight:600;font-size:13px">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
+                    <div style="font-size:11px;color:#8896a5">${h.esc([c.funktion,c.rolle].filter(Boolean).join(" · "))}</div>
                   </div>
-                </div>`;
-              }).join("") : empty("Keine Kontakte."))
-            , crmLink("Kontakte bearbeiten"))}
-
-            ${sec("Aktivitäten (letzte 20)", history.length + (history.length===20?"+":" "),
-              history.length ? history.map(a => {
-                const kont = kontakte.find(c => c.id === a.kontaktId);
-                const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
-                return `<div class="fd-item">
-                  <div class="fd-item-dot"></div>
-                  <div class="fd-item-main">
-                    <div class="fd-item-title">${h.esc(a.title)}</div>
-                    <div class="fd-item-meta">${h.esc(h.fmtDate(a.datum))}${a.typ?" · "+h.esc(a.typ):""} · ${h.esc(kName)}</div>
-                  </div>
-                </div>`;
-              }).join("") : empty("Keine Aktivitäten.")
-            , crmLink("Aktivitäten bearbeiten"))}
-
-            ${sec("Offene Aufgaben", tasks.length,
-              tasks.length ? tasks.map(t => {
-                const kont  = kontakte.find(c => c.id === t.kontaktId);
-                const kName = kont ? [kont.vorname,kont.nachname].filter(Boolean).join(" ") : "—";
-                const dl    = h.toDate(t.deadline);
-                const dotCls = dl && dl < heute ? "overdue" : dl && dl <= new Date(heute.getTime()+7*24*60*60*1000) ? "soon" : "ok";
-                return `<div class="fd-item">
-                  <div class="fd-item-dot ${dotCls}"></div>
-                  <div class="fd-item-main">
-                    <div class="fd-item-title">${h.esc(t.title)}</div>
-                    <div class="fd-item-meta">${dl?h.fmtDate(t.deadline):"Kein Datum"} · ${h.esc(kName)}</div>
-                  </div>
-                </div>`;
-              }).join("") : empty("Keine offenen Aufgaben.")
-            , crmLink("Aufgaben bearbeiten"))}
-
+                  ${c.email1?`<a href="mailto:${h.esc(c.email1)}" style="font-size:11px;color:#004078">✉</a>`:""}
+                </div>`).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Kontakte erfasst.</div>`}
+            </div>
           </div>
 
-          <!-- RECHTE SPALTE: TM -->
-          <div style="display:flex;flex-direction:column;gap:14px">
-
-            ${sec("TM-Projekte", projekte.length,
-              (projekte.length ? projekte.map(p => `
-                <div class="fd-proj" onclick="ctrl.openProjekt(${p.id})">
-                  <div class="fd-proj-name">${h.esc(p.title)}</div>
-                  <div class="fd-proj-meta">
-                    ${h.projStatusBadge(p.status)}
-                    ${p.projektNr?`<span>#${h.esc(p.projektNr)}</span>`:""}
-                    <span>CHF ${h.chf(p.totalBetrag)}</span>
-                    <span>${p.einsaetzeCount} Einsätze</span>
+          <!-- Aktivitäten -->
+          <div class="fd-card">
+            <div class="fd-card-head">
+              <span class="fd-card-title">Aktivitäten</span>
+              <span class="fd-card-sub">Aggregiert über alle Kontakte</span>
+            </div>
+            <div class="fd-card-body">
+              ${history.length ? history.slice(0,8).map(act=>{
+                const k = kontakte.find(c=>c.id===act.kontaktId);
+                return `<div class="fd-activity">
+                  <div class="fd-act-meta">${fmtRel(act.datum)} · ${h.esc(h.fmtDate(act.datum))} · ${h.esc(k?[k.vorname,k.nachname].filter(Boolean).join(" "):"—")}
+                    ${act.typ?`<span style="background:#e8f1f9;color:#004078;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:4px">${h.esc(act.typ)}</span>`:""}
                   </div>
-                </div>`).join("") : empty("Noch keine Projekte."))
-              + `<div class="fd-new-proj" onclick="ctrl.openProjektForm(null)">＋ Neues Projekt erstellen</div>`
-            )}
-
-            ${sec("Nächste Einsätze", naechsteEinsaetze.length,
-              naechsteEinsaetze.length ? naechsteEinsaetze.map(e => {
-                const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-                return `<div class="fd-einsatz" onclick="ctrl.openEinsatzForm(${e.id})">
-                  <div class="fd-einsatz-date">${h.esc(e.datumFmt)}</div>
-                  <div style="flex:1;min-width:0">
-                    <div class="fd-einsatz-title">${h.esc(e.title||e.kategorie)}</div>
-                    <div style="font-size:11px;color:#8896a5">${h.esc(proj?.title||"")} · ${h.esc(e.personName)}</div>
-                  </div>
-                  ${h.abrBadge(e.abrechnung)}
+                  <div class="fd-act-text">${h.esc(act.notizen||act.title)}</div>
                 </div>`;
-              }).join("") : empty("Keine bevorstehenden Einsätze.")
-            )}
-
-            ${sec("Letzte Konzeptionen", letzteKonzeptionen.length,
-              letzteKonzeptionen.length ? letzteKonzeptionen.map(k => {
-                const proj = state.enriched.projekte.find(p => p.id === k.projektLookupId);
-                return `<div class="fd-item">
-                  <div class="fd-item-dot"></div>
-                  <div class="fd-item-main">
-                    <div class="fd-item-title">${h.esc(k.title)}</div>
-                    <div class="fd-item-meta">${h.esc(k.datumFmt)} · ${h.esc(proj?.title||"")} · ${k.aufwandStunden?k.aufwandStunden+"h":""} ${k.anzeigeBetrag!==null?"CHF "+h.chf(k.anzeigeBetrag):""}</div>
-                  </div>
-                  ${h.verrBadge(k.verrechenbar)}
-                </div>`;
-              }).join("") : empty("Keine Konzeptionsaufwände.")
-            )}
-
-            ${sec("Abrechnungen", abrechnungen.length,
-              abrechnungen.length ? abrechnungen.map(a => {
-                const proj = state.enriched.projekte.find(p => p.id === a.projektLookupId);
-                const eins = state.enriched.einsaetze.filter(e => e.abrechnungLookupId === a.id);
-                const konz = state.enriched.konzeption.filter(k => k.abrechnungLookupId === a.id);
-                const eSum = eins.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
-                const kSum = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-                const sSum = (a.spesenZusatzBetrag||0)+eins.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
-                return `<div class="fd-row">
-                  <div>
-                    <div style="font-size:12px;font-weight:600;color:#1a2332">${h.esc(a.datumFmt)} · ${h.esc(proj?.title||"—")}</div>
-                    <div style="margin-top:3px">${abrBadge2(a.status)}</div>
-                  </div>
-                  <div style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(eSum+kSum+sSum)}</div>
-                </div>`;
-              }).join("") : empty("Keine Abrechnungen.")
-            )}
-
+              }).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Aktivitäten vorhanden.</div>`}
+            </div>
           </div>
+
+          <!-- Aufgaben -->
+          <div class="fd-card">
+            <div class="fd-card-head">
+              <span class="fd-card-title">Aufgaben</span>
+              <span class="fd-card-sub">${offeneTasks.length} offen</span>
+            </div>
+            <div class="fd-card-body">
+              ${tasks.length ? tasks.slice(0,8).map(t=>{
+                const k = kontakte.find(c=>c.id===t.kontaktId);
+                const isOffen = t.status !== "erledigt";
+                return `<div class="fd-task-row">
+                  <div style="width:8px;height:8px;border-radius:50%;background:${isOffen?"#854F0B":"#0F6E56"};flex-shrink:0"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;${!isOffen?"text-decoration:line-through;color:#8896a5":""}">${h.esc(t.title)}</div>
+                    <div style="font-size:11px;color:#8896a5">${k?h.esc([k.vorname,k.nachname].filter(Boolean).join(" ")):"—"}${t.deadline?` · ${h.esc(h.fmtDate(t.deadline))}`:""}
+                    </div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:${isOffen?"#854F0B":"#0F6E56"}">${h.esc(t.status||"offen")}</span>
+                </div>`;
+              }).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Aufgaben vorhanden.</div>`}
+            </div>
+          </div>
+
+          <!-- Projekte -->
+          <div class="fd-card fd-full">
+            <div class="fd-card-head">
+              <span class="fd-card-title">Projekte</span>
+              <span class="fd-card-sub">${projekte.length} total · ${aktivProj.length} aktiv</span>
+            </div>
+            <div class="fd-card-body">
+              ${projekte.length ? projekte.sort((a,b)=>a.status==="aktiv"?-1:1).map(p=>`
+                <div class="fd-proj-row">
+                  <div style="flex:1;min-width:0">
+                    <span style="font-weight:600;cursor:pointer;color:#004078" onclick="ctrl.openProjekt(${p.id})">${h.esc(p.title)}</span>
+                    <span style="font-size:11px;color:#8896a5;margin-left:6px">#${h.esc(p.projektNr||String(p.id))}</span>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:${p.status==="aktiv"?"#0F6E56":"#8896a5"};margin-right:12px">${h.esc(p.status)}</span>
+                  <span style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(p.totalBetrag)}</span>
+                </div>`).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Projekte vorhanden.</div>`}
+            </div>
+          </div>
+
         </div>
       `);
+      });
     },
-
-
-    abrechnungen() {
-      const f   = state.filters.abrechnungen;
-      const all = state.enriched.abrechnungen;
-      const selId = state.ui.selectedAbrId;
-
-      // ── Filter-Optionen ────────────────────────────────────────────────────
-      const jahre  = [...new Set(all.map(a => { const d=h.toDate(a.datum); return d?d.getFullYear():null; }).filter(Boolean))].sort((a,b)=>b-a);
-      const firmen = [...new Set(all.map(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName||""; }).filter(Boolean))].sort();
-      const projekte = [...new Map(all.map(a=>[a.projektLookupId,a.projektTitle])).entries()].filter(([,t])=>t).sort((a,b)=>a[1].localeCompare(b[1]));
-
-      // ── Filter anwenden ────────────────────────────────────────────────────
-      let list = [...all];
-      if (f.search)  list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return h.inc(a.title,f.search)||h.inc(a.projektTitle,f.search)||(p&&h.inc(p.firmaName,f.search)); });
-      if (f.jahr)    list = list.filter(a => { const d=h.toDate(a.datum); return d&&String(d.getFullYear())===f.jahr; });
-      if (f.firma)   list = list.filter(a => { const p=state.enriched.projekte.find(p=>p.id===a.projektLookupId); return p?.firmaName===f.firma; });
-      if (f.projekt) list = list.filter(a => String(a.projektLookupId)===f.projekt);
-      if (f.status)  list = list.filter(a => a.status===f.status);
-      list.sort((a,b) => h.toDate(b.datum)-h.toDate(a.datum));
-
-      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.status;
-      const sb = state.ui.sbOpen;
-
-      // ── KPI-Zahlen ─────────────────────────────────────────────────────────
-      const total     = list.reduce((s,a)=>s+(a.totalBetrag||0),0);
-      const byStatus  = s => list.filter(a=>(a.status||"erstellt")===s).length;
-
-      // ── Status Badge ───────────────────────────────────────────────────────
-      const abrStatusBadge = s => {
-        const map = { erstellt:"#B5D4F4:#0C447C", versendet:"#FEF3C7:#854F0B", bezahlt:"#D1FAE5:#0F6E56" };
-        const [bg,tx] = (map[s]||"#f1f5f9:#475569").split(":");
-        return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(s||"erstellt")}</span>`;
-      };
-
-      // ── Sidebar-Sektion ────────────────────────────────────────────────────
-      const sbSec = (key, label, items) => {
-        const isOpen = sb["abr_"+key] !== false;
-        const isActive = !!f[key];
-        return `<div class="abr-sb-sec">
-          <div class="abr-sb-sec-hdr" data-action="abr-toggle-sec" data-sec="abr_${key}">
-            <span class="abr-sb-label">${label}</span>
-            ${isActive?`<span class="abr-sb-count">1</span>`:""}
-            <span class="abr-sb-toggle${isOpen?" open":""}">▶</span>
-          </div>
-          ${isOpen?`<div class="abr-sb-body">${items.map(([val,lbl])=>`
-            <div class="abr-sb-chip${f[key]===val?" active":""}" data-action="abr-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
-          `).join("")}</div>`:""}
-        </div>`;
-      };
-
-      // ── Detail-Panel ───────────────────────────────────────────────────────
-      const detailHtml = () => {
-        const a = selId ? list.find(a=>a.id===selId)||all.find(a=>a.id===selId) : null;
-        if (!a) return `<div class="abr-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Abrechnung auswählen</span></div>`;
-        const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
-        const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id);
-        const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id);
-        const status = a.status||"erstellt";
-        const flowBtns = ["erstellt","versendet","bezahlt"].map(s=>{
-          const isActive = status===s;
-          return `<button class="abr-flow-btn${isActive?" abr-flow-active":""}" onclick="ctrl.abrSetStatus(${a.id},'${s}')">${h.esc(s)}</button>`;
-        }).join("");
-        return `
-          <div class="abr-dp-title">${h.esc(a.title||a.datumFmt)}</div>
-          <div class="abr-dp-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
-          <div class="abr-dp-flow">${flowBtns}</div>
-          <div class="abr-dp-row"><span class="abr-dp-key">Datum</span><span class="abr-dp-val">${h.esc(a.datumFmt)}</span></div>
-          <div class="abr-dp-row"><span class="abr-dp-key">Projekt</span><span class="abr-dp-val">${h.esc(a.projektTitle||"—")}</span></div>
-          <div class="abr-dp-row"><span class="abr-dp-key">Status</span><span class="abr-dp-val">${abrStatusBadge(status)}</span></div>
-          <div class="abr-dp-row"><span class="abr-dp-key">Total</span><span class="abr-dp-val" style="font-weight:700;color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
-          ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
-          ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
-          ${a.spesenZusatzBemerkung?`<div class="abr-dp-row"><span class="abr-dp-key">Spesen-Notiz</span><span class="abr-dp-val" style="font-size:11px;max-width:160px;text-align:right">${h.esc(a.spesenZusatzBemerkung)}</span></div>`:""}
-          <div class="abr-dp-footer">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
-            ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
-            <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
-          </div>`;
-      };
-
-      // ── Karten ─────────────────────────────────────────────────────────────
-      const abrCard = a => {
-        const proj  = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
-        const firma = proj?.firmaName||"";
-        const isSel = a.id===selId;
-        const status= a.status||"erstellt";
-        return `<div class="abr-card${isSel?" abr-card-sel":""}" data-action="abr-select" data-id="${a.id}">
-          <div class="abr-card-top">
-            <div>
-              <div class="abr-card-title">${h.esc(a.title||a.datumFmt)}</div>
-              <div class="abr-card-meta">${h.esc(firma)}${proj?.projektNr?` · #${proj.projektNr}`:""}</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div class="abr-card-betrag">CHF ${h.chf(a.totalBetrag||0)}</div>
-              <div style="margin-top:3px">${abrStatusBadge(status)}</div>
-            </div>
-          </div>
-          <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
-        </div>`;
-      };
-
-      ui.render(`
-        <style>
-          .abr-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
-          .abr-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
-          /* Sidebar */
-          .abr-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .abr-sb-head { padding:10px 12px; }
-          .abr-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
-          .abr-sb-head input:focus { border-color:#004078; background:#fff; }
-          .abr-sb-scroll { flex:1; overflow-y:auto; }
-          .abr-sb-sec { border-bottom:1px solid #dde3ea; }
-          .abr-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
-          .abr-sb-sec-hdr:hover { background:#f5f7fa; }
-          .abr-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
-          .abr-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; }
-          .abr-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; }
-          .abr-sb-toggle.open { transform:rotate(90deg); }
-          .abr-sb-body { padding:2px 8px 8px; }
-          .abr-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
-          .abr-sb-chip:hover { background:#f5f7fa; }
-          .abr-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
-          .abr-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
-          .abr-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
-          /* Main */
-          .abr-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
-          .abr-toolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
-          .abr-title { font-size:18px; font-weight:700; color:var(--tm-text); }
-          .abr-meta { font-size:12px; color:#8896a5; }
-          /* KPI Strip */
-          .abr-kpis { display:flex; gap:10px; padding:10px 16px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
-          .abr-kpi { flex:1; background:#fff; border-radius:8px; padding:8px 12px; border:1px solid rgba(0,0,0,0.09); }
-          .abr-kpi-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#8896a5; margin-bottom:3px; }
-          .abr-kpi-val { font-size:16px; font-weight:700; color:var(--tm-text); }
-          .abr-kpi-val.green { color:#0F6E56; }
-          .abr-kpi-val.amber { color:#854F0B; }
-          /* Cards */
-          .abr-cards { flex:1; overflow-y:auto; padding:10px 16px; display:flex; flex-direction:column; gap:8px; }
-          .abr-card { background:#fff; border-radius:8px; padding:10px 14px; border:1px solid rgba(0,0,0,0.09); cursor:pointer; transition:box-shadow .1s; }
-          .abr-card:hover { box-shadow:0 2px 8px rgba(0,64,120,.1); }
-          .abr-card-sel { border-color:#004078; box-shadow:inset 3px 0 0 #004078; }
-          .abr-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:4px; }
-          .abr-card-title { font-size:13px; font-weight:700; color:var(--tm-text); }
-          .abr-card-meta { font-size:11px; color:#8896a5; margin-top:2px; }
-          .abr-card-betrag { font-size:14px; font-weight:700; color:#004078; white-space:nowrap; }
-          .abr-card-date { font-size:11px; color:#8896a5; }
-          /* Detail */
-          .abr-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .abr-dp-head { display:flex; align-items:center; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
-          .abr-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
-          .abr-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
-          .abr-dp-title { font-size:14px; font-weight:700; color:var(--tm-text); margin-bottom:4px; }
-          .abr-dp-sub { font-size:12px; color:#8896a5; margin-bottom:10px; font-weight:600; }
-          .abr-dp-flow { display:flex; gap:4px; margin-bottom:12px; }
-          .abr-flow-btn { flex:1; padding:5px 6px; font-size:11px; font-weight:600; border-radius:6px; border:1px solid #dde3ea; background:#f5f7fa; color:#8896a5; cursor:pointer; font-family:inherit; transition:all .1s; text-align:center; }
-          .abr-flow-btn:hover { background:#e6f1fb; color:#004078; border-color:#004078; }
-          .abr-flow-active { background:#004078 !important; color:#fff !important; border-color:#004078 !important; }
-          .abr-dp-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid #dde3ea; }
-          .abr-dp-row:last-of-type { border-bottom:none; }
-          .abr-dp-key { font-size:12px; color:#8896a5; font-weight:600; }
-          .abr-dp-val { font-size:12px; color:var(--tm-text); text-align:right; font-weight:600; }
-          .abr-dp-footer { margin-top:16px; padding-top:12px; border-top:1px solid #dde3ea; display:flex; gap:6px; flex-wrap:wrap; }
-          .abr-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#8896a5; font-size:13px; gap:8px; font-weight:600; }
-          /* Mobile */
-          .abr-mob-filter-btn { display:none; }
-          @media(max-width:899px) {
-            .abr-sidebar { display:none !important; }
-            .abr-detail  { display:none !important; }
-            .abr-shell.abr-mob-filter .abr-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
-            .abr-shell.abr-mob-filter .abr-main    { display:none !important; }
-            .abr-mob-filter-btn { display:flex !important; }
-            .abr-kpis { gap:6px; padding:8px 12px; overflow-x:auto; }
-            .abr-kpi { min-width:100px; }
-          }
-        </style>
-        <div class="abr-wrap">
-          <div class="abr-shell${state.ui.abrMobFilter?" abr-mob-filter":""}">
-
-            <!-- SIDEBAR -->
-            <div class="abr-sidebar">
-              <div class="abr-sb-head">
-                <button class="tm-btn tm-btn-sm abr-mob-filter-btn" data-action="abr-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Abrechnungen</button>
-                <input type="search" placeholder="Suche Abrechnung, Firma…" value="${h.esc(f.search||"")}"
-                  data-search-key="abrechnungen.search"
-                  oninput="h.searchInput('abrechnungen.search',this.value)">
-              </div>
-              <div class="abr-sb-scroll">
-                ${hasFilter?`<div class="abr-sb-footer" style="border-bottom:1px solid #dde3ea;border-top:none"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
-                ${sbSec("jahr",   "Jahr",   jahre.map(j=>[String(j),String(j)]))}
-                ${sbSec("firma",  "Firma",  firmen.map(n=>[n,n]))}
-                ${sbSec("projekt","Projekt",projekte.map(([id,t])=>[String(id),t]))}
-                ${sbSec("status", "Status", [["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]])}
-              </div>
-              ${hasFilter?"":`<div class="abr-sb-footer"><span style="font-size:11px;color:#8896a5">${all.length} Abrechnungen total</span></div>`}
-            </div>
-
-            <!-- MAIN -->
-            <div class="abr-main">
-              <div class="abr-toolbar">
-                <div>
-                  <div class="abr-title">${[f.firma,f.status].filter(Boolean).concat(["Abrechnungen"]).join(" · ")}</div>
-                  <div class="abr-meta">${list.length} Einträge · CHF ${h.chf(total)}</div>
-                </div>
-                <div style="display:flex;gap:6px">
-                  <button class="tm-btn tm-btn-sm abr-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="abr-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
-                </div>
-              </div>
-              <div class="abr-kpis">
-                <div class="abr-kpi"><div class="abr-kpi-label">Total</div><div class="abr-kpi-val">CHF ${h.chf(total)}</div></div>
-                <div class="abr-kpi"><div class="abr-kpi-label">Erstellt</div><div class="abr-kpi-val amber">${byStatus("erstellt")}</div></div>
-                <div class="abr-kpi"><div class="abr-kpi-label">Versendet</div><div class="abr-kpi-val amber">${byStatus("versendet")}</div></div>
-                <div class="abr-kpi"><div class="abr-kpi-label">Bezahlt</div><div class="abr-kpi-val green">${byStatus("bezahlt")}</div></div>
-              </div>
-              <div class="abr-cards">
-                ${list.length ? list.map(abrCard).join("") : `<div style="text-align:center;padding:32px;color:#8896a5;font-size:13px;font-weight:600">Keine Abrechnungen gefunden.</div>`}
-              </div>
-            </div>
-
-            <!-- DETAIL -->
-            <div class="abr-detail">
-              <div class="abr-dp-head"><div class="abr-dp-label">Detail</div></div>
-              <div class="abr-dp-scroll">${detailHtml()}</div>
-            </div>
-
-          </div>
-        </div>
-      `);
-    }
-
-  };
-
-  const ctrl = {
 
     render() {
       // Formular-State hat Priorität — verhindert Überschreiben durch Router
