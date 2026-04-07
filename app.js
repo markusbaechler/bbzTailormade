@@ -1212,7 +1212,7 @@
           .pd-sb-new-btn:hover { background:var(--tm-blue-pale); }
 
           /* Main */
-          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
           .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--tm-blue-pale); background:#fff; flex-shrink:0; }
           .pd-back-btn { padding:4px 10px; border-radius:6px; border:1px solid var(--tm-blue-pale); background:#fff; color:var(--tm-text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
           .pd-back-btn:hover { background:var(--tm-surface); color:var(--tm-text); }
@@ -1243,7 +1243,7 @@
           .pd-filter-reset:hover { background:var(--tm-surface); color:var(--tm-text); border-color:var(--tm-blue-pale); }
 
           /* Tabelle */
-          .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; }
+          .pd-table-wrap { flex:1; overflow-y:auto; background:#fff; min-height:0; }
           .pd-section-row td { padding:5px 10px 4px; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.07em; background:#f5f7fa; border-bottom:1px solid #dde3ea; border-top:1px solid #dde3ea; cursor:default; pointer-events:none; }
           .pd-section-row:hover td { background:#f5f7fa !important; }
           .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
@@ -1262,7 +1262,7 @@
           .pd-person-name { font-size:12px; color:var(--tm-text-muted); margin-left:4px; }
 
           /* Stammdaten */
-          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#fff; }
+          .pd-stam-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:14px 16px; overflow-y:auto; background:#fff; flex:1; min-height:0; align-content:start; }
           .pd-stam-card { background:var(--tm-surface); border-radius:8px; padding:12px 14px; border:1px solid var(--tm-blue-pale); }
           .pd-stam-full { grid-column:1/-1; }
           .pd-stam-title { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px; }
@@ -1352,7 +1352,7 @@
               <button class="pd-tab${tab==="stammdaten"?" active":""}" data-tab="stammdaten" data-route="projekt-detail">Stammdaten &amp; Ansätze</button>
             </div>
 
-            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
+            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#fff">
               ${tabContent}
             </div>
           </div>
