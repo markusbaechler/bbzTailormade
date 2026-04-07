@@ -36,16 +36,14 @@ html, body {
 
 /* ── Header ───────────────────────────────────────────────────────────────── */
 .tm-header {
-  position: fixed;
+  position: sticky;
   top: 0; left: 0; right: 0;
   height: var(--tm-header-h);
-  background: var(--tm-blue);
+  background: #ffffff;
   display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 24px;
+  align-items: stretch;
   z-index: 100;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  border-bottom: 1px solid rgba(0,0,0,0.12);
 }
 
 .tm-header-left {
@@ -143,9 +141,12 @@ html, body {
 
 /* ── View Root ────────────────────────────────────────────────────────────── */
 .tm-view-root {
-  margin-top: var(--tm-header-h);
-  padding: 24px 24px 40px;
-  min-height: calc(100vh - var(--tm-header-h));
+  height: calc(100vh - var(--tm-header-h));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin-top: 0;
 }
 
 /* ── Loading ──────────────────────────────────────────────────────────────── */
@@ -609,7 +610,6 @@ html, body {
 @media (max-width: 640px) {
   .tm-form-grid { grid-template-columns: 1fr; }
   .tm-form-full { grid-column: 1; }
-  .tm-view-root { padding: 16px; }
   .tm-page-header { flex-direction: column; }
   .tm-kpi-row { grid-template-columns: 1fr 1fr; }
 }
@@ -649,3 +649,11 @@ html, body {
 }
 .tm-typeahead-item:last-child { border-bottom: none; }
 .tm-typeahead-item:hover { background: var(--tm-blue-pale); }
+
+/* ── Scroll-View für nicht-Panel-Screens ──────────────────────────────────── */
+.tm-scroll-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 24px 40px;
+  min-height: 0;
+}
