@@ -695,25 +695,38 @@ html, body {
 /* ── Einsätze Tabelle Mobile Spalten ─────────────────────────────────────── */
 @media(max-width:899px) {
   /* Zeige nur Datum (1), Beschreibung (2), Abrechnung (7) */
+  /* Zeige: Datum (1), Beschreibung (2), Person (4) — hide 3,5,6,7 */
   .ei-tbl th:nth-child(3),
-  .ei-tbl th:nth-child(4),
   .ei-tbl th:nth-child(5),
-  .ei-tbl th:nth-child(6) { display:none; }
+  .ei-tbl th:nth-child(6),
+  .ei-tbl th:nth-child(7) { display:none !important; }
   .ei-tbl td:nth-child(3),
-  .ei-tbl td:nth-child(4),
   .ei-tbl td:nth-child(5),
-  .ei-tbl td:nth-child(6) { display:none; }
+  .ei-tbl td:nth-child(6),
+  .ei-tbl td:nth-child(7) { display:none !important; }
   .ei-tbl th:nth-child(1) { width:90px; }
-  .ei-tbl th:nth-child(7) { width:100px; }
+  .ei-tbl th:nth-child(4) { width:120px; }
   .ei-c1 { white-space:normal !important; }
 }
 
 /* ── Projekt-Detail Tabelle Mobile Spalten ────────────────────────────────── */
 @media(max-width:899px) {
-  .pd-table th:nth-child(3),
-  .pd-table th:nth-child(4) { display:none; }
-  .pd-table td:nth-child(3),
-  .pd-table td:nth-child(4) { display:none; }
+  /* Einsätze Projekt-Tab: 1=Datum, 2=Beschreibung, 3=Kategorie, 4=Lead/Co-Lead, 5=Abrechnung */
+  /* Mobile: Datum(1), Beschreibung(2), Lead/Co-Lead(4) → hide 3,5 */
+  .pd-tbl-einsaetze th:nth-child(3),
+  .pd-tbl-einsaetze th:nth-child(5) { display:none !important; }
+  .pd-tbl-einsaetze td:nth-child(3),
+  .pd-tbl-einsaetze td:nth-child(5) { display:none !important; }
+
+  /* Konzeption Projekt-Tab: 1=Datum, 2=Beschreibung, 3=Kategorie, 4=Aufwand, 5=Verrechenbar, 6=Abrechnung */
+  /* Mobile: Datum(1), Beschreibung(2), Aufwand(4) → hide 3,5,6 */
+  .pd-tbl-konzeption th:nth-child(3),
+  .pd-tbl-konzeption th:nth-child(5),
+  .pd-tbl-konzeption th:nth-child(6) { display:none !important; }
+  .pd-tbl-konzeption td:nth-child(3),
+  .pd-tbl-konzeption td:nth-child(5),
+  .pd-tbl-konzeption td:nth-child(6) { display:none !important; }
+
   .pd-table td { white-space:normal !important; max-width:none !important; }
 }
 
