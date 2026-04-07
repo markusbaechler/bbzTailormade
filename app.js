@@ -2218,6 +2218,7 @@
 
       const konzKlaer = state.enriched.konzeption
         .filter(k => k.projektLookupId === projektId && k.verrechenbar === "Klärung nötig")
+        .filter(k => k.abrechnung !== "Inklusive (ohne Verrechnung)")
         .sort((a,b) => h.toDate(a.datum) - h.toDate(b.datum));
 
       const konzAlle = state.enriched.konzeption.filter(k => k.projektLookupId === projektId);
@@ -2293,7 +2294,7 @@
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0;margin-top:4px">
                 <button class="ae-kl-btn verr" onclick="ctrl.aeKlaerungEntscheid(${k.id},'verrechenbar',this,${projektId})">→ verrechenbar</button>
-                <button class="ae-kl-btn inkl" onclick="ctrl.aeKlaerungEntscheid(${k.id},'keine Verrechnung',this,${projektId})">→ inklusive</button>
+                <button class="ae-kl-btn inkl" onclick="ctrl.aeKlaerungEntscheid(${k.id},'Inklusive (ohne Verrechnung)',this,${projektId})">→ inklusive</button>
               </div>
             </div>`).join("")}
           </div>` : ""}
@@ -4853,16 +4854,23 @@
       try {
         if (btn) btn.disabled = true;
 
-        // SP patchen
+        // SP patchen: Verrechenbar + bei inklusive auch Abrechnung-Status
+        const INKL = "Inklusive (ohne Verrechnung)";
         const fields = { Verrechenbar: neuerWert };
-        if (neuerWert === "keine Verrechnung") fields.Abrechnung = "keine Verrechnung";
+        if (neuerWert === INKL) fields.Abrechnung = INKL;
         await api.patch(CONFIG.lists.konzeption, konzId, fields);
 
         // State lokal aktualisieren
         const k = state.enriched.konzeption.find(k => k.id === konzId);
         if (k) {
           k.verrechenbar = neuerWert;
-          if (neuerWert === "keine Verrechnung") k.abrechnung = "keine Verrechnung";
+          if (neuerWert === INKL) k.abrechnung = INKL;
+        }
+        // Raw-State auch aktualisieren (verhindert Überschreiben bei nächstem enrichAll)
+        const raw = state.data.konzeption.find(r => Number(r.id) === konzId);
+        if (raw) {
+          raw.Verrechenbar = neuerWert;
+          if (neuerWert === INKL) raw.Abrechnung = INKL;
         }
 
         // Bei verrechenbar: sofort in Auswahl aufnehmen
@@ -4871,9 +4879,9 @@
           state.ui.aeSelected.konzeption.add(konzId);
         }
 
-        // Tab neu rendern (sauber, kein DOM-Gefrickel)
+        // Tab neu rendern
         views.abrechnungErstellen(projektId);
-        const label = neuerWert === "verrechenbar" ? "verrechenbar" : "keine Verrechnung";
+        const label = neuerWert === "verrechenbar" ? "verrechenbar" : "inklusive (ohne Verrechnung)";
         ui.setMsg(`Freigabe gesetzt: ${label}`, "success");
       } catch(e) {
         debug.err("aeKlaerungEntscheid", e);
