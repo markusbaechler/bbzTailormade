@@ -738,3 +738,27 @@ html, body {
   border-bottom: 1px solid #dde3ea;
   flex-shrink: 0;
 }
+
+/* ── Mobile UX Verbesserungen ─────────────────────────────────────────────── */
+@media(max-width:899px) {
+  /* Einsätze: + Einsatz Button ausblenden */
+  .ei-mob-hide { display:none !important; }
+  /* Konzeption: + Aufwand Button ausblenden */
+  .kz-mob-hide { display:none !important; }
+  /* Suche in Sidebar ausblenden */
+  .ei-sb-head input, .kz-sb-head input { display:none !important; }
+
+  /* Konzeption Tabelle: kein horizontales Scrollen, Spalten ausblenden */
+  .kz-tbl-wrap { overflow-x:hidden !important; }
+  .kz-tbl { table-layout:fixed !important; }
+  .kz-tbl th:nth-child(2),
+  .kz-tbl th:nth-child(4),
+  .kz-tbl th:nth-child(5),
+  .kz-tbl th:nth-child(6) { display:none !important; }
+  .kz-tbl td:nth-child(2),
+  .kz-tbl td:nth-child(4),
+  .kz-tbl td:nth-child(5),
+  .kz-tbl td:nth-child(6) { display:none !important; }
+  .kz-tbl th:nth-child(1) { width:90px; }
+  /* Zeige: Datum, Beschreibung (3), Abrechnung (7) */
+}
