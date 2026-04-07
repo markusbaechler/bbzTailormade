@@ -843,15 +843,6 @@
         if (a("[data-action='pd-mob-back']"))      { state.ui.pdMobDetail = false; ctrl.render(); return; }
         if (a("[data-action='pd-kpi-toggle']"))    { state.ui.pdKpiOpen = !state.ui.pdKpiOpen; ctrl.render(); return; }
         if (a("[data-action='back-to-projekte']")) {
-          const form = document.getElementById("projekt-form");
-          if (form) {
-            const fd = new FormData(form);
-            const p  = state.form?.id ? state.enriched.projekte.find(p => p.id === state.form.id) : null;
-            const dirty = p
-              ? (fd.get("title") !== (p.title||"") || fd.get("status") !== (p.status||""))
-              : !!(fd.get("title") || "").trim();
-            if (dirty && !confirm("Änderungen verwerfen?")) return;
-          }
           state.form = null;
           ctrl.navigate("projekte");
           return;
@@ -3682,135 +3673,163 @@
       const cv = (k, fb = "") => p ? (p[k] ?? fb) : fb;
       const cn = k => (p && p[k] !== null && p[k] !== undefined) ? p[k] : "";
 
-      // Formular-Lock setzen — verhindert Router-Überschreiben
       state.form = { type: "projekt", id: id || null };
       state.filters.route = "projekt-form";
       ui.setNav("projekte");
 
-      ui.render(`
-        <div style="max-width:700px;margin:0 auto">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <button class="tm-btn tm-btn-sm" data-action="back-to-projekte">← Projekte</button>
-            <div class="tm-page-title">${p ? "Projekt bearbeiten" : "Neues Projekt erfassen"}</div>
+      // Zurück: wenn aus Projekt-Detail → zurück zum Projekt, sonst Projektliste
+      const backLabel = id ? `← ${h.esc(p?.title || "Projekt")}` : "← Projekte";
+      const backAction = id ? `ctrl.openProjekt(${id})` : `ctrl.navigate('projekte')`;
+
+      const inp = (name, val, opts="") =>
+        `<input type="text" name="${name}" value="${h.esc(String(val))}" ${opts}
+          style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;
+          color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;
+          outline:none;transition:border-color .15s"
+          onfocus="this.style.borderColor='#0a5a9e';this.style.background='#fff'"
+          onblur="this.style.borderColor='#dde4ec';this.style.background='#f4f7fb'">`;
+
+      const numInp = (name, val, placeholder="—") =>
+        `<div style="display:flex;align-items:center;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden;background:#f4f7fb">
+          <span style="padding:7px 9px;background:#f0f3f7;font-size:11px;color:#8896a5;border-right:1px solid #dde4ec;flex-shrink:0">CHF</span>
+          <input type="number" name="${name}" value="${cn(name) !== "" ? cn(name) : ""}" placeholder="${placeholder}" step="0.01" min="0"
+            style="border:none;padding:7px 9px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit;color:#1a2332">
+        </div>`;
+
+      const field = (label, content, full=false, hint="") =>
+        `<div style="${full ? "grid-column:1/-1;" : ""}display:flex;flex-direction:column;gap:5px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5">${label}</label>
+          ${content}
+          ${hint ? `<span style="font-size:11px;color:#8896a5">${hint}</span>` : ""}
+        </div>`;
+
+      const card = (title, badge="", body) =>
+        `<div style="background:#fff;border:1.5px solid #dde4ec;border-radius:12px;overflow:hidden">
+          <div style="padding:12px 18px;border-bottom:1px solid #f0f4f8;background:#f8fafc;display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5">${title}</span>
+            ${badge}
           </div>
+          <div style="padding:16px 18px">${body}</div>
+        </div>`;
+
+      const grid2 = content => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${content}</div>`;
+      const grid3 = content => `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${content}</div>`;
+
+      ui.render(`
+        <div style="max-width:720px;margin:0 auto;padding:0 16px 60px;display:flex;flex-direction:column;gap:16px">
+          <style>
+            .pf-inp:focus{border-color:#0a5a9e!important;background:#fff!important}
+            @media(max-width:600px){
+              .pf-g2{grid-template-columns:1fr!important}
+              .pf-g3{grid-template-columns:1fr 1fr!important}
+              .pf-ansatz-tbl td,.pf-ansatz-tbl th{padding:6px 8px!important}
+            }
+          </style>
+
+          <!-- Back + Title -->
+          <div style="display:flex;align-items:center;gap:12px;padding-top:12px">
+            <button class="tm-btn tm-btn-sm" onclick="${backAction}" style="flex-shrink:0">${backLabel}</button>
+            <h1 style="font-size:18px;font-weight:700;color:#1a2332;margin:0">
+              ${p ? "Projekt bearbeiten" : "Neues Projekt"}
+            </h1>
+            ${p ? `<span style="font-size:12px;color:#8896a5">#${h.esc(p.projektNr||p.id)}</span>` : ""}
+          </div>
+
           <form id="projekt-form" autocomplete="off">
             <input type="hidden" name="itemId" value="${id || ""}">
             <input type="hidden" name="mode"   value="${id ? "edit" : "create"}">
 
-            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
-              <div class="tm-section-divider" style="margin-top:0">Stammdaten</div>
-              <div class="tm-form-grid" style="margin-top:14px">
-                <div class="tm-field tm-form-full">
-                  <label>Projektname <span class="req">*</span></label>
-                  <input type="text" name="title" value="${h.esc(cv("title"))}" required>
+            <div style="display:flex;flex-direction:column;gap:16px">
+
+            <!-- STAMMDATEN -->
+            ${card("Stammdaten", "", `
+              <div style="display:flex;flex-direction:column;gap:14px">
+                ${field("Projektname *",
+                  inp("title", cv("title"), 'required'),
+                  true)}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="pf-g2">
+                  ${field("Projekt-Nr.", inp("projektNr", cv("projektNr")))}
+                  ${field("Konto-Nr. Honorar", inp("kontoNr", cv("kontoNr"), 'placeholder="z.B. 3200"'))}
                 </div>
-                <div class="tm-field">
-                  <label>Projekt-Nr.</label>
-                  <input type="text" name="projektNr" value="${h.esc(cv("projektNr"))}">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="pf-g2">
+                  ${field("Ansprechpartner *", ui.personTypeahead("ansprechpartnerLookupId", p?.ansprechpartnerLookupId ? String(p.ansprechpartnerLookupId) : ""))}
+                  ${field("Firma",
+                    `<div id="firma-display" style="padding:8px 11px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-size:13px;color:#8896a5">
+                      ${h.esc(p?.firmaName || "wird aus Ansprechpartner übernommen")}
+                    </div>
+                    <input type="hidden" name="firmaLookupId" id="firma-hidden" value="${p?.firmaLookupId || ""}">`)}
                 </div>
-                <div class="tm-field">
-                  <label>Konto-Nr. Honorar</label>
-                  <input type="text" name="kontoNr" value="${h.esc(cv("kontoNr"))}" placeholder="z.B. 4210">
-                </div>
-                <div class="tm-field">
-                  <label>Ansprechpartner <span class="req">*</span></label>
-                  ${ui.personTypeahead("ansprechpartnerLookupId", p?.ansprechpartnerLookupId ? String(p.ansprechpartnerLookupId) : "")}
-                </div>
-                <div class="tm-field">
-                  <label>Firma</label>
-                  <div id="firma-display" style="padding:8px 12px;background:var(--tm-blue-pale);border-radius:6px;font-size:13px;color:var(--tm-text)">
-                    ${h.esc(p?.firmaName || "— wird aus Ansprechpartner übernommen —")}
-                  </div>
-                  <input type="hidden" name="firmaLookupId" id="firma-hidden" value="${p?.firmaLookupId || ""}">
-                </div>
-                <div class="tm-field">
-                  <label>Status <span class="req">*</span></label>
-                  <select name="status" required>
-                    ${state.choices.projektStatus.map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
-                  </select>
-                </div>
-                <div class="tm-field">
-                  <label>Km zum Kunden</label>
-                  <input type="number" name="kmZumKunden" value="${cn("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1">
-                  <span class="tm-hint">Hin &amp; Zurück total (wird 1× mit CHF/km multipliziert)</span>
-                </div>
-                <div class="tm-field" style="justify-content:flex-end">
-                  <label>&nbsp;</label>
-                  <label class="tm-checkbox-row">
-                    <input type="checkbox" name="archiviert" ${cv("archiviert") ? "checked" : ""}> Archiviert
-                  </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px" class="pf-g3">
+                  ${field("Status *",
+                    `<select name="status" required style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;-webkit-appearance:none">
+                      ${state.choices.projektStatus.map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
+                    </select>`)}
+                  ${field("Km zum Kunden",
+                    `<input type="number" name="kmZumKunden" value="${cn("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1"
+                      style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none">`,
+                    false, "Hin &amp; Zurück (×1 mit CHF/km)")}
+                  ${field("",
+                    `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:22px">
+                      <input type="checkbox" name="archiviert" ${cv("archiviert") ? "checked" : ""}
+                        style="width:15px;height:15px;accent-color:#004078;cursor:pointer">
+                      <span style="font-size:13px;font-weight:500;color:#4a5568">Archiviert</span>
+                    </label>`)}
                 </div>
               </div>
+            `)}
+
+            <!-- ANSÄTZE -->
+            ${card("Ansätze CHF",
+              `<span style="font-size:11px;background:#e8f5ee;color:#085041;padding:2px 8px;border-radius:4px;font-weight:600">leer = Kategorie nicht verfügbar</span>`,
+              `<div style="display:flex;flex-direction:column;gap:14px">
+                <table class="pf-ansatz-tbl" style="width:100%;border-collapse:collapse">
+                  <thead><tr>
+                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 12px 8px 0;border-bottom:1px solid #f0f4f8;width:140px">Kategorie</th>
+                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 12px 8px;border-bottom:1px solid #f0f4f8">Haupttrainer</th>
+                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 0 8px 12px;border-bottom:1px solid #f0f4f8">Co-Trainer</th>
+                  </tr></thead>
+                  <tbody>
+                    ${[["Einsatz (Tag)","ansatzEinsatz","ansatzCoEinsatz"],["Einsatz (Halbtag)","ansatzHalbtag","ansatzCoHalbtag"]].map(([lbl,mk,ck]) => `
+                    <tr>
+                      <td style="font-size:13px;font-weight:500;color:#4a5568;padding:10px 12px 10px 0;border-bottom:1px solid #f4f7fb">${lbl}</td>
+                      <td style="padding:6px 12px;border-bottom:1px solid #f4f7fb">${numInp(mk)}</td>
+                      <td style="padding:6px 0 6px 12px;border-bottom:1px solid #f4f7fb">${numInp(ck)}</td>
+                    </tr>`).join("")}
+                  </tbody>
+                </table>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" class="pf-g3">
+                  ${[["Stunde","ansatzStunde","CHF/h"],["Stück","ansatzStueck","CHF/Stück"],["Pauschale","ansatzPauschale","CHF fix"],
+                     ["Konzeption/Tag","ansatzKonzeption","CHF/Tag"],["Admin/Tag","ansatzAdmin","CHF/Tag"],["Km-Spesen","ansatzKmSpesen","CHF/km"]
+                    ].map(([lbl,key,hint]) => field(lbl, numInp(key), false, hint)).join("")}
+                  ${field("Spesen Konto-Nr.",
+                    inp("spesenKontoNr", cv("spesenKontoNr"), 'placeholder="z.B. 6500"'))}
+                </div>
+              </div>`
+            )}
+
+            <!-- KONZEPTIONSRAHMEN -->
+            ${card("Konzeptionsrahmen", "", `
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:end" class="pf-g2">
+                ${field("Vereinbarte Tage",
+                  `<input type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
+                    placeholder="z.B. 10" min="0" step="0.5"
+                    style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none"
+                    oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">`,
+                  false, "× 8 = Stunden-Budget")}
+                <div style="padding:10px 14px;background:#e8f1f9;border-radius:8px;font-size:13px;color:#8896a5;align-self:end">
+                  = <span id="kh" style="font-weight:700;color:#004078;font-size:15px">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> h Budget
+                </div>
+              </div>
+            `)}
+
+            <!-- FOOTER -->
+            <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
+              <button type="button" class="tm-btn" onclick="${backAction}">Abbrechen</button>
+              <button type="submit" class="tm-btn tm-btn-primary" style="min-width:140px">
+                ${p ? "Änderungen speichern" : "Projekt erstellen"}
+              </button>
             </div>
 
-            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
-              <div class="tm-section-divider" style="margin-top:0">Ansätze CHF
-                <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;margin-left:8px;background:#E1F5EE;color:#085041;padding:2px 8px;border-radius:4px">leer = Kategorie nicht verfügbar</span>
-              </div>
-              <table style="width:100%;border-collapse:collapse;margin-top:14px">
-                <thead><tr>
-                  <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted);text-align:left;padding:0 16px 8px 0;border-bottom:1px solid var(--tm-border);width:160px">Kategorie</th>
-                  <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted);text-align:left;padding:0 12px 8px;border-bottom:1px solid var(--tm-border)">Haupttrainer</th>
-                  <th style="font-size:11px;font-weight:500;color:var(--tm-text-muted);text-align:left;padding:0 0 8px 12px;border-bottom:1px solid var(--tm-border)">Co-Trainer</th>
-                </tr></thead>
-                <tbody>
-                  ${[["Einsatz (Tag)","ansatzEinsatz","ansatzCoEinsatz"],["Einsatz (Halbtag)","ansatzHalbtag","ansatzCoHalbtag"]].map(([lbl,mk,ck]) => `
-                  <tr>
-                    <td style="font-size:13px;padding:8px 16px 8px 0;border-bottom:1px solid var(--tm-blue-pale)">${lbl}</td>
-                    <td style="padding:6px 12px;border-bottom:1px solid var(--tm-blue-pale)">
-                      <div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px">
-                        <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span>
-                        <input type="number" name="${mk}" value="${cn(mk)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit">
-                      </div>
-                    </td>
-                    <td style="padding:6px 0 6px 12px;border-bottom:1px solid var(--tm-blue-pale)">
-                      <div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden;max-width:140px">
-                        <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span>
-                        <input type="number" name="${ck}" value="${cn(ck)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;width:90px;outline:none;font-family:inherit">
-                      </div>
-                    </td>
-                  </tr>`).join("")}
-                </tbody>
-              </table>
-              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px">
-                ${[["Stunde","ansatzStunde","CHF/h"],["Stück","ansatzStueck","CHF/Stück"],["Pauschale","ansatzPauschale","CHF fix"],["Konzeption/Tag","ansatzKonzeption","CHF/Tag"],["Admin/Tag","ansatzAdmin","CHF/Tag"],["Km-Spesen","ansatzKmSpesen","CHF/km"]].map(([lbl,key,hint]) => `
-                <div class="tm-field">
-                  <label>${lbl}</label>
-                  <div style="display:flex;align-items:center;border:1px solid var(--tm-border);border-radius:6px;overflow:hidden">
-                    <span style="padding:6px 8px;background:#F5F7FA;font-size:11px;color:#6B7280;border-right:1px solid var(--tm-border)">CHF</span>
-                    <input type="number" name="${key}" value="${cn(key)}" placeholder="—" step="0.01" style="border:none;padding:6px 8px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit">
-                  </div>
-                  <span class="tm-hint">${hint}</span>
-                </div>`).join("")}
-                <div class="tm-field">
-                  <label>Spesen Konto-Nr.</label>
-                  <input type="text" name="spesenKontoNr" value="${h.esc(cv("spesenKontoNr"))}" placeholder="z.B. 6500">
-                </div>
-              </div>
-            </div>
-
-            <div class="tm-form-wrap" style="max-width:100%;margin-bottom:16px">
-              <div class="tm-section-divider" style="margin-top:0">Konzeptionsrahmen</div>
-              <div class="tm-form-grid" style="margin-top:14px">
-                <div class="tm-field">
-                  <label>Vereinbarte Tage</label>
-                  <input type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
-                    placeholder="z.B. 2" min="0" step="0.5"
-                    oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">
-                  <span class="tm-hint">× 8 = Stunden-Budget</span>
-                </div>
-                <div class="tm-field" style="justify-content:flex-end">
-                  <label>&nbsp;</label>
-                  <div style="padding:10px 14px;background:var(--tm-blue-pale);border-radius:6px;font-size:13px;color:#6B7280">
-                    = <span id="kh" style="font-weight:600;color:var(--tm-text)">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> Stunden Budget
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex;justify-content:flex-end;gap:8px">
-              <button type="button" class="tm-btn" data-action="back-to-projekte">Abbrechen</button>
-              <button type="submit" class="tm-btn tm-btn-primary">Projekt speichern</button>
             </div>
           </form>
         </div>
