@@ -783,3 +783,20 @@ html, body {
   .kz-tbl th:nth-child(3),
   .kz-tbl td:nth-child(3) { display:none !important; }
 }
+
+/* ── Konzeption Mobile: Aufwand-Spalte näher ──────────────────────────────── */
+@media(max-width:899px) {
+  .pd-tbl-konzeption { table-layout:fixed !important; }
+  .pd-tbl-konzeption th:nth-child(1) { width:88px !important; }
+  .pd-tbl-konzeption th:nth-child(4) { width:70px !important; text-align:right !important; }
+  .pd-tbl-konzeption td:nth-child(4) { text-align:right !important; }
+}
+
+/* ── Einsätze Mobile: Person-Spalte begrenzen ────────────────────────────── */
+@media(max-width:899px) {
+  .ei-tbl { table-layout:fixed !important; }
+  .ei-tbl th:nth-child(1) { width:90px !important; }
+  .ei-tbl th:nth-child(4) { width:130px !important; }
+  .ei-tbl td:nth-child(4) { overflow:hidden !important; text-overflow:ellipsis !important; }
+  .ei-person-row span { white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; max-width:90px !important; }
+}
