@@ -2,27 +2,28 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --tm-blue:        #1F4E79;
-  --tm-blue-mid:    #2E75B6;
-  --tm-blue-light:  #D6E4F0;
-  --tm-blue-pale:   #EBF3FB;
+  --tm-blue:        #004078;
+  --tm-blue-mid:    #185FA5;
+  --tm-blue-light:  #e6f1fb;
+  --tm-blue-pale:   #e8ecf0;
   --tm-green:       #0F6E56;
   --tm-green-light: #E1F5EE;
   --tm-amber:       #854F0B;
-  --tm-amber-light: #FFF2CC;
+  --tm-amber-light: #FAEEDA;
   --tm-red:         #A32D2D;
   --tm-red-light:   #FCEBEB;
   --tm-gray:        #5F5E5A;
   --tm-gray-light:  #F1EFE8;
-  --tm-text:        #1F2937;
-  --tm-text-muted:  #6B7280;
-  --tm-border:      #D1D5DB;
+  --tm-text:        #1a2332;
+  --tm-text-muted:  #8896a5;
+  --tm-border:      #dde3ea;
   --tm-white:       #FFFFFF;
-  --tm-bg:          #F5F7FA;
+  --tm-bg:          #e8ecf0;
+  --tm-surface:     #f5f7fa;
   --tm-header-h:    52px;
   --tm-radius:      6px;
   --tm-radius-lg:   10px;
-  --tm-font:        'Segoe UI', system-ui, -apple-system, sans-serif;
+  --tm-font:        'Titillium Web', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
 html, body {
