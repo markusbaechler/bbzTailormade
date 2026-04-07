@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -818,10 +818,28 @@
       // Click Delegation
       document.addEventListener("click", e => {
         const a = sel => e.target.closest(sel);
-        if (a("[data-action='open-projekt']"))     { ctrl.openProjekt(+a("[data-action='open-projekt']").dataset.id); return; }
+        if (a("[data-action='open-projekt']"))     {
+          const id = +a("[data-action='open-projekt']").dataset.id;
+          if (window.innerWidth <= 699) state.ui.pdMobDetail = true;
+          ctrl.openProjekt(id);
+          return;
+        }
+        if (a("[data-action='pd-mob-back']"))      { state.ui.pdMobDetail = false; ctrl.render(); return; }
         if (a("[data-action='back-to-projekte']")) { ctrl.navigate("projekte"); return; }
-        if (a("[data-action='pd-select-einsatz']")) { const el = a("[data-action='pd-select-einsatz']"); state.ui.selectedProjektEinsatzId = +el.dataset.id === state.ui.selectedProjektEinsatzId ? null : +el.dataset.id; ctrl.render(); return; }
-        if (a("[data-action='pd-select-konz']"))    { const el = a("[data-action='pd-select-konz']"); state.ui.selectedProjektKonzId = +el.dataset.id === state.ui.selectedProjektKonzId ? null : +el.dataset.id; ctrl.render(); return; }
+        if (a("[data-action='pd-select-einsatz']")) {
+          const el = a("[data-action='pd-select-einsatz']");
+          const id = +el.dataset.id;
+          if (window.innerWidth <= 699) { ctrl.pdMobOpenEinsatz(id); return; }
+          state.ui.selectedProjektEinsatzId = id === state.ui.selectedProjektEinsatzId ? null : id;
+          ctrl.render(); return;
+        }
+        if (a("[data-action='pd-select-konz']")) {
+          const el = a("[data-action='pd-select-konz']");
+          const id = +el.dataset.id;
+          if (window.innerWidth <= 699) { ctrl.pdMobOpenKonz(id); return; }
+          state.ui.selectedProjektKonzId = id === state.ui.selectedProjektKonzId ? null : id;
+          ctrl.render(); return;
+        }
         if (a(".pd-tab[data-tab]"))                { const t = a(".pd-tab[data-tab]"); state.ui.selectedProjektEinsatzId = null; state.ui.selectedProjektKonzId = null; ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
         if (a("[data-action='new-einsatz']"))      { ctrl.openEinsatzForm(null, +a("[data-action='new-einsatz']").dataset.projektId || null); return; }
         if (a("[data-action='new-konzeption']"))   { ctrl.openKonzeptionForm(null, +a("[data-action='new-konzeption']").dataset.projektId || null); return; }
@@ -1193,6 +1211,26 @@
           .pd-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h, 52px)); overflow:hidden; }
           .pd-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
+          /* ── Mobile: Sidebar fullscreen, kein Detail-Panel ─────────────── */
+          @media(max-width:699px) {
+            .pd-sidebar { width:100%; min-width:0; border-right:none; }
+            .pd-main { display:none; }
+            .pd-detail { display:none; }
+            .pd-shell.pd-mob-detail .pd-sidebar { display:none; }
+            .pd-shell.pd-mob-detail .pd-main { display:flex; }
+            .pd-mob-back { display:flex !important; }
+            .pd-topbar-actions { flex-wrap:wrap; gap:4px; }
+            .pd-kpis { grid-template-columns:1fr 1fr; gap:8px; padding:10px 12px; }
+            .pd-kpis > :last-child { grid-column:1/-1; }
+            .pd-tabs-wrap { padding:6px 12px 0; gap:1px; overflow-x:auto; }
+            .pd-tab { padding:7px 12px; font-size:12px; }
+            .pd-filter-bar { padding:6px 12px; gap:6px; }
+            .pd-filter-select { font-size:11px; min-width:90px; }
+            .pd-table th { font-size:9px; padding:6px 8px; }
+            .pd-table td { padding:7px 8px; font-size:12px; }
+          }
+          .pd-mob-back { display:none; }
+
           /* Sidebar */
           .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .pd-sb-head { padding:10px 12px; background:#fff; }
@@ -1285,7 +1323,7 @@
           .pd-dp-empty-icon { font-size:28px; opacity:0.2; }
         </style>
 
-        <div class="pd-wrap"><div class="pd-shell">
+        <div class="pd-wrap"><div class="pd-shell${state.ui.pdMobDetail ? " pd-mob-detail" : ""}">
 
           <!-- SIDEBAR -->
           <div class="pd-sidebar">
@@ -1304,6 +1342,7 @@
           <!-- MAIN -->
           <div class="pd-main">
             <div class="pd-topbar">
+              <button class="pd-mob-back tm-btn tm-btn-sm" data-action="pd-mob-back">← Projekte</button>
               <div class="pd-topbar-actions">
                 <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
@@ -2251,6 +2290,7 @@
         state.selection.projektId = null;
         state.ui.selectedProjektEinsatzId = null;
         state.ui.selectedProjektKonzId = null;
+        state.ui.pdMobDetail = false;
       }
       if (route !== "firma-detail") state.selection.firmaId = null;
       this.render();
@@ -2273,6 +2313,91 @@
       state.ui.selectedProjektKonzId = null;
       this.render();
       window.scrollTo(0, 0);
+    },
+
+    pdMobOpenEinsatz(id) {
+      const p = state.enriched.projekte.find(p => p.id === state.selection.projektId);
+      const e = p?.einsaetze.find(e => e.id === id);
+      if (!e) return;
+      const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      ui.renderModal(`
+        <style>
+          .pd-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .pd-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .pd-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .pd-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .pd-bs-title{font-size:16px;font-weight:700;color:var(--tm-text)}
+          .pd-bs-body{padding:14px 16px}
+          .pd-bs-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .pd-bs-row:last-child{border-bottom:none}
+          .pd-bs-key{color:var(--tm-text-muted);font-weight:600}
+          .pd-bs-val{text-align:right;font-weight:600;max-width:60%}
+          .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
+          .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="pd-bs-bd" id="tm-modal-bd">
+          <div class="pd-bs">
+            <div class="pd-bs-handle"></div>
+            <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(e.title)}</div></div>
+            <div class="pd-bs-body">
+              <div class="pd-bs-row"><span class="pd-bs-key">Datum</span><span class="pd-bs-val">${h.esc(e.datumFmt)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Kategorie</span><span class="pd-bs-val">${h.esc(e.kategorie)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Person</span><span class="pd-bs-val">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span></div>
+              ${e.ort?`<div class="pd-bs-row"><span class="pd-bs-key">Ort</span><span class="pd-bs-val">${h.esc(e.ort)}</span></div>`:""}
+              <div class="pd-bs-row"><span class="pd-bs-key">Status</span><span class="pd-bs-val">${h.statusBadge(e)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Betrag</span><span class="pd-bs-val" style="color:var(--tm-blue)">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+              ${e.spesenBerechnet?`<div class="pd-bs-row"><span class="pd-bs-key">Wegspesen</span><span class="pd-bs-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+              <div class="pd-bs-row"><span class="pd-bs-key">Abrechnung</span><span class="pd-bs-val">${h.abrBadge(e.abrechnung)}</span></div>
+              ${e.bemerkungen?`<div class="pd-bs-note">${h.esc(e.bemerkungen)}</div>`:""}
+            </div>
+            <div class="pd-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉ Duplizieren</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
+    },
+
+    pdMobOpenKonz(id) {
+      const p = state.enriched.projekte.find(p => p.id === state.selection.projektId);
+      const k = p?.konzeintraege.find(k => k.id === id);
+      if (!k) return;
+      ui.renderModal(`
+        <style>
+          .pd-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .pd-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .pd-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .pd-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .pd-bs-title{font-size:16px;font-weight:700;color:var(--tm-text)}
+          .pd-bs-body{padding:14px 16px}
+          .pd-bs-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .pd-bs-row:last-child{border-bottom:none}
+          .pd-bs-key{color:var(--tm-text-muted);font-weight:600}
+          .pd-bs-val{text-align:right;font-weight:600;max-width:60%}
+          .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
+          .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
+        <div class="pd-bs-bd" id="tm-modal-bd">
+          <div class="pd-bs">
+            <div class="pd-bs-handle"></div>
+            <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(k.title)}</div></div>
+            <div class="pd-bs-body">
+              <div class="pd-bs-row"><span class="pd-bs-key">Datum</span><span class="pd-bs-val">${h.esc(k.datumFmt)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Kategorie</span><span class="pd-bs-val">${h.esc(k.kategorie)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Person</span><span class="pd-bs-val">${h.esc(k.personName||"—")}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Aufwand</span><span class="pd-bs-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Betrag</span><span class="pd-bs-val" style="color:var(--tm-blue)">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Verrechenbar</span><span class="pd-bs-val">${h.verrBadge(k.verrechenbar)}</span></div>
+              <div class="pd-bs-row"><span class="pd-bs-key">Abrechnung</span><span class="pd-bs-val">${h.abrBadge(k.abrechnung)}</span></div>
+              ${k.bemerkungen?`<div class="pd-bs-note">${h.esc(k.bemerkungen)}</div>`:""}
+            </div>
+            <div class="pd-bs-actions">
+              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
+            </div>
+          </div>
+        </div>`);
     },
 
     setTab(route, tab) { state.filters.activeTab[route] = tab; this.render(); },
