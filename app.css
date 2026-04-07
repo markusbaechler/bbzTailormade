@@ -800,3 +800,8 @@ html, body {
   .ei-tbl td:nth-child(4) { overflow:hidden !important; text-overflow:ellipsis !important; }
   .ei-person-row span { white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; max-width:90px !important; }
 }
+
+/* ── Abrechnungen Mobile: Suche ausblenden ────────────────────────────────── */
+@media(max-width:899px) {
+  .abr-sb-head input { display:none !important; }
+}
