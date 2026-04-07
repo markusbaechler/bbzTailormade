@@ -1288,7 +1288,7 @@
           .pd-section-row:hover td { background:#e8ecf0 !important; }
           .pd-table { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
           .pd-table th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--tm-blue-pale); white-space:nowrap; background:#fff; }
-          .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; }
+          .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
           .pd-row { cursor:pointer; }
           .pd-row:hover td { background:#f6f8fb; }
           .pd-row-sel td { background:var(--tm-blue-pale) !important; }
@@ -1590,7 +1590,7 @@
           .ei-row-cancelled .ei-c1 { text-decoration:line-through; }
           .ei-td-date { white-space:nowrap; color:#8896a5; font-size:13px; width:100px; }
           .ei-td-muted { color:#8896a5; font-size:12px; }
-          .ei-c1 { font-weight:600; font-size:13px; color:var(--tm-text); }
+          .ei-c1 { font-weight:600; font-size:13px; color:var(--tm-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
           .ei-c2 { font-size:11px; color:#8896a5; margin-top:1px; }
           .ei-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap; margin-bottom:2px; }
           .ei-av { width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
