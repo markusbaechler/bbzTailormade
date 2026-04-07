@@ -2647,6 +2647,20 @@
       if (!k) return;
       const proj = state.enriched.projekte.find(p=>p.id===k.projektLookupId);
       ui.renderModal(`
+        <style>
+          .ei-bs-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .ei-bs{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:85vh;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+          .ei-bs-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 0}
+          .ei-bs-head{padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,0.09)}
+          .ei-bs-title{font-size:16px;font-weight:700}
+          .ei-bs-sub{font-size:12px;color:#8896a5;margin-top:2px;font-weight:600}
+          .ei-bs-body{padding:4px 16px 14px}
+          .ei-bs-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,0,0,0.07);font-size:14px}
+          .ei-bs-row:last-child{border-bottom:none}
+          .ei-bs-key{color:#8896a5;font-weight:600;font-size:13px}
+          .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
+          .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
+        </style>
         <div class="ei-bs-bd" id="tm-modal-bd">
           <div class="ei-bs">
             <div class="ei-bs-handle"></div>
