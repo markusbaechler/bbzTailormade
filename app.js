@@ -1212,7 +1212,7 @@
           .pd-sb-new-btn:hover { background:var(--tm-blue-pale); }
 
           /* Main */
-          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+          .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#f5f7fa; }
           .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--tm-blue-pale); background:#fff; flex-shrink:0; }
           .pd-back-btn { padding:4px 10px; border-radius:6px; border:1px solid var(--tm-blue-pale); background:#fff; color:var(--tm-text-muted); font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; }
           .pd-back-btn:hover { background:var(--tm-surface); color:var(--tm-text); }
@@ -1272,7 +1272,7 @@
           .pd-stam-val { color:var(--tm-text); font-weight:700; text-align:right; }
 
           /* Detail-Panel */
-          .pd-detail { width:272px; min-width:272px; border-left:1px solid var(--tm-blue-pale); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-detail { width:272px; min-width:272px; border-left:1px solid var(--tm-blue-pale); background:#f5f7fa; display:flex; flex-direction:column; overflow:hidden; }
           .pd-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid var(--tm-blue-pale); flex-shrink:0; }
           .pd-dp-label { font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
           .pd-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
@@ -1352,7 +1352,7 @@
               <button class="pd-tab${tab==="stammdaten"?" active":""}" data-tab="stammdaten" data-route="projekt-detail">Stammdaten &amp; Ansätze</button>
             </div>
 
-            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#fff">
+            <div style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;background:#f5f7fa">
               ${tabContent}
             </div>
           </div>
