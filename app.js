@@ -3928,6 +3928,11 @@
         state.ui.pdMobDetail = false;
       }
       if (route !== "firma-detail") state.selection.firmaId = null;
+      // Reset alle Mobile-Filter-States beim Route-Wechsel
+      state.ui.eiMobFilter  = false;
+      state.ui.kzMobFilter  = false;
+      state.ui.abrMobFilter = false;
+      state.ui.fiMobFilter  = false;
       this.render();
       window.scrollTo(0, 0);
     },
