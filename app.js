@@ -2977,8 +2977,6 @@
     },
 
     render() {
-      // Formular-State hat Priorität — verhindert Überschreiben durch Router
-      if (state.form) return;
       const r = state.filters.route;
       ui.setNav(["projekte","einsaetze","konzeption","abrechnungen","firmen"].includes(r) ? r : "projekte");
       ui.setMsg("", "");
@@ -3673,168 +3671,156 @@
       const cv = (k, fb = "") => p ? (p[k] ?? fb) : fb;
       const cn = k => (p && p[k] !== null && p[k] !== undefined) ? p[k] : "";
 
-      state.form = { type: "projekt", id: id || null };
-      state.filters.route = "projekt-form";
-      ui.setNav("projekte");
+      // Kein Formular-Lock mehr nötig — Modal übernimmt
+      const closeAction = id ? `ctrl.openProjekt(${id});ui.closeModal()` : `ui.closeModal()`;
 
-      // Zurück: wenn aus Projekt-Detail → zurück zum Projekt, sonst Projektliste
-      const backLabel = id ? `← ${h.esc(p?.title || "Projekt")}` : "← Projekte";
-      const backAction = id ? `ctrl.openProjekt(${id})` : `ctrl.navigate('projekte')`;
-
-      const inp = (name, val, opts="") =>
-        `<input type="text" name="${name}" value="${h.esc(String(val))}" ${opts}
-          style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;
-          color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;
-          outline:none;transition:border-color .15s"
-          onfocus="this.style.borderColor='#0a5a9e';this.style.background='#fff'"
-          onblur="this.style.borderColor='#dde4ec';this.style.background='#f4f7fb'">`;
-
-      const numInp = (name, val, placeholder="—") =>
+      const numInp = (name, placeholder="—") =>
         `<div style="display:flex;align-items:center;border:1.5px solid #dde4ec;border-radius:8px;overflow:hidden;background:#f4f7fb">
-          <span style="padding:7px 9px;background:#f0f3f7;font-size:11px;color:#8896a5;border-right:1px solid #dde4ec;flex-shrink:0">CHF</span>
+          <span style="padding:7px 9px;background:#f0f3f7;font-size:11px;color:#8896a5;border-right:1px solid #dde4ec;flex-shrink:0;font-family:inherit">CHF</span>
           <input type="number" name="${name}" value="${cn(name) !== "" ? cn(name) : ""}" placeholder="${placeholder}" step="0.01" min="0"
-            style="border:none;padding:7px 9px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit;color:#1a2332">
+            style="border:none;padding:7px 9px;font-size:13px;background:transparent;flex:1;min-width:0;outline:none;font-family:inherit;color:#1a2332;width:80px">
         </div>`;
 
-      const field = (label, content, full=false, hint="") =>
-        `<div style="${full ? "grid-column:1/-1;" : ""}display:flex;flex-direction:column;gap:5px">
-          <label style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5">${label}</label>
+      const field = (lbl, content, hint="") =>
+        `<div style="display:flex;flex-direction:column;gap:5px">
+          <label style="font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5">${lbl}</label>
           ${content}
           ${hint ? `<span style="font-size:11px;color:#8896a5">${hint}</span>` : ""}
         </div>`;
 
-      const card = (title, badge="", body) =>
-        `<div style="background:#fff;border:1.5px solid #dde4ec;border-radius:12px;overflow:hidden">
-          <div style="padding:12px 18px;border-bottom:1px solid #f0f4f8;background:#f8fafc;display:flex;align-items:center;gap:10px">
-            <span style="font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#8896a5">${title}</span>
-            ${badge}
-          </div>
-          <div style="padding:16px 18px">${body}</div>
+      const sec = (lbl, body) =>
+        `<div style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#8896a5;padding-bottom:8px;border-bottom:1.5px solid #dde4ec">${lbl}</div>
+          ${body}
         </div>`;
 
-      const grid2 = content => `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">${content}</div>`;
-      const grid3 = content => `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${content}</div>`;
+      ui.renderModal(`<style>
+        .pf-m{background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,64,120,.18),0 0 0 1px rgba(0,64,120,.06);width:100%;max-width:480px;max-height:92vh;display:flex;flex-direction:column;animation:pfUp .25s cubic-bezier(.16,1,.3,1)}
+        @media(min-width:860px){.pf-m{max-width:860px}}
+        @keyframes pfUp{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        .pf-hd{background:#004078;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-radius:20px 20px 0 0}
+        .pf-hd-t{color:#fff;font-size:14px;font-weight:700}
+        .pf-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
+        .pf-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;font-family:inherit}
+        .pf-bd{overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:20px}
+        @media(min-width:860px){
+          .pf-bd{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;align-items:start}
+          .pf-full{grid-column:1/-1}
+        }
+        .pf-inp{width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;transition:border-color .15s,-webkit-appearance .15s;-webkit-appearance:none}
+        .pf-inp:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        .pf-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .pf-g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+        @media(max-width:500px){.pf-g2,.pf-g3{grid-template-columns:1fr}}
+        .pf-ft{padding:12px 20px 14px;border-top:1px solid #dde4ec;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0}
+        .pf-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
+        .pf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,64,120,.25)}
+        .pf-btn-s:hover{background:#0a5a9e}
+      </style>
+      <div class="pf-m">
+        <div class="pf-hd">
+          <div>
+            <div class="pf-hd-t">${p ? "Projekt bearbeiten" : "Neues Projekt"}</div>
+            <div class="pf-hd-s">${p ? `#${h.esc(p.projektNr||String(p.id))} · ${h.esc(p.firmaName||"")}` : "Neues Projekt erfassen"}</div>
+          </div>
+          <button class="pf-cl" onclick="${closeAction}">✕</button>
+        </div>
 
-      ui.render(`
-        <div style="max-width:720px;margin:0 auto;padding:0 16px 60px;display:flex;flex-direction:column;gap:16px">
-          <style>
-            .pf-inp:focus{border-color:#0a5a9e!important;background:#fff!important}
-            @media(max-width:600px){
-              .pf-g2{grid-template-columns:1fr!important}
-              .pf-g3{grid-template-columns:1fr 1fr!important}
-              .pf-ansatz-tbl td,.pf-ansatz-tbl th{padding:6px 8px!important}
-            }
-          </style>
+        <form id="projekt-form" autocomplete="off" class="pf-bd">
+          <input type="hidden" name="itemId" value="${id || ""}">
+          <input type="hidden" name="mode" value="${id ? "edit" : "create"}">
 
-          <!-- Back + Title -->
-          <div style="display:flex;align-items:center;gap:12px;padding-top:12px">
-            <button class="tm-btn tm-btn-sm" onclick="${backAction}" style="flex-shrink:0">${backLabel}</button>
-            <h1 style="font-size:18px;font-weight:700;color:#1a2332;margin:0">
-              ${p ? "Projekt bearbeiten" : "Neues Projekt"}
-            </h1>
-            ${p ? `<span style="font-size:12px;color:#8896a5">#${h.esc(p.projektNr||p.id)}</span>` : ""}
+          <!-- LINKE SPALTE -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+            ${sec("Stammdaten", `
+              ${field("Projektname *",
+                `<input class="pf-inp" type="text" name="title" value="${h.esc(cv("title"))}" required>`)}
+              <div class="pf-g2">
+                ${field("Projekt-Nr.",
+                  `<input class="pf-inp" type="text" name="projektNr" value="${h.esc(cv("projektNr"))}">`)}
+                ${field("Konto-Nr. Honorar",
+                  `<input class="pf-inp" type="text" name="kontoNr" value="${h.esc(cv("kontoNr"))}" placeholder="z.B. 3200">`)}
+              </div>
+              ${field("Ansprechpartner *", ui.personTypeahead("ansprechpartnerLookupId", p?.ansprechpartnerLookupId ? String(p.ansprechpartnerLookupId) : ""))}
+              ${field("Firma",
+                `<div id="firma-display" class="pf-inp" style="color:#8896a5;cursor:default">
+                  ${h.esc(p?.firmaName || "wird aus Ansprechpartner übernommen")}
+                </div>
+                <input type="hidden" name="firmaLookupId" id="firma-hidden" value="${p?.firmaLookupId || ""}">`)}
+              <div class="pf-g2">
+                ${field("Status *",
+                  `<select class="pf-inp" name="status" required>
+                    ${state.choices.projektStatus.map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
+                  </select>`)}
+                ${field("Km zum Kunden",
+                  `<input class="pf-inp" type="number" name="kmZumKunden" value="${cn("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1">`,
+                  "Hin &amp; Zurück (×1 mit CHF/km)")}
+              </div>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" name="archiviert" ${cv("archiviert") ? "checked" : ""}
+                  style="width:15px;height:15px;accent-color:#004078;cursor:pointer">
+                <span style="font-size:13px;font-weight:500;color:#4a5568">Archiviert</span>
+              </label>
+            `)}
           </div>
 
-          <form id="projekt-form" autocomplete="off">
-            <input type="hidden" name="itemId" value="${id || ""}">
-            <input type="hidden" name="mode"   value="${id ? "edit" : "create"}">
+          <!-- RECHTE SPALTE -->
+          <div style="display:flex;flex-direction:column;gap:20px">
 
-            <div style="display:flex;flex-direction:column;gap:16px">
-
-            <!-- STAMMDATEN -->
-            ${card("Stammdaten", "", `
-              <div style="display:flex;flex-direction:column;gap:14px">
-                ${field("Projektname *",
-                  inp("title", cv("title"), 'required'),
-                  true)}
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="pf-g2">
-                  ${field("Projekt-Nr.", inp("projektNr", cv("projektNr")))}
-                  ${field("Konto-Nr. Honorar", inp("kontoNr", cv("kontoNr"), 'placeholder="z.B. 3200"'))}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" class="pf-g2">
-                  ${field("Ansprechpartner *", ui.personTypeahead("ansprechpartnerLookupId", p?.ansprechpartnerLookupId ? String(p.ansprechpartnerLookupId) : ""))}
-                  ${field("Firma",
-                    `<div id="firma-display" style="padding:8px 11px;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;font-size:13px;color:#8896a5">
-                      ${h.esc(p?.firmaName || "wird aus Ansprechpartner übernommen")}
-                    </div>
-                    <input type="hidden" name="firmaLookupId" id="firma-hidden" value="${p?.firmaLookupId || ""}">`)}
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px" class="pf-g3">
-                  ${field("Status *",
-                    `<select name="status" required style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;-webkit-appearance:none">
-                      ${state.choices.projektStatus.map(s => `<option value="${s}" ${cv("status","aktiv")===s?"selected":""}>${s}</option>`).join("")}
-                    </select>`)}
-                  ${field("Km zum Kunden",
-                    `<input type="number" name="kmZumKunden" value="${cn("kmZumKunden")}" placeholder="z.B. 28" min="0" step="1"
-                      style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none">`,
-                    false, "Hin &amp; Zurück (×1 mit CHF/km)")}
-                  ${field("",
-                    `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:22px">
-                      <input type="checkbox" name="archiviert" ${cv("archiviert") ? "checked" : ""}
-                        style="width:15px;height:15px;accent-color:#004078;cursor:pointer">
-                      <span style="font-size:13px;font-weight:500;color:#4a5568">Archiviert</span>
-                    </label>`)}
-                </div>
+            ${sec(`Ansätze CHF <span style="font-size:10px;background:#e8f5ee;color:#085041;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;text-transform:none;letter-spacing:0">leer = nicht verfügbar</span>`, `
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr>
+                  <th style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 8px 6px 0;border-bottom:1px solid #f0f4f8"></th>
+                  <th style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 8px 6px;border-bottom:1px solid #f0f4f8">Lead</th>
+                  <th style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 0 6px 8px;border-bottom:1px solid #f0f4f8">Co</th>
+                </tr></thead>
+                <tbody>
+                  ${[["Einsatz (Tag)","ansatzEinsatz","ansatzCoEinsatz"],["Einsatz (Halbtag)","ansatzHalbtag","ansatzCoHalbtag"]].map(([lbl,mk,ck]) => `
+                  <tr>
+                    <td style="font-size:12px;color:#4a5568;padding:7px 8px 7px 0;border-bottom:1px solid #f4f7fb;white-space:nowrap">${lbl}</td>
+                    <td style="padding:4px 8px;border-bottom:1px solid #f4f7fb">${numInp(mk)}</td>
+                    <td style="padding:4px 0 4px 8px;border-bottom:1px solid #f4f7fb">${numInp(ck)}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+              <div class="pf-g3">
+                ${[["Stunde","CHF/h"],["Stück","CHF/Stk."],["Pauschale","CHF fix"],
+                   ["Konzeption/Tag","CHF/Tag"],["Admin/Tag","CHF/Tag"],["Km-Spesen","CHF/km"]
+                  ].map(([lbl,hint],i) => {
+                    const keys = ["ansatzStunde","ansatzStueck","ansatzPauschale","ansatzKonzeption","ansatzAdmin","ansatzKmSpesen"];
+                    return field(lbl, numInp(keys[i]), hint);
+                  }).join("")}
+                ${field("Spesen Kto-Nr.",
+                  `<input class="pf-inp" type="text" name="spesenKontoNr" value="${h.esc(cv("spesenKontoNr"))}" placeholder="z.B. 6500">`)}
               </div>
             `)}
 
-            <!-- ANSÄTZE -->
-            ${card("Ansätze CHF",
-              `<span style="font-size:11px;background:#e8f5ee;color:#085041;padding:2px 8px;border-radius:4px;font-weight:600">leer = Kategorie nicht verfügbar</span>`,
-              `<div style="display:flex;flex-direction:column;gap:14px">
-                <table class="pf-ansatz-tbl" style="width:100%;border-collapse:collapse">
-                  <thead><tr>
-                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 12px 8px 0;border-bottom:1px solid #f0f4f8;width:140px">Kategorie</th>
-                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 12px 8px;border-bottom:1px solid #f0f4f8">Haupttrainer</th>
-                    <th style="font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#8896a5;text-align:left;padding:0 0 8px 12px;border-bottom:1px solid #f0f4f8">Co-Trainer</th>
-                  </tr></thead>
-                  <tbody>
-                    ${[["Einsatz (Tag)","ansatzEinsatz","ansatzCoEinsatz"],["Einsatz (Halbtag)","ansatzHalbtag","ansatzCoHalbtag"]].map(([lbl,mk,ck]) => `
-                    <tr>
-                      <td style="font-size:13px;font-weight:500;color:#4a5568;padding:10px 12px 10px 0;border-bottom:1px solid #f4f7fb">${lbl}</td>
-                      <td style="padding:6px 12px;border-bottom:1px solid #f4f7fb">${numInp(mk)}</td>
-                      <td style="padding:6px 0 6px 12px;border-bottom:1px solid #f4f7fb">${numInp(ck)}</td>
-                    </tr>`).join("")}
-                  </tbody>
-                </table>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" class="pf-g3">
-                  ${[["Stunde","ansatzStunde","CHF/h"],["Stück","ansatzStueck","CHF/Stück"],["Pauschale","ansatzPauschale","CHF fix"],
-                     ["Konzeption/Tag","ansatzKonzeption","CHF/Tag"],["Admin/Tag","ansatzAdmin","CHF/Tag"],["Km-Spesen","ansatzKmSpesen","CHF/km"]
-                    ].map(([lbl,key,hint]) => field(lbl, numInp(key), false, hint)).join("")}
-                  ${field("Spesen Konto-Nr.",
-                    inp("spesenKontoNr", cv("spesenKontoNr"), 'placeholder="z.B. 6500"'))}
-                </div>
-              </div>`
-            )}
-
-            <!-- KONZEPTIONSRAHMEN -->
-            ${card("Konzeptionsrahmen", "", `
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:end" class="pf-g2">
+            ${sec("Konzeptionsrahmen", `
+              <div class="pf-g2" style="align-items:end">
                 ${field("Vereinbarte Tage",
-                  `<input type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
+                  `<input class="pf-inp" type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
                     placeholder="z.B. 10" min="0" step="0.5"
-                    style="width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none"
                     oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">`,
-                  false, "× 8 = Stunden-Budget")}
-                <div style="padding:10px 14px;background:#e8f1f9;border-radius:8px;font-size:13px;color:#8896a5;align-self:end">
-                  = <span id="kh" style="font-weight:700;color:#004078;font-size:15px">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> h Budget
+                  "× 8 = Stunden-Budget")}
+                <div style="padding:9px 12px;background:#e8f1f9;border-radius:8px;font-size:13px;color:#8896a5">
+                  = <span id="kh" style="font-weight:700;color:#004078;font-size:15px">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> h
                 </div>
               </div>
             `)}
 
-            <!-- FOOTER -->
-            <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
-              <button type="button" class="tm-btn" onclick="${backAction}">Abbrechen</button>
-              <button type="submit" class="tm-btn tm-btn-primary" style="min-width:140px">
-                ${p ? "Änderungen speichern" : "Projekt erstellen"}
-              </button>
-            </div>
+          </div><!-- /rechte Spalte -->
 
-            </div>
-          </form>
+        </form>
+
+        <div class="pf-ft">
+          <button type="button" class="pf-btn-c" onclick="${closeAction}">Abbrechen</button>
+          <button type="button" class="pf-btn-s" onclick="document.getElementById('projekt-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+            ${p ? "Änderungen speichern" : "Projekt erstellen"}
+          </button>
         </div>
-      `);
+      </div>`);
     },
+
 
     // Co-Lead gewählt → Co-Betrag anzeigen
     updateCoBetrag() {
@@ -3932,15 +3918,16 @@
           await api.patchLookups(CONFIG.lists.projekte, nid, lookupFields);
         }
 
+        const savedId = (mode === "edit" && itemId) ? Number(itemId) : null;
         state.form = null;
+        ui.closeModal();
         ui.setMsg("Projekt gespeichert.", "success");
         await api.loadAll();
-        ctrl.navigate("projekte");
+        // Bei Bearbeitung → zurück zum Projekt-Detail; bei Neuanlage → Projektliste
+        if (savedId) { ctrl.openProjekt(savedId); } else { ctrl.navigate("projekte"); }
       } catch (e) {
         debug.err("saveProjekt", e);
-        state.form = null;
         ui.setMsg(e.message || "Fehler beim Speichern.", "error");
-        ctrl.render();
       }
     },
 
