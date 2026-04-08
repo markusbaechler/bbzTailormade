@@ -401,11 +401,16 @@
     },
 
     // Co-Betrag aus Projektsettings
-    berechneCoBetrag(p, kat) {
+    berechneCoBetrag(p, kat, tage) {
       if (!p) return null;
-      if (kat === "Einsatz (Tag)")     return p.ansatzCoEinsatz || null;
+      if (kat === "Einsatz (Tag)")     return p.ansatzCoEinsatz ? p.ansatzCoEinsatz * (tage || 1) : null;
       if (kat === "Einsatz (Halbtag)") return p.ansatzCoHalbtag || null;
       return null;
+    },
+
+    // Leeres aeSelected-Objekt erzeugen
+    newAeSelected() {
+      return { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
     },
 
     // Eingeloggten User als Kontakt finden
@@ -583,8 +588,9 @@
         const r = await state.auth.msal.acquireTokenSilent({ scopes: CONFIG.graph.scopes, account: state.auth.account });
         return (state.auth.token = r.accessToken);
       } catch {
-        const r = await state.auth.msal.acquireTokenPopup({ scopes: CONFIG.graph.scopes });
-        return (state.auth.token = r.accessToken);
+        // Redirect-Fallback für Mobile (Popup blocked in Chrome Android)
+        await state.auth.msal.acquireTokenRedirect({ scopes: CONFIG.graph.scopes });
+        return ""; // wird nach Redirect-Return via boot() neu gesetzt
       }
     },
 
@@ -679,10 +685,11 @@
         });
         return r.accessToken;
       } catch {
-        const r = await state.auth.msal.acquireTokenPopup({
+        // Redirect-Fallback für Mobile
+        await state.auth.msal.acquireTokenRedirect({
           scopes: ["https://bbzsg.sharepoint.com/AllSites.Write"]
         });
-        return r.accessToken;
+        return ""; // wird nach Redirect-Return via boot() neu gesetzt
       }
     },
 
@@ -2224,7 +2231,7 @@
 
       // Aktiver Tab + Auswahl: state merken
       if (!state.ui.aeTab) state.ui.aeTab = "einsaetze";
-      if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+      if (!state.ui.aeSelected) state.ui.aeSelected = h.newAeSelected();
       const tab = state.ui.aeTab;
       const sel = state.ui.aeSelected;
 
@@ -2914,7 +2921,7 @@
 
     async login() {
       try {
-        const r = await state.auth.msal.loginPopup({ scopes: CONFIG.graph.scopes });
+        await state.auth.msal.loginRedirect({ scopes: CONFIG.graph.scopes }); return;
         state.auth.account = r.account;
         state.auth.isAuth  = true;
         ui.setAuth(r.account.name || r.account.username);
@@ -2938,19 +2945,6 @@
     },
 
     navigate(route) {
-      // Formular-Lock: nicht navigieren wenn Formular aktiv
-      if (state.form && route !== state.filters.route) {
-        const form = document.getElementById("projekt-form");
-        if (form) {
-          const fd = new FormData(form);
-          const p  = state.form?.id ? state.enriched.projekte.find(p => p.id === state.form.id) : null;
-          const dirty = p
-            ? (fd.get("title") !== (p.title||"") || fd.get("status") !== (p.status||""))
-            : !!(fd.get("title") || "").trim();
-          if (dirty && !confirm("Änderungen verwerfen?")) return;
-        }
-        state.form = null;
-      }
       // Mobile Filter-States bei Route-Wechsel zurücksetzen
       state.ui.eiMobFilter  = false;
       state.ui.kzMobFilter  = false;
@@ -3838,7 +3832,9 @@
       if (show) {
         const projId = Number(document.querySelector("[name='projektLookupId']")?.value) || null;
         const proj   = projId ? state.enriched.projekte.find(p => p.id === projId) : null;
-        const coBetrag = proj ? h.berechneCoBetrag(proj, kat) : null;
+        const tageInp = document.getElementById("ef-tage-inp");
+        const tageVal = tageInp ? (h.num(tageInp.value) || 1) : 1;
+        const coBetrag = proj ? h.berechneCoBetrag(proj, kat, tageVal) : null;
         const bvc = document.getElementById("ef-bval-co");
         if (bvc) {
           if (coBetrag === null) { bvc.textContent = "Nicht konfiguriert"; bvc.className = "ef-betrag-val warn"; }
@@ -3960,7 +3956,7 @@
       const isTagKat   = ["Einsatz (Tag)","Einsatz (Halbtag)"].includes(selKat);
 
       const betragBer   = selProjekt && selKat ? h.berechneBetrag(selProjekt, selKat, selDauerTage, e?.dauerStunden, e?.anzahlStueck) : null;
-      const coBetragBer = selProjekt && selKat ? h.berechneCoBetrag(selProjekt, selKat) : null;
+      const coBetragBer = selProjekt && selKat ? h.berechneCoBetrag(selProjekt, selKat, selDauerTage) : null;
       const personName   = selPerson ? h.contactName(selPerson) : null;
       const coPersonName = selCoPerson ? h.contactName(selCoPerson) : null;
       const initials = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
@@ -4600,7 +4596,7 @@
         // Co-Betrag: nur wenn Co-Lead gesetzt
         const coPersonId2 = h.num(fd.get("coPersonLookupId"));
         if (coPersonId2) {
-          const coBetragBer = h.berechneCoBetrag(p, kat);
+          const coBetragBer = h.berechneCoBetrag(p, kat, dauerTage);
           if (coBetragBer !== null) fields.CoBetragBerechnet = coBetragBer;
           const cbf = h.num(fd.get("coBetragFinal"));
           if (cbf !== null) fields.CoBetragFinal = cbf;
@@ -4806,7 +4802,7 @@
     },
 
     aeSaveSelection() {
-      if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+      if (!state.ui.aeSelected) state.ui.aeSelected = h.newAeSelected();
       const sel = state.ui.aeSelected;
       // Einsatz-Checkboxen
       document.querySelectorAll(".ae-e-cb").forEach(cb => {
@@ -4911,7 +4907,7 @@
 
         // Bei verrechenbar: sofort in Auswahl aufnehmen
         if (neuerWert === "verrechenbar") {
-          if (!state.ui.aeSelected) state.ui.aeSelected = { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+          if (!state.ui.aeSelected) state.ui.aeSelected = h.newAeSelected();
           state.ui.aeSelected.konzeption.add(konzId);
         }
 
@@ -4932,7 +4928,7 @@
 
       // Auswahl zuerst aus DOM speichern (falls noch nicht getan)
       ctrl.aeSaveSelection();
-      const sel = state.ui.aeSelected || { einsaetze: new Set(), konzeption: new Set(), zusatzBetrag: "", zusatzBem: "" };
+      const sel = state.ui.aeSelected || h.newAeSelected();
       const checkedIds     = [...sel.einsaetze];
       const checkedKonzIds = [...sel.konzeption];
       const zusatzBetrag   = h.num(sel.zusatzBetrag);
@@ -5628,7 +5624,7 @@
           authority:   CONFIG.graph.authority,
           redirectUri: CONFIG.graph.redirectUri
         },
-        cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+        cache: { cacheLocation: "localStorage", storeAuthStateInCookie: true }
       });
       await state.auth.msal.initialize();
       await state.auth.msal.handleRedirectPromise();
