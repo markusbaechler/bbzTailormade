@@ -2753,25 +2753,50 @@
           .fi-dp-contact { display:flex; align-items:center; gap:8px; padding:4px 0; }
           .fi-dp-av { width:24px; height:24px; border-radius:50%; background:#dbeafe; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; flex-shrink:0; }
 
+          /* Chip-Leiste — default hidden (Desktop), Mobile via media query sichtbar */
+          .fi-mob-chips {
+            display: none;
+            gap: 6px;
+            padding: 6px 12px 8px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            overflow-x: auto;
+            flex-shrink: 0;
+          }
+          .fi-mob-chip {
+            flex-shrink: 0;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: inherit;
+            border: 1.5px solid #e5e7eb;
+            background: #f9fafb;
+            color: #6b7280;
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .fi-mob-chip.active { background:#eff6ff; border-color:#2563eb; color:#1d4ed8; }
+          .fi-mob-chip-reset  { background:#f3f4f6; color:#374151; border-color:#d1d5db; }
+
           /* Mobile */
           @media(max-width:899px) {
             .fi-sidebar { display:none !important; }
             .fi-detail  { display:none !important; }
-            .fi-shell.fi-mob-filter .fi-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
-            .fi-shell.fi-mob-filter .fi-main    { display:none !important; }
-            .fi-mob-filter-btn { display:flex !important; }
+            .fi-mob-filter-btn { display:none !important; }
+            .fi-mob-hide { display:none !important; }
+            .fi-mob-chips { display:flex !important; }
+
+            /* Suchfeld full-width */
+            .fi-bar { padding:8px 12px; }
+            .fi-bar-right { flex:1; }
+            .fi-mob-search { width:100% !important; }
 
             /* Tabellen-Header ausblenden */
             .fi-hdr { display:none !important; }
 
             /* Row → Card */
-            .fi-row {
-              flex-wrap:wrap;
-              padding:12px 14px;
-              gap:4px;
-              align-items:flex-start;
-              border-bottom:1px solid #f0f2f5;
-            }
+            .fi-row { flex-wrap:wrap; padding:11px 14px; gap:3px; align-items:flex-start; border-bottom:1px solid #f0f2f5; }
             .fi-col-sig  { width:auto; margin-top:3px; }
             .fi-col-name { flex:1; min-width:0; padding-right:8px; }
             .fi-col-seg  { width:auto; order:3; padding-right:0; }
@@ -2779,6 +2804,7 @@
             .fi-col-next { display:flex !important; flex-basis:100%; order:5; padding:4px 0 0 22px; font-size:12px; }
             .fi-col-lk   { display:flex !important; flex-basis:100%; order:6; padding:0 0 0 22px; font-size:11px; color:#9ca3af; width:auto; text-align:left; }
             .fi-row-title { font-size:14px; }
+            .fi-group-hd  { padding:5px 14px 4px; }
           }
         </style>
 
@@ -2830,13 +2856,21 @@
             <!-- MAIN -->
             <div class="fi-main">
               <div class="fi-bar">
-                <span class="fi-bar-title">Firmen</span>
-                <span class="fi-bar-count">${list.length}</span>
+                <span class="fi-bar-title fi-mob-hide">Firmen</span>
+                <span class="fi-bar-count fi-mob-hide">${list.length}</span>
                 <div class="fi-bar-right">
-                  <input type="search" class="fi-mob-search" placeholder="Suche…" value="${h.esc(f.search || "")}"
+                  <input type="search" class="fi-mob-search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search || "")}"
                     data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)">
-                  <button class="tm-btn tm-btn-sm fi-mob-filter-btn${hasFilter ? " tm-btn-primary" : ""}" data-action="fi-mob-filter">⚙</button>
                 </div>
+              </div>
+
+              <!-- Mobile Klassifizierungs-Chips -->
+              <div class="fi-mob-chips">
+                ${["A-Kunde","B-Kunde","C-Kunde","Akquisition"].map(kl => {
+                  const active = f.klassifizierung === kl;
+                  return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
+                }).join("")}
+                ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
               </div>
 
               <div class="fi-list">
