@@ -5296,6 +5296,8 @@
         await Promise.allSettled(abrechnungen.map(a => api.deleteItem(CONFIG.lists.abrechnungen, a.id)));
         await api.deleteItem(CONFIG.lists.projekte, id);
         ui.setMsg(`Projekt "${p.title}" und alle abhängigen Einträge gelöscht.`, "success");
+        state.selection.projektId = null;
+        state.filters.route = "projekte";
         await api.loadAll();
         ctrl.navigate("projekte");
       } catch (e) {
