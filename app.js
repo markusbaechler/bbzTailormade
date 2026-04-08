@@ -1687,7 +1687,7 @@
           .ei-row-cancelled .ei-c1 { text-decoration:line-through; }
 
           /* Spalten-Breiten */
-          .ei-td-date   { width:96px; min-width:96px; color:#8896a5; font-size:13px; }
+          .ei-td-date   { width:1%; white-space:nowrap; color:#8896a5; font-size:13px; }
           .ei-td-desc   { width:22%; }
           .ei-td-proj   { width:28%; }
           .ei-td-person { width:18%; }
