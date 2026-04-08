@@ -249,26 +249,31 @@
       const sel = items.find(i => String(i.id) === sid);
       return `<div class="tm-typeahead" data-name="${h.esc(name)}">
         <input type="hidden" name="${h.esc(name)}" value="${h.esc(sid)}" class="tm-ta-val">
-        <input type="text" class="tm-ta-input" placeholder="${h.esc(placeholder)}"
+        <input type="text" class="tm-typeahead-input" placeholder="${h.esc(placeholder)}"
           value="${h.esc(sel?.label||"")}" autocomplete="off"
-          oninput="h.taFilter(this)" onfocus="h.taOpen(this)"
+          oninput="h.taFilter(this)" onfocus="this.select();h.taOpen(this)"
           onblur="setTimeout(()=>h.taClose(this),200)">
-        <div class="tm-ta-dd" style="display:none">
-          ${items.map(i=>`<div class="tm-ta-item" data-id="${h.esc(i.id)}"
+        <div class="tm-typeahead-dropdown" style="display:none">
+          ${items.map(i=>`<div class="tm-typeahead-item" data-id="${h.esc(i.id)}"
             onmousedown="event.preventDefault();h.taSelect(this)">${h.esc(i.label)}</div>`).join("")}
         </div>
       </div>`;
     },
-    taOpen(inp) { h.taFilter(inp); inp.closest(".tm-typeahead").querySelector(".tm-ta-dd").style.display="block"; },
+    taOpen(inp) {
+      const dd = inp.closest(".tm-typeahead").querySelector(".tm-typeahead-dropdown");
+      // Alle Items anzeigen (nicht filtern beim Öffnen) — ermöglicht einfaches Austauschen
+      dd.querySelectorAll(".tm-typeahead-item").forEach(it => it.style.display = "block");
+      dd.style.display = "block";
+    },
     taClose(inp) {
       const w = inp.closest(".tm-typeahead");
-      w.querySelector(".tm-ta-dd").style.display="none";
+      w.querySelector(".tm-typeahead-dropdown").style.display="none";
       if (!w.querySelector(".tm-ta-val").value) inp.value="";
     },
     taFilter(inp) {
-      const dd = inp.closest(".tm-typeahead").querySelector(".tm-ta-dd");
+      const dd = inp.closest(".tm-typeahead").querySelector(".tm-typeahead-dropdown");
       const q = inp.value.toLowerCase(); let vis = 0;
-      dd.querySelectorAll(".tm-ta-item").forEach(it => {
+      dd.querySelectorAll(".tm-typeahead-item").forEach(it => {
         const m = it.textContent.toLowerCase().includes(q);
         it.style.display = m ? "block" : "none";
         if (m) vis++;
@@ -277,9 +282,9 @@
     },
     taSelect(item) {
       const w = item.closest(".tm-typeahead");
-      w.querySelector(".tm-ta-val").value   = item.dataset.id;
-      w.querySelector(".tm-ta-input").value = item.textContent.trim();
-      w.querySelector(".tm-ta-dd").style.display = "none";
+      w.querySelector(".tm-ta-val").value           = item.dataset.id;
+      w.querySelector(".tm-typeahead-input").value  = item.textContent.trim();
+      w.querySelector(".tm-typeahead-dropdown").style.display = "none";
       const name = w.dataset.name;
       if (name === "ansprechpartnerLookupId") ctrl.onApSelected(item.dataset.id);
       // Lead Pill aktualisieren
@@ -449,7 +454,8 @@
       ansatzAdmin:             h.num(raw.AnsatzAdmin),
       ansatzKmSpesen:          h.num(raw.AnsatzKmSpesen),
       spesenKontoNr:           raw.SpesenKontoNr || "",
-      konzeptionsrahmenTage:   h.num(raw.KonzeptionsrahmenTage)
+      konzeptionsrahmenTage:   h.num(raw.KonzeptionsrahmenTage),
+      bemerkungen:             raw.Bemerkungen || ""
     };
     p.firmaName       = h.firmName(p.firmaLookupId);
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
@@ -1244,6 +1250,11 @@
               .map(([l,v])=>`<div class="pd-stam-row"><span class="pd-stam-key">${l}</span><span class="pd-stam-val">CHF ${h.chf(v)}</span></div>`).join("")
               || `<div class="pd-stam-row"><span class="pd-stam-key">Keine Ansätze</span><span class="pd-stam-val">—</span></div>`}
           </div>
+          ${p.bemerkungen ? `
+          <div class="pd-stam-card pd-stam-full">
+            <div class="pd-stam-title">Bemerkungen</div>
+            <div style="font-size:13px;color:#4a5568;white-space:pre-wrap;line-height:1.55">${h.esc(p.bemerkungen)}</div>
+          </div>` : ""}
         </div>`;
 
       // ── Detail-Panel ───────────────────────────────────────────────────────
@@ -1483,7 +1494,7 @@
           <!-- DETAIL PANEL -->
           <div class="pd-detail">
             <div class="pd-dp-head">
-              <div class="pd-dp-label">Detail</div>
+              <div class="pd-dp-label">Bemerkungen</div>
             </div>
             <div class="pd-dp-scroll">
               ${detailPanel()}
@@ -1994,7 +2005,7 @@
 
             <!-- DETAIL -->
             <div class="kz-detail">
-              <div class="kz-dp-head"><div class="kz-dp-label">Detail</div></div>
+              <div class="kz-dp-head"><div class="kz-dp-label">Bemerkungen</div></div>
               <div class="kz-dp-scroll">${detailHtml()}</div>
             </div>
 
@@ -3696,7 +3707,7 @@
         .pf-hd-t{color:#fff;font-size:14px;font-weight:700}
         .pf-hd-s{color:rgba(255,255,255,.55);font-size:12px;margin-top:1px}
         .pf-cl{width:28px;height:28px;background:rgba(255,255,255,.1);border:none;border-radius:7px;color:rgba(255,255,255,.8);font-size:14px;cursor:pointer;font-family:inherit}
-        .pf-bd{overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:20px}
+        .pf-bd{overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:20px;flex:1;min-height:0}
         @media(min-width:860px){
           .pf-bd{display:grid;grid-template-columns:1fr 1fr;column-gap:28px;align-items:start}
           .pf-full{grid-column:1/-1}
@@ -3710,6 +3721,11 @@
         .pf-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
         .pf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,64,120,.25)}
         .pf-btn-s:hover{background:#0a5a9e}
+        /* Typeahead im Projekt-Formular */
+        #projekt-form .tm-typeahead-input{width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;-webkit-appearance:none}
+        #projekt-form .tm-typeahead-input:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
+        #projekt-form .tm-typeahead-dropdown{border:1.5px solid #dde4ec;border-radius:8px;box-shadow:0 4px 16px rgba(0,64,120,.12);max-height:200px;overflow-y:auto;z-index:400}
+        #projekt-form .tm-typeahead-item{padding:8px 11px;font-size:13px;font-weight:500}
       </style>
       <div class="pf-m">
         <div class="pf-hd">
@@ -3755,6 +3771,10 @@
                   style="width:15px;height:15px;accent-color:#004078;cursor:pointer">
                 <span style="font-size:13px;font-weight:500;color:#4a5568">Archiviert</span>
               </label>
+              ${field("Bemerkungen",
+                `<textarea class="pf-inp" name="bemerkungen" rows="3"
+                  placeholder="Interne Notizen, Vereinbarungen…"
+                  style="resize:vertical;min-height:70px;line-height:1.5">${h.esc(cv("bemerkungen"))}</textarea>`)}
             `)}
           </div>
 
@@ -3790,16 +3810,16 @@
             `)}
 
             ${sec("Konzeptionsrahmen", `
-              <div class="pf-g2" style="align-items:end">
-                ${field("Vereinbarte Tage",
-                  `<input class="pf-inp" type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
-                    placeholder="z.B. 10" min="0" step="0.5"
-                    oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">`,
-                  "× 8 = Stunden-Budget")}
-                <div style="padding:9px 12px;background:#e8f1f9;border-radius:8px;font-size:13px;color:#8896a5">
-                  = <span id="kh" style="font-weight:700;color:#004078;font-size:15px">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> h
-                </div>
-              </div>
+              ${field("Vereinbarte Tage",
+                `<div style="display:flex;align-items:center;gap:10px">
+                  <input class="pf-inp" type="number" name="konzeptionsrahmenTage" value="${cn("konzeptionsrahmenTage")}"
+                    placeholder="z.B. 10" min="0" step="0.5" style="max-width:120px"
+                    oninput="document.getElementById('kh').textContent=(parseFloat(this.value)||0)*8">
+                  <span style="font-size:12px;color:#8896a5;white-space:nowrap">
+                    = <span id="kh" style="font-weight:700;color:#004078;font-size:14px">${(cv("konzeptionsrahmenTage",0)||0)*8}</span> h
+                  </span>
+                </div>`,
+                "× 8 = Stunden-Budget")}
             `)}
 
           </div><!-- /rechte Spalte -->
@@ -3899,6 +3919,8 @@
         if (n("ansatzKmSpesen") != null) fields.AnsatzKmSpesen = n("ansatzKmSpesen");
         if (s("spesenKontoNr"))          fields.SpesenKontoNr = s("spesenKontoNr");
         if (n("konzeptionsrahmenTage") != null) fields.KonzeptionsrahmenTage = n("konzeptionsrahmenTage");
+        const bem = (fd.get("bemerkungen") || "").trim();
+        fields.Bemerkungen = bem || null;
 
         if (mode === "edit" && itemId) {
           const eid = Number(itemId);
@@ -4362,7 +4384,7 @@
       if (!ta || !pill) return;
       pill.style.display = "none";
       ta.style.display = "block";
-      ta.querySelector(".tm-ta-input")?.focus();
+      ta.querySelector(".tm-typeahead-input")?.focus();
     },
 
     efToggleCo(show) {
@@ -5488,7 +5510,7 @@
       if (!ta || !pill) return;
       pill.style.display = "none";
       ta.style.display = "block";
-      ta.querySelector(".tm-ta-input")?.focus();
+      ta.querySelector(".tm-typeahead-input")?.focus();
     },
 
     kfToggleOverride() {
