@@ -3193,12 +3193,6 @@
       ctrl.render();
     },
 
-    openProjekt(id) {
-      state.selection.projektId = id;
-      state.filters.route = "projekt-detail";
-      ctrl.render();
-    },
-
     async refresh() {
       ui.setMsg("Aktualisiere…", "info");
       await api.loadAll();
@@ -4192,10 +4186,12 @@
         .pf-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
         .pf-g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
         @media(max-width:500px){.pf-g2,.pf-g3{grid-template-columns:1fr}}
-        .pf-ft{padding:12px 20px 14px;border-top:1px solid #dde4ec;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0}
+        .pf-ft{padding:12px 20px 14px;border-top:1px solid #dde4ec;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-shrink:0}
         .pf-btn-c{padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
         .pf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,64,120,.25)}
         .pf-btn-s:hover{background:#0a5a9e}
+        .pf-btn-del{padding:7px 14px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#950e13;cursor:pointer}
+        .pf-btn-del:hover{background:#fff0f0;border-color:#950e13}
         /* Typeahead im Projekt-Formular */
         #projekt-form .tm-typeahead-input{width:100%;padding:8px 11px;font-family:inherit;font-size:13px;font-weight:500;color:#1a2332;background:#f4f7fb;border:1.5px solid #dde4ec;border-radius:8px;outline:none;-webkit-appearance:none}
         #projekt-form .tm-typeahead-input:focus{border-color:#0a5a9e;background:#fff;box-shadow:0 0 0 3px rgba(10,90,158,.1)}
@@ -4302,6 +4298,9 @@
         </form>
 
         <div class="pf-ft">
+          <div style="flex:1">
+            ${p ? `<button type="button" class="pf-btn-del" data-action="delete-projekt" data-id="${p.id}">🗑 Löschen</button>` : ""}
+          </div>
           <button type="button" class="pf-btn-c" onclick="${closeAction}">Abbrechen</button>
           <button type="button" class="pf-btn-s" onclick="document.getElementById('projekt-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
             ${p ? "Änderungen speichern" : "Projekt erstellen"}
@@ -5240,28 +5239,62 @@
       }
     },
 
-    async deleteProjekt(id) {
+    deleteProjekt(id) {
       const p = state.enriched.projekte.find(p => p.id === id);
       if (!p) return;
       const einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === id);
       const konzeption   = state.enriched.konzeption.filter(k => k.projektLookupId === id);
       const abrechnungen = state.enriched.abrechnungen.filter(a => a.projektLookupId === id);
-      const total = einsaetze.length + konzeption.length + abrechnungen.length;
 
-      const msg = total > 0
-        ? `Projekt "${p.title}" löschen?\n\nFolgende Einträge werden ebenfalls gelöscht:\n• ${einsaetze.length} Einsätze\n• ${konzeption.length} Konzeptionsaufwände\n• ${abrechnungen.length} Abrechnungen\n\nDiese Aktion kann nicht rückgängig gemacht werden.`
-        : `Projekt "${p.title}" wirklich löschen?`;
-      if (!confirm(msg)) return;
+      const rows = [
+        einsaetze.length    ? `<tr><td>Einsätze</td><td>${einsaetze.length}</td></tr>` : "",
+        konzeption.length   ? `<tr><td>Konzeptionsaufwände</td><td>${konzeption.length}</td></tr>` : "",
+        abrechnungen.length ? `<tr><td>Abrechnungen</td><td>${abrechnungen.length}</td></tr>` : ""
+      ].filter(Boolean).join("");
 
+      ui.renderModal(`
+        <div style="background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.2);width:100%;max-width:440px;display:flex;flex-direction:column;overflow:hidden">
+          <div style="background:#950e13;padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:#fff">Projekt löschen</div>
+              <div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:2px">#${h.esc(p.projektNr||String(p.id))} · ${h.esc(p.firmaName||"")}</div>
+            </div>
+            <button data-close-modal style="background:rgba(255,255,255,.15);border:none;border-radius:8px;width:30px;height:30px;cursor:pointer;color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center">×</button>
+          </div>
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+            <div style="font-size:14px;font-weight:600;color:#1a2332">${h.esc(p.title)}</div>
+            ${rows ? `
+              <div style="background:#fff8f8;border:1px solid #fcd0d0;border-radius:10px;padding:12px 16px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#950e13;margin-bottom:8px">Wird ebenfalls gelöscht</div>
+                <table style="width:100%;font-size:13px;border-collapse:collapse">
+                  ${rows}
+                </table>
+              </div>` : ""}
+            <div style="font-size:13px;color:#5a6a7a;background:#f8f9fb;border-radius:8px;padding:10px 14px">
+              ⚠️ Diese Aktion kann nicht rückgängig gemacht werden.
+            </div>
+          </div>
+          <div style="padding:12px 20px 16px;border-top:1px solid #eef1f5;display:flex;justify-content:flex-end;gap:8px">
+            <button data-close-modal style="padding:8px 18px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer">Abbrechen</button>
+            <button onclick="ctrl._deleteProjektConfirmed(${id})" style="padding:8px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#950e13;border:none;color:#fff;cursor:pointer">Endgültig löschen</button>
+          </div>
+        </div>`);
+    },
+
+    async _deleteProjektConfirmed(id) {
+      const p = state.enriched.projekte.find(p => p.id === id);
+      if (!p) return;
+      const einsaetze    = state.enriched.einsaetze.filter(e => e.projektLookupId === id);
+      const konzeption   = state.enriched.konzeption.filter(k => k.projektLookupId === id);
+      const abrechnungen = state.enriched.abrechnungen.filter(a => a.projektLookupId === id);
+
+      ui.closeModal();
       try {
         ui.setMsg("Projekt wird gelöscht…", "info");
-
-        // Kaskadierend löschen: erst Abhängige, dann Projekt
         await Promise.allSettled(einsaetze.map(e => api.deleteItem(CONFIG.lists.einsaetze, e.id)));
         await Promise.allSettled(konzeption.map(k => api.deleteItem(CONFIG.lists.konzeption, k.id)));
         await Promise.allSettled(abrechnungen.map(a => api.deleteItem(CONFIG.lists.abrechnungen, a.id)));
         await api.deleteItem(CONFIG.lists.projekte, id);
-
         ui.setMsg(`Projekt "${p.title}" und alle abhängigen Einträge gelöscht.`, "success");
         await api.loadAll();
         ctrl.navigate("projekte");
