@@ -2470,163 +2470,283 @@
       window.aeUpdateTotal();
     },
 
-
     firmen() {
       const f   = state.filters.firmen;
       const all = [...state.data.firms];
       const selId = state.ui.selectedFirmaId;
 
-      // ── Filter-Optionen ────────────────────────────────────────────────────
-      const klassifizierungen = [...new Set(all.map(fi=>fi.klassifizierung).filter(Boolean))].sort();
-      const hatProjekt = fi => state.enriched.projekte.some(p=>p.firmaLookupId===fi.id&&!p.archiviert);
+      // ── Hilfsfunktionen ────────────────────────────────────────────────────
+      const hatProjekt = fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && !p.archiviert);
+      const initials = fi => fi.title.split(/[\s-]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
-      const matchFirma = (fi,q) => {
+      const matchFirma = (fi, q) => {
         if (!q) return true;
-        if (h.inc(fi.title,q)||h.inc(fi.ort,q)||h.inc(fi.klassifizierung,q)) return true;
-        return state.data.contacts.some(c=>c.firmaLookupId===fi.id&&(h.inc([c.vorname,c.nachname].join(" "),q)||h.inc(c.funktion,q)));
+        if (h.inc(fi.title, q) || h.inc(fi.ort, q) || h.inc(fi.klassifizierung, q)) return true;
+        return state.data.contacts.some(c => c.firmaLookupId === fi.id &&
+          (h.inc([c.vorname, c.nachname].join(" "), q) || h.inc(c.funktion, q)));
+      };
+
+      // ── Signal-Logik: letzter Kontakt ──────────────────────────────────────
+      const lastContact = fi => {
+        const ids = new Set(state.data.contacts.filter(c => c.firmaLookupId === fi.id).map(c => c.id));
+        const hist = state.data.history.filter(h2 => ids.has(h2.kontaktId));
+        if (!hist.length) return null;
+        return hist.map(h2 => h.toDate(h2.datum)).reduce((a, b) => a > b ? a : b);
+      };
+      const daysSince = d => d ? Math.round((Date.now() - d) / 86400000) : 9999;
+      const fmtSince = d => {
+        if (!d) return "—";
+        const diff = daysSince(d);
+        if (diff === 0) return "Heute";
+        if (diff === 1) return "Gestern";
+        if (diff < 7)  return `vor ${diff} Tagen`;
+        if (diff < 30) return `vor ${Math.round(diff / 7)} Wo.`;
+        if (diff < 365) return `vor ${Math.round(diff / 30)} Mon.`;
+        return `vor ${Math.round(diff / 365)} J.`;
       };
 
       // ── Filter anwenden ────────────────────────────────────────────────────
       let list = [...all];
-      if (f.search)          list = list.filter(fi=>matchFirma(fi,f.search));
-      if (f.klassifizierung) list = list.filter(fi=>fi.klassifizierung===f.klassifizierung);
-      if (f.vip==="ja")      list = list.filter(fi=>fi.vip);
-      if (f.projektFilter==="aktiv")        list = list.filter(fi=>state.enriched.projekte.some(p=>p.firmaLookupId===fi.id&&p.status==="aktiv"));
-      else if (f.projektFilter==="abgeschlossen") list = list.filter(fi=>state.enriched.projekte.some(p=>p.firmaLookupId===fi.id&&p.status==="abgeschlossen"));
-      else if (!f.search && !f.showOhne)   list = list.filter(fi=>hatProjekt(fi));
+      if (f.search)          list = list.filter(fi => matchFirma(fi, f.search));
+      if (f.klassifizierung) list = list.filter(fi => fi.klassifizierung === f.klassifizierung);
+      if (f.vip === "ja")    list = list.filter(fi => fi.vip);
+      if (f.projektFilter === "aktiv")         list = list.filter(fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && p.status === "aktiv"));
+      else if (f.projektFilter === "abgeschlossen") list = list.filter(fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && p.status === "abgeschlossen"));
+      else if (!f.search && !f.showOhne)       list = list.filter(fi => hatProjekt(fi));
 
-      list.sort((a,b) => {
-        const pa=hatProjekt(a),pb=hatProjekt(b);
-        if(pa&&!pb) return -1; if(!pa&&pb) return 1;
-        return a.title.localeCompare(b.title,"de");
+      // Sortierung: A-Kunden → B-Kunden → Rest, alphabetisch
+      const klRank = k => k === "A-Kunde" ? 0 : k === "B-Kunde" ? 1 : k === "C-Kunde" ? 2 : 3;
+      list.sort((a, b) => {
+        const rA = klRank(a.klassifizierung), rB = klRank(b.klassifizierung);
+        if (rA !== rB) return rA - rB;
+        return a.title.localeCompare(b.title, "de");
       });
 
-      const hasFilter = f.search||f.klassifizierung||f.vip||f.showOhne;
-      const mitProjekt  = all.filter(fi=>hatProjekt(fi)).length;
-      const ohneProjekt = all.filter(fi=>!hatProjekt(fi)).length;
-      const sb = state.ui.sbOpen;
+      const klassifizierungen = [...new Set(all.map(fi => fi.klassifizierung).filter(Boolean))].sort();
+      const hasFilter = f.search || f.klassifizierung || f.vip || f.showOhne || f.projektFilter;
+      const mitProjekt  = all.filter(fi => hatProjekt(fi)).length;
+      const ohneProjekt = all.filter(fi => !hatProjekt(fi)).length;
 
-      // ── Sidebar-Sektion ────────────────────────────────────────────────────
-      const sbSec = (key, label, items) => {
-        const isOpen = sb["fi_"+key] !== false;
-        const isActive = !!f[key];
-        return `<div class="fi-sb-sec">
-          <div class="fi-sb-sec-hdr" data-action="fi-toggle-sec" data-sec="fi_${key}">
-            <span class="fi-sb-label">${label}</span>
-            ${isActive?`<span class="fi-sb-count">1</span>`:""}
-            <span class="fi-sb-toggle${isOpen?" open":""}">▶</span>
-          </div>
-          ${isOpen?`<div class="fi-sb-body">${items.map(([val,lbl])=>`
-            <div class="fi-sb-chip${f[key]===val?" active":""}" data-action="fi-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
-          `).join("")}</div>`:""}
-        </div>`;
+      // ── Kachelfarbe nach Klassifizierung ───────────────────────────────────
+      const klColor = k => k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#004078" : k === "C-Kunde" ? "#6b7280" : "#8896a5";
+      const klBg    = k => k === "A-Kunde" ? "#e6f5ed" : k === "B-Kunde" ? "#e6f1fb" : k === "C-Kunde" ? "#f3f4f6" : "#f5f7fa";
+
+      // ── Signal-Dot ─────────────────────────────────────────────────────────
+      const signalDot = fi => {
+        if (!hatProjekt(fi)) return "";
+        const lc = lastContact(fi);
+        const d = daysSince(lc);
+        const col = d <= 30 ? "#1a6e40" : d <= 90 ? "#e59c2e" : "#950e13";
+        return `<div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0" title="${fmtSince(lc)}"></div>`;
+      };
+
+      // ── Firmen-Zeile (Tabelle) ─────────────────────────────────────────────
+      const fiRow = fi => {
+        const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
+        const aktiv    = projekte.filter(p => p.status === "aktiv").length;
+        const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
+        const ids = new Set(state.data.contacts.filter(c => c.firmaLookupId === fi.id).map(c => c.id));
+        const offTasks = state.data.tasks.filter(t => ids.has(t.kontaktId) && t.status !== "erledigt").length;
+        const naechster = state.enriched.einsaetze
+          .filter(e => { const p = state.enriched.projekte.find(p => p.id === e.projektLookupId); return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); })
+          .sort((a, b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
+        const lc = lastContact(fi);
+        const d  = daysSince(lc);
+        const dotCol = !hatProjekt(fi) ? "#dde3ea" : d <= 30 ? "#1a6e40" : d <= 90 ? "#e59c2e" : "#950e13";
+        const isSel = fi.id === selId;
+        const kl = fi.klassifizierung || "";
+
+        return `<tr class="fi-row${isSel ? " fi-row-sel" : ""}" data-action="fi-select" data-id="${fi.id}">
+          <td class="fi-td-sig"><div class="fi-signal" style="background:${dotCol}" title="${fmtSince(lc)}"></div></td>
+          <td class="fi-td-name">
+            <div class="fi-row-name">${h.esc(fi.title)}</div>
+            ${fi.ort ? `<div class="fi-row-sub">${h.esc(fi.ort)}</div>` : ""}
+          </td>
+          <td class="fi-td-kl">
+            ${kl ? `<span class="fi-kl-badge" style="background:${klBg(kl)};color:${klColor(kl)}">${h.esc(kl)}</span>` : ""}
+            ${fi.vip ? `<span class="fi-vip-badge">VIP</span>` : ""}
+          </td>
+          <td class="fi-td-num">${aktiv > 0 ? `<strong style="color:#1a6e40">${aktiv}</strong> / ${projekte.length}` : projekte.length > 0 ? `<span style="color:#8896a5">${projekte.length}</span>` : `<span style="color:#dde3ea">—</span>`}</td>
+          <td class="fi-td-num">${kontakte > 0 ? kontakte : `<span style="color:#dde3ea">—</span>`}</td>
+          <td class="fi-td-num">${offTasks > 0 ? `<strong style="color:#854F0B">${offTasks}</strong>` : `<span style="color:#dde3ea">—</span>`}</td>
+          <td class="fi-td-next">${naechster ? `<span class="fi-next-pill">${h.esc(naechster.datumFmt)}</span><span class="fi-next-lbl">${h.esc(naechster.title || naechster.kategorie)}</span>` : `<span style="color:#dde3ea;font-size:12px">—</span>`}</td>
+          <td class="fi-td-since" style="color:${dotCol}">${lc ? fmtSince(lc) : `<span style="color:#dde3ea">nie</span>`}</td>
+        </tr>`;
       };
 
       // ── Detail-Panel ───────────────────────────────────────────────────────
       const detailHtml = () => {
-        const fi = selId ? all.find(fi=>fi.id===selId) : null;
-        if (!fi) return `<div class="fi-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Firma auswählen</span></div>`;
-        const projekte = state.enriched.projekte.filter(p=>p.firmaLookupId===fi.id&&!p.archiviert);
-        const kontakte = state.data.contacts.filter(c=>c.firmaLookupId===fi.id&&!c.archiviert);
-        const aktiv    = projekte.filter(p=>p.status==="aktiv").length;
+        const fi = selId ? all.find(fi => fi.id === selId) : null;
+        if (!fi) return `<div class="fi-dp-empty"><div style="font-size:36px;opacity:0.12;margin-bottom:8px">🏢</div><span>Firma auswählen</span></div>`;
+
+        const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
+        const aktiv    = projekte.filter(p => p.status === "aktiv").length;
+        const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert);
+        const ids = new Set(kontakte.map(c => c.id));
+        const offTasks = state.data.tasks.filter(t => ids.has(t.kontaktId) && t.status !== "erledigt");
+        const naechster = state.enriched.einsaetze
+          .filter(e => { const p = state.enriched.projekte.find(p => p.id === e.projektLookupId); return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); })
+          .sort((a, b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
+        const lc  = lastContact(fi);
+        const d   = daysSince(lc);
+        const dotCol = !hatProjekt(fi) ? "#8896a5" : d <= 30 ? "#1a6e40" : d <= 90 ? "#e59c2e" : "#950e13";
+        const kl  = fi.klassifizierung || "";
+        const init2 = n => n.split(/[\s,]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+
         return `
-          <div class="fi-dp-title">${h.esc(fi.title)}</div>
-          <div class="fi-dp-sub">${[fi.klassifizierung,fi.ort].filter(Boolean).join(" · ")}</div>
-          ${fi.vip?`<div style="margin-bottom:8px"><span class="fi-badge-vip">VIP</span></div>`:""}
-          ${fi.website?`<div class="fi-dp-row"><span class="fi-dp-key">Website</span><span class="fi-dp-val"><a href="${h.esc(fi.website)}" target="_blank" style="color:#004078">${h.esc(fi.website.replace(/^https?:\/\//,""))}</a></span></div>`:""}
-          ${fi.telefon?`<div class="fi-dp-row"><span class="fi-dp-key">Telefon</span><span class="fi-dp-val">${h.esc(fi.telefon)}</span></div>`:""}
-          <div class="fi-dp-row"><span class="fi-dp-key">Projekte</span><span class="fi-dp-val">${projekte.length} total · ${aktiv} aktiv</span></div>
-          <div class="fi-dp-row"><span class="fi-dp-key">Kontakte</span><span class="fi-dp-val">${kontakte.length}</span></div>
-          ${kontakte.length?`<div style="margin-top:8px">${kontakte.slice(0,4).map(c=>`
-            <div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px">
-              <div style="width:24px;height:24px;border-radius:50%;background:#B5D4F4;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${((c.vorname||"")[0]||"").toUpperCase()}${((c.nachname||"")[0]||"").toUpperCase()}</div>
-              <div><div style="font-weight:600">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>${c.funktion?`<div style="color:#8896a5;font-size:11px">${h.esc(c.funktion)}</div>`:""}</div>
-            </div>`).join("")}
-          </div>`:""}
-          <div class="fi-dp-footer">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.openFirma(${fi.id})">Details öffnen</button>
+          <!-- Firmen-Header -->
+          <div style="padding:14px 14px 10px;border-bottom:1px solid #dde3ea">
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div style="width:38px;height:38px;border-radius:10px;background:${klBg(kl)||"#f5f7fa"};color:${klColor(kl)||"#8896a5"};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0">
+                ${h.esc(initials(fi))}
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:14px;font-weight:700;color:#1a2332;line-height:1.3">${h.esc(fi.title)}</div>
+                <div style="font-size:11px;color:#8896a5;margin-top:2px">${[fi.ort, kl].filter(Boolean).join(" · ")}</div>
+              </div>
+              ${fi.vip ? `<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000;white-space:nowrap">VIP</span>` : ""}
+            </div>
+
+            <!-- Mini-KPIs -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px">
+              <div style="text-align:center;background:#f5f7fa;border-radius:7px;padding:7px 4px">
+                <div style="font-size:16px;font-weight:700;color:${aktiv > 0 ? "#1a6e40" : "#004078"}">${aktiv || projekte.length}</div>
+                <div style="font-size:10px;color:#8896a5">${aktiv > 0 ? "aktiv" : "Proj."}</div>
+              </div>
+              <div style="text-align:center;background:#f5f7fa;border-radius:7px;padding:7px 4px">
+                <div style="font-size:16px;font-weight:700;color:#004078">${kontakte.length}</div>
+                <div style="font-size:10px;color:#8896a5">Kontakte</div>
+              </div>
+              <div style="text-align:center;background:#f5f7fa;border-radius:7px;padding:7px 4px">
+                <div style="font-size:16px;font-weight:700;color:${offTasks.length > 0 ? "#854F0B" : "#8896a5"}">${offTasks.length}</div>
+                <div style="font-size:10px;color:#8896a5">Tasks</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Letzter Kontakt + nächster Einsatz -->
+          <div style="padding:10px 14px;border-bottom:1px solid #dde3ea">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+              <div style="width:8px;height:8px;border-radius:50%;background:${dotCol};flex-shrink:0"></div>
+              <span style="font-size:11px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:.05em">Letzter Kontakt</span>
+              <span style="font-size:12px;font-weight:600;color:${dotCol};margin-left:auto">${fmtSince(lc)}</span>
+            </div>
+            ${naechster ? `
+            <div style="display:flex;align-items:center;gap:6px;background:#e6f5ed;border-radius:6px;padding:6px 8px;margin-top:4px">
+              <span style="font-size:11px;color:#1a6e40">▶</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:11px;font-weight:700;color:#1a6e40">${h.esc(naechster.datumFmt)}</div>
+                <div style="font-size:11px;color:#1a6e40;opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(naechster.title || naechster.kategorie)}</div>
+              </div>
+            </div>` : ""}
+          </div>
+
+          <!-- Kontakte -->
+          ${kontakte.length ? `
+          <div style="padding:10px 14px;border-bottom:1px solid #dde3ea">
+            <div style="font-size:10px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Kontakte</div>
+            ${kontakte.slice(0, 5).map(c => `
+              <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+                <div style="width:26px;height:26px;border-radius:50%;background:#B5D4F4;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${h.esc(init2([c.vorname,c.nachname].filter(Boolean).join(" ")))}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:600;color:#1a2332;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
+                  ${c.funktion ? `<div style="font-size:10px;color:#8896a5">${h.esc(c.funktion)}</div>` : ""}
+                </div>
+              </div>`).join("")}
+            ${kontakte.length > 5 ? `<div style="font-size:11px;color:#8896a5;margin-top:4px">+ ${kontakte.length - 5} weitere</div>` : ""}
+          </div>` : ""}
+
+          <!-- Offene Aufgaben -->
+          ${offTasks.length ? `
+          <div style="padding:10px 14px;border-bottom:1px solid #dde3ea">
+            <div style="font-size:10px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Offene Aufgaben</div>
+            ${offTasks.slice(0, 3).map(t => `
+              <div style="display:flex;align-items:flex-start;gap:7px;padding:4px 0;font-size:12px">
+                <div style="width:6px;height:6px;border-radius:50%;background:#854F0B;flex-shrink:0;margin-top:4px"></div>
+                <div>
+                  <div style="font-weight:600;color:#1a2332">${h.esc(t.title)}</div>
+                  ${t.deadline ? `<div style="color:#854F0B;font-size:10px">${h.esc(h.fmtDate(t.deadline))}</div>` : ""}
+                </div>
+              </div>`).join("")}
+          </div>` : ""}
+
+          <!-- Aktive Projekte -->
+          ${projekte.filter(p => p.status === "aktiv").length ? `
+          <div style="padding:10px 14px;border-bottom:1px solid #dde3ea">
+            <div style="font-size:10px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Aktive Projekte</div>
+            ${projekte.filter(p => p.status === "aktiv").map(p => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px;cursor:pointer;border-radius:5px" onclick="ctrl.openProjekt(${p.id})">
+                <span style="font-weight:600;color:#004078;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(p.title)}</span>
+                <span style="color:#8896a5;margin-left:8px;flex-shrink:0">CHF ${h.chf(p.totalBetrag)}</span>
+              </div>`).join("")}
+          </div>` : ""}
+
+          <!-- Footer -->
+          <div style="padding:12px 14px">
+            <button class="tm-btn tm-btn-sm tm-btn-primary" style="width:100%" onclick="ctrl.openFirma(${fi.id})">Firma öffnen →</button>
           </div>`;
       };
 
-      // ── Firmen-Karte ───────────────────────────────────────────────────────
-      const fiCard = fi => {
-        const projekte = state.enriched.projekte.filter(p=>p.firmaLookupId===fi.id&&!p.archiviert);
-        const aktiv    = projekte.filter(p=>p.status==="aktiv").length;
-        const kontakte = state.data.contacts.filter(c=>c.firmaLookupId===fi.id&&!c.archiviert).length;
-        const naechster = state.enriched.einsaetze
-          .filter(e=>{ const p=state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaLookupId===fi.id&&h.toDate(e.datum)>=h.todayStart()&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); })
-          .sort((a,b)=>h.toDate(a.datum)-h.toDate(b.datum))[0];
-        const isSel = fi.id===selId;
-        const hasPro = hatProjekt(fi);
-        return `<div class="fi-card${isSel?" fi-card-sel":""}${hasPro?" fi-has-proj":""}" data-action="fi-select" data-id="${fi.id}">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
-            <div class="fi-name">${h.esc(fi.title)}</div>
-            ${fi.vip?`<span class="fi-badge-vip">VIP</span>`:""}
-          </div>
-          <div class="fi-meta">
-            ${fi.klassifizierung?`<span class="fi-badge-kl">${h.esc(fi.klassifizierung)}</span>`:""}
-            ${fi.ort?`<span>${h.esc(fi.ort)}</span>`:""}
-          </div>
-          <div class="fi-stats">
-            ${hasPro?`<div class="fi-stat"><strong>${projekte.length}</strong>Proj.</div>`:""}
-            ${aktiv>0?`<div class="fi-stat"><strong style="color:#1a6e40">${aktiv}</strong>aktiv</div>`:""}
-            <div class="fi-stat"><strong>${kontakte}</strong>Ktk.</div>
-          </div>
-          ${naechster?`<div class="fi-next">▶ ${h.esc(naechster.datumFmt)} · ${h.esc(naechster.title||naechster.kategorie)}</div>`:""}
-        </div>`;
-      };
-
+      // ── Render ─────────────────────────────────────────────────────────────
       ui.render(`
         <style>
           .fi-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
           .fi-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
-          .fi-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .fi-sb-head { padding:10px 12px; }
-          .fi-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+
+          /* Sidebar */
+          .fi-sidebar { width:200px; min-width:200px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .fi-sb-head { padding:10px 12px 8px; border-bottom:1px solid #dde3ea; }
+          .fi-sb-head input { width:100%; padding:5px 9px; border:1.5px solid #dde3ea; border-radius:7px; font-size:12px; font-family:inherit; background:#f5f7fa; outline:none; }
           .fi-sb-head input:focus { border-color:#004078; background:#fff; }
-          .fi-sb-scroll { flex:1; overflow-y:auto; }
-          .fi-sb-sec { border-bottom:1px solid #dde3ea; }
-          .fi-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
-          .fi-sb-sec-hdr:hover { background:#f5f7fa; }
-          .fi-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
-          .fi-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; }
-          .fi-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; }
-          .fi-sb-toggle.open { transform:rotate(90deg); }
-          .fi-sb-body { padding:2px 8px 8px; }
-          .fi-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
-          .fi-sb-chip:hover { background:#f5f7fa; }
-          .fi-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
-          .fi-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
-          .fi-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
-          .fi-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
-          .fi-toolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
-          .fi-title { font-size:18px; font-weight:700; color:var(--tm-text); }
-          .fi-meta-txt { font-size:12px; color:#8896a5; }
-          .fi-cards { flex:1; overflow-y:auto; padding:10px 16px; display:grid; grid-template-columns:1fr; gap:8px; align-content:start; }
-          @media(min-width:1200px) { .fi-cards { grid-template-columns:1fr 1fr; } }
-          .fi-card { background:#fff; border-radius:8px; padding:10px 14px; border:1px solid rgba(0,0,0,0.09); cursor:pointer; transition:box-shadow .1s; border-left:2px solid transparent; }
-          .fi-card:hover { box-shadow:0 2px 8px rgba(0,64,120,.1); }
-          .fi-card-sel { border-color:#004078; box-shadow:inset 3px 0 0 #004078; }
-          .fi-has-proj { border-left-color:#004078; }
-          .fi-name { font-size:13px; font-weight:700; color:#1a2332; }
-          .fi-meta { font-size:12px; color:#8896a5; display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:3px; }
-          .fi-badge-vip { font-size:10px; font-weight:700; padding:2px 7px; border-radius:100px; background:#fff3cd; border:1px solid #e59c2e; color:#7a5000; white-space:nowrap; }
-          .fi-badge-kl { font-size:10px; font-weight:600; padding:2px 7px; border-radius:100px; background:#e8f1f9; border:1px solid #b8cde0; color:#004078; white-space:nowrap; }
-          .fi-stats { display:flex; gap:10px; margin-top:6px; }
-          .fi-stat { font-size:11px; color:#8896a5; }
-          .fi-stat strong { font-size:13px; font-weight:700; color:#004078; display:block; }
-          .fi-next { font-size:11px; color:#004078; font-weight:600; margin-top:6px; border-top:1px solid #f0f4f8; padding-top:5px; }
-          .fi-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .fi-sb-scroll { flex:1; overflow-y:auto; padding:6px 0; }
+          .fi-sb-section { padding:6px 12px 2px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#b0b8c4; }
+          .fi-sb-item { display:flex; align-items:center; gap:7px; padding:6px 12px; font-size:12px; font-weight:600; color:#4a5568; cursor:pointer; border-radius:0; border-left:2.5px solid transparent; transition:all .1s; }
+          .fi-sb-item:hover { background:#f5f7fa; color:#1a2332; }
+          .fi-sb-item.active { background:#e6f1fb; border-left-color:#004078; color:#004078; }
+          .fi-sb-item .fi-sb-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+          .fi-sb-item .fi-sb-count { font-size:10px; background:#e8ecf0; border-radius:8px; padding:1px 6px; color:#8896a5; margin-left:auto; }
+          .fi-sb-item.active .fi-sb-count { background:#004078; color:#fff; }
+          .fi-sb-divider { height:1px; background:#f0f2f5; margin:6px 12px; }
+          .fi-sb-footer { padding:8px 12px; border-top:1px solid #dde3ea; }
+          .fi-sb-reset { font-size:11px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
+
+          /* Main */
+          .fi-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#f5f7fb; }
+          .fi-toolbar { display:flex; align-items:center; justify-content:space-between; padding:10px 16px 8px; background:#fff; flex-shrink:0; border-bottom:1px solid #dde3ea; }
+          .fi-title { font-size:16px; font-weight:700; color:#1a2332; }
+          .fi-count { font-size:12px; color:#8896a5; font-weight:500; }
+
+          /* Tabelle */
+          .fi-tbl-wrap { flex:1; overflow-y:auto; }
+          .fi-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
+          .fi-tbl-hd th { position:sticky; top:0; z-index:2; padding:7px 10px; background:#fff; border-bottom:2px solid #dde3ea; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:.06em; text-align:left; white-space:nowrap; }
+          .fi-row { cursor:pointer; transition:background .1s; border-bottom:1px solid #f0f2f5; }
+          .fi-row:hover td { background:#f5f7fb; }
+          .fi-row-sel td { background:#e6f1fb !important; }
+          .fi-row td { padding:9px 10px; vertical-align:middle; }
+          .fi-td-sig { width:20px; padding-left:14px !important; }
+          .fi-signal { width:9px; height:9px; border-radius:50%; }
+          .fi-td-name { min-width:160px; }
+          .fi-row-name { font-weight:700; color:#1a2332; font-size:13px; }
+          .fi-row-sub { font-size:11px; color:#8896a5; margin-top:1px; }
+          .fi-td-kl { white-space:nowrap; }
+          .fi-kl-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:100px; margin-right:3px; }
+          .fi-vip-badge { font-size:10px; font-weight:700; padding:2px 6px; border-radius:100px; background:#fff3cd; border:1px solid #e59c2e; color:#7a5000; }
+          .fi-td-num { text-align:center; font-size:12px; font-weight:600; color:#4a5568; width:60px; }
+          .fi-td-next { font-size:12px; min-width:160px; }
+          .fi-next-pill { font-size:11px; font-weight:700; padding:2px 7px; background:#e6f5ed; border-radius:100px; color:#1a6e40; margin-right:6px; white-space:nowrap; }
+          .fi-next-lbl { color:#4a5568; font-size:12px; }
+          .fi-td-since { font-size:11px; font-weight:600; text-align:right; padding-right:14px !important; white-space:nowrap; }
+          .fi-tbl-group td { padding:5px 10px 4px; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:.07em; background:#f0f2f5; border-bottom:1px solid #e4e7eb; pointer-events:none; }
+
+          /* Detail */
+          .fi-detail { width:290px; min-width:290px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .fi-dp-head { display:flex; align-items:center; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
-          .fi-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
-          .fi-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
-          .fi-dp-title { font-size:15px; font-weight:700; color:var(--tm-text); margin-bottom:4px; }
-          .fi-dp-sub { font-size:12px; color:#8896a5; margin-bottom:10px; font-weight:600; }
-          .fi-dp-row { display:flex; justify-content:space-between; align-items:flex-start; padding:7px 0; border-bottom:1px solid #dde3ea; }
-          .fi-dp-key { font-size:12px; color:#8896a5; font-weight:600; }
-          .fi-dp-val { font-size:12px; color:var(--tm-text); text-align:right; font-weight:600; }
-          .fi-dp-footer { margin-top:14px; padding-top:12px; border-top:1px solid #dde3ea; }
-          .fi-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#8896a5; font-size:13px; gap:8px; font-weight:600; }
+          .fi-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:.06em; }
+          .fi-dp-scroll { flex:1; overflow-y:auto; }
+          .fi-dp-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#8896a5; font-size:12px; font-weight:600; gap:6px; }
+
+          /* Mobile */
           .fi-mob-filter-btn { display:none; }
           @media(max-width:899px) {
             .fi-sidebar { display:none !important; }
@@ -2634,58 +2754,105 @@
             .fi-shell.fi-mob-filter .fi-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
             .fi-shell.fi-mob-filter .fi-main    { display:none !important; }
             .fi-mob-filter-btn { display:flex !important; }
-            .fi-cards { grid-template-columns:1fr !important; }
+            .fi-td-next, .fi-td-since { display:none !important; }
           }
         </style>
+
         <div class="fi-wrap">
-          <div class="fi-shell${state.ui.fiMobFilter?" fi-mob-filter":""}">
+          <div class="fi-shell${state.ui.fiMobFilter ? " fi-mob-filter" : ""}">
 
             <!-- SIDEBAR -->
             <div class="fi-sidebar">
               <div class="fi-sb-head">
-                <button class="tm-btn tm-btn-sm fi-mob-filter-btn" data-action="fi-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Firmen</button>
-                <input type="search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search||"")}"
+                <input type="search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search || "")}"
                   data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)">
               </div>
               <div class="fi-sb-scroll">
-                ${hasFilter?`<div class="fi-sb-footer" style="border-bottom:1px solid #dde3ea;border-top:none"><button class="fi-sb-reset" data-action="fi-reset-filters">✕ Alle Filter löschen</button></div>`:""}
-                ${sbSec("klassifizierung","Klassifizierung",klassifizierungen.map(k=>[k,k]))}
-                ${sbSec("vip","VIP",[["ja","Nur VIP"]])}
-                <div class="fi-sb-sec">
-                  <div class="fi-sb-sec-hdr" style="cursor:default">
-                    <span class="fi-sb-label">Projekte</span>
-                  </div>
-                  <div class="fi-sb-body">
-                    <div class="fi-sb-chip${f.projektFilter==="aktiv"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="aktiv">Aktive Projekte</div>
-                    <div class="fi-sb-chip${f.projektFilter==="abgeschlossen"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="abgeschlossen">Abgeschlossene Projekte</div>
-                    <div class="fi-sb-chip${f.showOhne?" active":""}" data-action="fi-filter" data-fkey="showOhne" data-fval="${f.showOhne?"":"ja"}">Alle Kunden (inkl. ohne)</div>
-                  </div>
+                <div class="fi-sb-section" style="margin-top:6px">Klassifizierung</div>
+                ${klassifizierungen.map(kl => {
+                  const n = list.filter(fi => fi.klassifizierung === kl).length;
+                  return `<div class="fi-sb-item${f.klassifizierung === kl ? " active" : ""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">
+                    <div class="fi-sb-dot" style="background:${klColor(kl)}"></div>
+                    ${h.esc(kl)}
+                    <span class="fi-sb-count">${n}</span>
+                  </div>`;
+                }).join("")}
+                <div class="fi-sb-divider"></div>
+                <div class="fi-sb-section">Selektion</div>
+                <div class="fi-sb-item${f.vip === "ja" ? " active" : ""}" data-action="fi-filter" data-fkey="vip" data-fval="ja">
+                  <span style="font-size:11px">⭐</span> Nur VIP
+                </div>
+                <div class="fi-sb-divider"></div>
+                <div class="fi-sb-section">Projekte</div>
+                <div class="fi-sb-item${f.projektFilter === "aktiv" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="aktiv">
+                  <div class="fi-sb-dot" style="background:#1a6e40"></div>Aktive Projekte
+                </div>
+                <div class="fi-sb-item${f.projektFilter === "abgeschlossen" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="abgeschlossen">
+                  <div class="fi-sb-dot" style="background:#8896a5"></div>Abgeschlossen
+                </div>
+                <div class="fi-sb-item${f.showOhne ? " active" : ""}" data-action="fi-filter" data-fkey="showOhne" data-fval="${f.showOhne ? "" : "ja"}">
+                  <div class="fi-sb-dot" style="background:#dde3ea"></div>Ohne Projekte
                 </div>
               </div>
-              ${hasFilter?"":`<div class="fi-sb-footer"><span style="font-size:11px;color:#8896a5">${mitProjekt} mit · ${ohneProjekt} ohne Projekte</span></div>`}
+              <div class="fi-sb-footer">
+                ${hasFilter
+                  ? `<button class="fi-sb-reset" data-action="fi-reset-filters">✕ Filter löschen</button>`
+                  : `<span style="font-size:11px;color:#b0b8c4">${mitProjekt} mit · ${ohneProjekt} ohne</span>`}
+              </div>
             </div>
 
-            <!-- MAIN -->
+            <!-- MAIN: Tabelle -->
             <div class="fi-main">
               <div class="fi-toolbar">
-                <div style="flex:1;min-width:0">
+                <div>
                   <div class="fi-title">Firmen</div>
-                  <div class="fi-meta-txt">${list.length} ${f.showOhne||f.search?"Firmen":"mit Projekten"}</div>
+                  <div class="fi-count">${list.length} ${f.showOhne || f.search ? "Firmen" : "mit Projekten"}</div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
-                  <input type="search" class="fi-mob-search" placeholder="Suche…" value="${h.esc(f.search||"")}"
+                  <input type="search" class="fi-mob-search" placeholder="Suche…" value="${h.esc(f.search || "")}"
                     data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)">
-                  <button class="tm-btn tm-btn-sm fi-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="fi-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <button class="tm-btn tm-btn-sm fi-mob-filter-btn${hasFilter ? " tm-btn-primary" : ""}" data-action="fi-mob-filter">⚙${hasFilter ? " ●" : ""}</button>
                 </div>
               </div>
-              <div class="fi-cards">
-                ${list.length ? list.map(fiCard).join("") : `<div style="text-align:center;padding:32px;color:#8896a5;font-size:13px;font-weight:600">Keine Firmen gefunden.</div>`}
+
+              <div class="fi-tbl-wrap">
+                ${list.length ? `
+                <table class="fi-tbl">
+                  <thead class="fi-tbl-hd">
+                    <tr>
+                      <th style="width:20px"></th>
+                      <th>Firma</th>
+                      <th>Segment</th>
+                      <th style="text-align:center">Proj.</th>
+                      <th style="text-align:center">Kont.</th>
+                      <th style="text-align:center">Tasks</th>
+                      <th>Nächster Einsatz</th>
+                      <th style="text-align:right;padding-right:14px">Letzter Kontakt</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${(() => {
+                      // Gruppiert nach Klassifizierung
+                      const groups = [];
+                      const seen = new Set();
+                      list.forEach(fi => {
+                        const kl = fi.klassifizierung || "Weitere";
+                        if (!seen.has(kl)) { groups.push({ kl, items: [] }); seen.add(kl); }
+                        groups[groups.length - 1].items.push(fi);
+                      });
+                      return groups.map(g => `
+                        <tr class="fi-tbl-group"><td colspan="8">${h.esc(g.kl)} (${g.items.length})</td></tr>
+                        ${g.items.map(fiRow).join("")}
+                      `).join("");
+                    })()}
+                  </tbody>
+                </table>` : `<div style="text-align:center;padding:40px;color:#8896a5;font-size:13px;font-weight:600">Keine Firmen gefunden.</div>`}
               </div>
             </div>
 
             <!-- DETAIL -->
             <div class="fi-detail">
-              <div class="fi-dp-head"><div class="fi-dp-label">Detail</div></div>
+              <div class="fi-dp-head"><div class="fi-dp-label">Details</div></div>
               <div class="fi-dp-scroll">${detailHtml()}</div>
             </div>
 
@@ -2699,226 +2866,288 @@
       const fi = state.data.firms.find(fi => fi.id === id);
       if (!fi) { views.firmen(); return; }
 
-      // ── Daten zusammenstellen ──────────────────────────────────────────────
       const kontakte   = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert);
       const kontaktIds = new Set(kontakte.map(c => c.id));
       const projekte   = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id);
       const aktivProj  = projekte.filter(p => p.status === "aktiv");
       const abgProj    = projekte.filter(p => p.status === "abgeschlossen");
       const history    = state.data.history.filter(h2 => kontaktIds.has(h2.kontaktId))
-                          .sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
+                          .sort((a, b) => h.toDate(b.datum) - h.toDate(a.datum));
       const tasks      = state.data.tasks.filter(t => kontaktIds.has(t.kontaktId));
-      const offeneTasks= tasks.filter(t => t.status !== "erledigt");
-      const naechsteDeadline = offeneTasks
-        .filter(t => t.deadline)
-        .sort((a,b) => h.toDate(a.deadline) - h.toDate(b.deadline))[0];
+      const offeneTasks = tasks.filter(t => t.status !== "erledigt");
+      const naechsteDeadline = offeneTasks.filter(t => t.deadline)
+        .sort((a, b) => h.toDate(a.deadline) - h.toDate(b.deadline))[0];
 
-      // ── Umsatz ────────────────────────────────────────────────────────────
       const thisYear  = new Date().getFullYear();
       const einsaetze = state.enriched.einsaetze.filter(e => {
         const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
         return p?.firmaLookupId === fi.id && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
       });
-      const umsatzJahr  = einsaetze.filter(e => e.datum && new Date(e.datum).getFullYear() === thisYear)
-                            .reduce((s,e) => s+(e.anzeigeBetrag||0), 0);
-      const umsatzGesamt= einsaetze.reduce((s,e) => s+(e.anzeigeBetrag||0), 0);
+      const umsatzJahr   = einsaetze.filter(e => e.datum && new Date(e.datum).getFullYear() === thisYear)
+                             .reduce((s, e) => s + (e.anzeigeBetrag || 0), 0);
+      const umsatzGesamt = einsaetze.reduce((s, e) => s + (e.anzeigeBetrag || 0), 0);
 
-      // ── Hilfsfunktionen ───────────────────────────────────────────────────
-      const initials = c => ((c.vorname||"")[0]||"").toUpperCase() + ((c.nachname||"")[0]||"").toUpperCase();
-      const avatar   = (init, bg="#B5D4F4", tx="#0C447C") =>
-        `<div style="width:28px;height:28px;border-radius:50%;background:${bg};color:${tx};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${init}</div>`;
+      const naechsterEinsatz = state.enriched.einsaetze
+        .filter(e => { const p = state.enriched.projekte.find(p => p.id === e.projektLookupId); return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); })
+        .sort((a, b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
+
+      const initials = c => ((c.vorname || "")[0] || "").toUpperCase() + ((c.nachname || "")[0] || "").toUpperCase();
+      const avatar   = (init, size=32, bg="#B5D4F4", tx="#0C447C") =>
+        `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};color:${tx};display:flex;align-items:center;justify-content:center;font-size:${Math.round(size*0.33)}px;font-weight:700;flex-shrink:0">${init}</div>`;
       const fmtRel = d => {
         if (!d) return "—";
         const diff = Math.round((Date.now() - h.toDate(d)) / 86400000);
         if (diff === 0) return "Heute";
         if (diff === 1) return "Gestern";
         if (diff < 7)  return `vor ${diff} Tagen`;
-        if (diff < 30) return `vor ${Math.round(diff/7)} Wo.`;
-        if (diff < 365)return `vor ${Math.round(diff/30)} Mon.`;
-        return `vor ${Math.round(diff/365)} J.`;
+        if (diff < 30) return `vor ${Math.round(diff / 7)} Wo.`;
+        if (diff < 365) return `vor ${Math.round(diff / 30)} Mon.`;
+        return `vor ${Math.round(diff / 365)} J.`;
       };
-      const crmUrl = `https://markusbaechler.github.io/crm-spa/#firma-${fi.id}`;
 
-      // ── CRM-Link Badge ─────────────────────────────────────────────────────
-      const crmBadge = `<a href="${crmUrl}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ CRM bearbeiten</a>`;
+      const kl = fi.klassifizierung || "";
+      const klColor = k => k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#004078" : k === "C-Kunde" ? "#6b7280" : "#8896a5";
+      const klBg    = k => k === "A-Kunde" ? "#e6f5ed" : k === "B-Kunde" ? "#e6f1fb" : k === "C-Kunde" ? "#f3f4f6" : "#f5f7fa";
+
+      // Kontakt-Suche State
+      const showAllContacts = state.ui.fdShowAllContacts === fi.id;
 
       ui.render(`
         <style>
-          .fd-back{font-size:13px;color:#004078;font-weight:600;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
-          .fd-back:hover{text-decoration:underline}
-          .fd-header{background:#e8ecf0;padding:14px 20px 12px;border-bottom:1px solid rgba(0,0,0,0.09)}
-          .fd-title{font-size:22px;font-weight:700;color:#1a2332}
-          .fd-subtitle{font-size:13px;color:#8896a5;margin-top:3px}
-          .fd-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px;background:#e8ecf0;border-bottom:1px solid rgba(0,0,0,0.09)}
-          @media(max-width:899px){.fd-kpis{grid-template-columns:1fr 1fr}}.fd-body-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:899px){.fd-body-grid{grid-template-columns:1fr}}
-          .fd-kpi{background:#fff;border-radius:8px;padding:10px 14px;border:1px solid rgba(0,0,0,0.09)}
-          .fd-kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8896a5;margin-bottom:4px}
-          .fd-kpi-val{font-size:18px;font-weight:700;color:#1a2332;line-height:1.2}
-          .fd-kpi-sub{font-size:11px;color:#8896a5;margin-top:2px}
-          .fd-body{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px;max-width:100%}
-          @media(max-width:899px){.fd-body{grid-template-columns:1fr}}
-          .fd-card{background:#fff;border-radius:8px;border:1px solid rgba(0,0,0,0.09);overflow:hidden}
-          .fd-card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid #dde3ea}
-          .fd-card-title{font-size:12px;font-weight:700;color:#1a2332;text-transform:uppercase;letter-spacing:0.05em}
-          .fd-card-sub{font-size:11px;color:#8896a5}
-          .fd-card-body{padding:10px 14px}
-          .fd-stam-row{display:flex;padding:5px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
-          .fd-stam-row:last-child{border-bottom:none}
-          .fd-stam-key{color:#8896a5;font-weight:600;width:130px;flex-shrink:0}
-          .fd-stam-val{color:#1a2332;font-weight:600}
-          .fd-contact-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f7fa}
-          .fd-contact-row:last-child{border-bottom:none}
-          .fd-activity{padding:8px 0;border-bottom:1px solid #f5f7fa}
-          .fd-activity:last-child{border-bottom:none}
-          .fd-act-meta{font-size:11px;color:#8896a5;margin-bottom:3px}
-          .fd-act-text{font-size:13px;color:#1a2332;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-          .fd-task-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
-          .fd-task-row:last-child{border-bottom:none}
-          .fd-full{grid-column:1/-1}
-          .fd-proj-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f7fa;font-size:13px}
-          .fd-proj-row:last-child{border-bottom:none}
+          .fd-page { min-height:calc(100vh - var(--tm-header-h,52px)); background:#f5f7fb; }
+          /* Header */
+          .fd-hdr { background:#fff; border-bottom:1px solid #dde3ea; padding:0; }
+          .fd-hdr-inner { padding:14px 24px 0; }
+          .fd-hdr-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+          .fd-back { font-size:13px; color:#004078; font-weight:600; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; display:inline-flex; align-items:center; gap:4px; }
+          .fd-back:hover { text-decoration:underline; }
+          .fd-hdr-id { display:flex; align-items:center; gap:14px; padding-bottom:16px; }
+          .fd-avatar-lg { width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; flex-shrink:0; }
+          .fd-hdr-name { font-size:22px; font-weight:800; color:#1a2332; line-height:1.2; }
+          .fd-hdr-meta { font-size:13px; color:#8896a5; margin-top:3px; }
+          /* KPI Bar */
+          .fd-kpis { display:flex; gap:0; border-top:1px solid #dde3ea; background:#fff; }
+          .fd-kpi { flex:1; padding:12px 16px; border-right:1px solid #dde3ea; text-align:center; }
+          .fd-kpi:last-child { border-right:none; }
+          .fd-kpi-val { font-size:20px; font-weight:800; color:#1a2332; line-height:1; }
+          .fd-kpi-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#8896a5; margin-top:4px; }
+          .fd-kpi-sub { font-size:11px; color:#8896a5; margin-top:2px; }
+          /* Nächster Einsatz Banner */
+          .fd-next-banner { display:flex; align-items:center; gap:10px; background:#e6f5ed; border-bottom:1px solid #c3e6d4; padding:10px 24px; font-size:13px; }
+          /* Body */
+          .fd-body { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:20px 24px; }
+          @media(max-width:899px) { .fd-body { grid-template-columns:1fr; padding:12px 14px; } .fd-kpis { flex-wrap:wrap; } .fd-kpi { min-width:50%; } }
+          .fd-card { background:#fff; border-radius:10px; border:1px solid #e4e7eb; overflow:hidden; }
+          .fd-card-hd { display:flex; align-items:center; justify-content:space-between; padding:11px 16px 10px; border-bottom:1px solid #f0f2f5; }
+          .fd-card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:#4a5568; }
+          .fd-card-count { font-size:11px; color:#8896a5; font-weight:600; background:#f0f2f5; padding:1px 8px; border-radius:100px; }
+          .fd-card-body { padding:12px 16px; }
+          .fd-row { display:flex; align-items:baseline; padding:5px 0; border-bottom:1px solid #f5f7fa; font-size:13px; }
+          .fd-row:last-child { border-bottom:none; }
+          .fd-key { color:#8896a5; font-weight:600; width:120px; flex-shrink:0; font-size:12px; }
+          .fd-val { color:#1a2332; font-weight:600; flex:1; }
+          .fd-contact { display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #f5f7fa; }
+          .fd-contact:last-child { border-bottom:none; }
+          .fd-act { padding:9px 0; border-bottom:1px solid #f5f7fa; }
+          .fd-act:last-child { border-bottom:none; }
+          .fd-act-meta { font-size:10px; color:#8896a5; margin-bottom:3px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+          .fd-act-text { font-size:13px; color:#1a2332; line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+          .fd-task { display:flex; align-items:center; gap:9px; padding:7px 0; border-bottom:1px solid #f5f7fa; font-size:13px; }
+          .fd-task:last-child { border-bottom:none; }
+          .fd-proj { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f5f7fa; }
+          .fd-proj:last-child { border-bottom:none; }
+          .fd-full { grid-column:1/-1; }
+          .fd-typ-tag { font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; background:#e8f1f9; color:#004078; }
         </style>
-        <div style="height:calc(100vh - var(--tm-header-h,52px));overflow-y:auto;-webkit-overflow-scrolling:touch">
-        <!-- Header -->
-        <div class="fd-header">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <button class="fd-back" onclick="ctrl.navigate('firmen')">← Firmenliste</button>
-            ${crmBadge}
-          </div>
-          <div class="fd-title">${h.esc(fi.title)}</div>
-          <div class="fd-subtitle">
-            ${[fi.adresse,fi.ort,fi.land].filter(Boolean).join(" · ")}
-            ${fi.klassifizierung?` · <span style="background:#e8f1f9;color:#004078;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">${h.esc(fi.klassifizierung)}</span>`:""}
-            ${fi.vip?` <span style="background:#fff3cd;color:#7a5000;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;border:1px solid #e59c2e">VIP</span>`:""}
-          </div>
-        </div>
 
-        <!-- KPIs -->
-        <div class="fd-kpis">
-          <div class="fd-kpi">
-            <div class="fd-kpi-lbl">Kontakte</div>
-            <div class="fd-kpi-val">${kontakte.length}</div>
-          </div>
-          <div class="fd-kpi">
-            <div class="fd-kpi-lbl">Offene Tasks</div>
-            <div class="fd-kpi-val" style="color:${offeneTasks.length>0?"#854F0B":"#0F6E56"}">${offeneTasks.length}</div>
-            ${naechsteDeadline?`<div class="fd-kpi-sub">Deadline: ${h.esc(h.fmtDate(naechsteDeadline.deadline))}</div>`:""}
-          </div>
-          <div class="fd-kpi">
-            <div class="fd-kpi-lbl">Projekte</div>
-            <div class="fd-kpi-val">${aktivProj.length} <span style="font-size:13px;color:#0F6E56">aktiv</span></div>
-            <div class="fd-kpi-sub">${abgProj.length} abgeschlossen</div>
-          </div>
-          <div class="fd-kpi">
-            <div class="fd-kpi-lbl">Umsatz ${thisYear}</div>
-            <div class="fd-kpi-val" style="font-size:15px">CHF ${h.chf(umsatzJahr)}</div>
-            <div class="fd-kpi-sub">Total CHF ${h.chf(umsatzGesamt)}</div>
-          </div>
-        </div>
+        <div class="fd-page">
 
-        <!-- Body Grid -->
-        <div class="fd-body">
-
-          <!-- Stammdaten -->
-          <div class="fd-card">
-            <div class="fd-card-head"><span class="fd-card-title">Stammdaten</span></div>
-            <div class="fd-card-body">
-              ${[
-                ["Klassifizierung", fi.klassifizierung||"—"],
-                ["VIP",             fi.vip?"Ja":"Nein"],
-                ["Adresse",         fi.adresse||"—"],
-                ["PLZ / Ort",       [fi.plz,fi.ort].filter(Boolean).join(" ")||"—"],
-                ["Land",            fi.land||"—"],
-                ["Telefon",         fi.telefon||"—"],
-                ["Website",         fi.website||"—"],
-              ].map(([k,v])=>`<div class="fd-stam-row"><span class="fd-stam-key">${k}</span><span class="fd-stam-val">${h.esc(String(v))}</span></div>`).join("")}
-            </div>
-          </div>
-
-          <!-- Kontakte -->
-          <div class="fd-card">
-            <div class="fd-card-head">
-              <span class="fd-card-title">Kontakte</span>
-              <span class="fd-card-sub">${kontakte.length} Personen</span>
-            </div>
-            <div class="fd-card-body">
-              ${kontakte.length ? kontakte.map(c=>`
-                <div class="fd-contact-row">
-                  ${avatar(initials(c))}
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;font-size:13px">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>
-                    <div style="font-size:11px;color:#8896a5">${h.esc([c.funktion,c.rolle].filter(Boolean).join(" · "))}</div>
+          <!-- Header -->
+          <div class="fd-hdr">
+            <div class="fd-hdr-inner">
+              <div class="fd-hdr-top">
+                <button class="fd-back" onclick="ctrl.navigate('firmen')">← Firmenliste</button>
+                <div style="display:flex;gap:8px">
+                  ${fi.website ? `<a href="${h.esc(fi.website)}" target="_blank" class="tm-btn tm-btn-sm" style="text-decoration:none">↗ Website</a>` : ""}
+                </div>
+              </div>
+              <div class="fd-hdr-id">
+                <div class="fd-avatar-lg" style="background:${klBg(kl)};color:${klColor(kl)}">
+                  ${h.esc(fi.title.split(/[\s-]+/).filter(Boolean).map(w => w[0]).slice(0,2).join("").toUpperCase())}
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div class="fd-hdr-name">${h.esc(fi.title)}</div>
+                  <div class="fd-hdr-meta">
+                    ${[fi.ort, fi.land].filter(Boolean).join(" · ")}
+                    ${kl ? `<span style="margin-left:8px;padding:2px 9px;border-radius:100px;background:${klBg(kl)};color:${klColor(kl)};font-size:11px;font-weight:700">${h.esc(kl)}</span>` : ""}
+                    ${fi.vip ? `<span style="margin-left:4px;padding:2px 9px;border-radius:100px;background:#fff3cd;border:1px solid #e59c2e;color:#7a5000;font-size:11px;font-weight:700">VIP ⭐</span>` : ""}
                   </div>
-                  ${c.email1?`<a href="mailto:${h.esc(c.email1)}" style="font-size:11px;color:#004078">✉</a>`:""}
-                </div>`).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Kontakte erfasst.</div>`}
+                </div>
+              </div>
+            </div>
+
+            <!-- KPI Bar -->
+            <div class="fd-kpis">
+              <div class="fd-kpi">
+                <div class="fd-kpi-val" style="color:${aktivProj.length > 0 ? "#1a6e40" : "#004078"}">${aktivProj.length}</div>
+                <div class="fd-kpi-lbl">Aktive Proj.</div>
+                ${abgProj.length ? `<div class="fd-kpi-sub">${abgProj.length} abgeschl.</div>` : ""}
+              </div>
+              <div class="fd-kpi">
+                <div class="fd-kpi-val">${kontakte.length}</div>
+                <div class="fd-kpi-lbl">Kontakte</div>
+              </div>
+              <div class="fd-kpi">
+                <div class="fd-kpi-val" style="color:${offeneTasks.length > 0 ? "#854F0B" : "#8896a5"}">${offeneTasks.length}</div>
+                <div class="fd-kpi-lbl">Offene Tasks</div>
+                ${naechsteDeadline ? `<div class="fd-kpi-sub" style="color:#854F0B">${h.esc(h.fmtDate(naechsteDeadline.deadline))}</div>` : ""}
+              </div>
+              <div class="fd-kpi">
+                <div class="fd-kpi-val" style="font-size:15px">CHF ${h.chf(umsatzJahr)}</div>
+                <div class="fd-kpi-lbl">Umsatz ${thisYear}</div>
+                <div class="fd-kpi-sub">Total CHF ${h.chf(umsatzGesamt)}</div>
+              </div>
             </div>
           </div>
 
-          <!-- Aktivitäten -->
-          <div class="fd-card">
-            <div class="fd-card-head">
-              <span class="fd-card-title">Aktivitäten</span>
-              <span class="fd-card-sub">Aggregiert über alle Kontakte</span>
+          <!-- Nächster Einsatz Banner -->
+          ${naechsterEinsatz ? `
+          <div class="fd-next-banner">
+            <span style="font-size:16px">📅</span>
+            <div>
+              <div style="font-weight:700;color:#1a6e40">Nächster Einsatz: ${h.esc(naechsterEinsatz.datumFmt)}</div>
+              <div style="font-size:12px;color:#1a6e40;opacity:.8">${h.esc(naechsterEinsatz.title || naechsterEinsatz.kategorie)} · ${h.esc(naechsterEinsatz.personName || "")}</div>
             </div>
-            <div class="fd-card-body">
-              ${history.length ? history.slice(0,8).map(act=>{
-                const k = kontakte.find(c=>c.id===act.kontaktId);
-                return `<div class="fd-activity">
-                  <div class="fd-act-meta">${fmtRel(act.datum)} · ${h.esc(h.fmtDate(act.datum))} · ${h.esc(k?[k.vorname,k.nachname].filter(Boolean).join(" "):"—")}
-                    ${act.typ?`<span style="background:#e8f1f9;color:#004078;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:4px">${h.esc(act.typ)}</span>`:""}
-                  </div>
-                  <div class="fd-act-text">${h.esc(act.notizen||act.title)}</div>
-                </div>`;
-              }).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Aktivitäten vorhanden.</div>`}
-            </div>
-          </div>
+          </div>` : ""}
 
-          <!-- Aufgaben -->
-          <div class="fd-card">
-            <div class="fd-card-head">
-              <span class="fd-card-title">Aufgaben</span>
-              <span class="fd-card-sub">${offeneTasks.length} offen</span>
+          <!-- Body Grid -->
+          <div class="fd-body">
+
+            <!-- Stammdaten -->
+            <div class="fd-card">
+              <div class="fd-card-hd"><span class="fd-card-title">Stammdaten</span></div>
+              <div class="fd-card-body">
+                ${[
+                  ["Adresse",   fi.adresse],
+                  ["PLZ / Ort", [fi.plz, fi.ort].filter(Boolean).join(" ")],
+                  ["Land",      fi.land],
+                  ["Telefon",   fi.telefon],
+                  ["Website",   fi.website ? fi.website.replace(/^https?:\/\//, "") : null],
+                ].filter(([, v]) => v).map(([k, v]) => `
+                  <div class="fd-row"><span class="fd-key">${k}</span><span class="fd-val">${h.esc(String(v))}</span></div>
+                `).join("") || `<div style="color:#8896a5;font-size:13px">Keine Stammdaten.</div>`}
+              </div>
             </div>
-            <div class="fd-card-body">
-              ${tasks.length ? tasks.slice(0,8).map(t=>{
-                const k = kontakte.find(c=>c.id===t.kontaktId);
-                const isOffen = t.status !== "erledigt";
-                return `<div class="fd-task-row">
-                  <div style="width:8px;height:8px;border-radius:50%;background:${isOffen?"#854F0B":"#0F6E56"};flex-shrink:0"></div>
-                  <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;${!isOffen?"text-decoration:line-through;color:#8896a5":""}">${h.esc(t.title)}</div>
-                    <div style="font-size:11px;color:#8896a5">${k?h.esc([k.vorname,k.nachname].filter(Boolean).join(" ")):"—"}${t.deadline?` · ${h.esc(h.fmtDate(t.deadline))}`:""}
+
+            <!-- Aktive Projekte -->
+            <div class="fd-card">
+              <div class="fd-card-hd">
+                <span class="fd-card-title">Projekte</span>
+                <span class="fd-card-count">${aktivProj.length} aktiv · ${abgProj.length} abgeschl.</span>
+              </div>
+              <div class="fd-card-body">
+                ${projekte.length ? projekte.sort((a, b) => a.status === "aktiv" ? -1 : 1).map(p => `
+                  <div class="fd-proj">
+                    <div style="flex:1;min-width:0">
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <div style="width:7px;height:7px;border-radius:50%;background:${p.status === "aktiv" ? "#1a6e40" : "#8896a5"};flex-shrink:0"></div>
+                        <span style="font-weight:700;color:#004078;cursor:pointer;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                          onclick="ctrl.openProjekt(${p.id})">${h.esc(p.title)}</span>
+                      </div>
+                      <div style="font-size:11px;color:#8896a5;margin-left:13px">#${h.esc(p.projektNr || String(p.id))}</div>
                     </div>
-                  </div>
-                  <span style="font-size:11px;font-weight:600;color:${isOffen?"#854F0B":"#0F6E56"}">${h.esc(t.status||"offen")}</span>
-                </div>`;
-              }).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Aufgaben vorhanden.</div>`}
+                    <div style="text-align:right;flex-shrink:0;margin-left:10px">
+                      <div style="font-size:13px;font-weight:700;color:#004078">CHF ${h.chf(p.totalBetrag)}</div>
+                      <div style="font-size:10px;color:#8896a5">${h.esc(p.status)}</div>
+                    </div>
+                  </div>`).join("")
+                : `<div style="color:#8896a5;font-size:13px">Keine Projekte vorhanden.</div>`}
+              </div>
             </div>
-          </div>
 
-          <!-- Projekte -->
-          <div class="fd-card fd-full">
-            <div class="fd-card-head">
-              <span class="fd-card-title">Projekte</span>
-              <span class="fd-card-sub">${projekte.length} total · ${aktivProj.length} aktiv</span>
+            <!-- Kontakte -->
+            <div class="fd-card">
+              <div class="fd-card-hd">
+                <span class="fd-card-title">Kontakte</span>
+                <span class="fd-card-count">${kontakte.length}</span>
+              </div>
+              <div class="fd-card-body">
+                ${kontakte.length ? (showAllContacts ? kontakte : kontakte.slice(0, 5)).map(c => `
+                  <div class="fd-contact">
+                    ${avatar(initials(c))}
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:700;font-size:13px;color:#1a2332">${h.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</div>
+                      <div style="font-size:11px;color:#8896a5">${h.esc([c.funktion, c.rolle].filter(Boolean).join(" · "))}</div>
+                    </div>
+                    ${c.email1 ? `<a href="mailto:${h.esc(c.email1)}" style="color:#004078;font-size:18px;text-decoration:none" title="${h.esc(c.email1)}">✉</a>` : ""}
+                  </div>`).join("")
+                : `<div style="color:#8896a5;font-size:13px">Keine Kontakte erfasst.</div>`}
+                ${!showAllContacts && kontakte.length > 5 ? `
+                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f2f5">
+                    <button style="background:none;border:none;color:#004078;font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit"
+                      onclick="state.ui.fdShowAllContacts=${fi.id};ctrl.render()">+ ${kontakte.length - 5} weitere Kontakte anzeigen</button>
+                  </div>` : ""}
+                ${showAllContacts && kontakte.length > 5 ? `
+                  <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f2f5">
+                    <button style="background:none;border:none;color:#8896a5;font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit"
+                      onclick="state.ui.fdShowAllContacts=null;ctrl.render()">Weniger anzeigen</button>
+                  </div>` : ""}
+              </div>
             </div>
-            <div class="fd-card-body">
-              ${projekte.length ? projekte.sort((a,b)=>a.status==="aktiv"?-1:1).map(p=>`
-                <div class="fd-proj-row">
-                  <div style="flex:1;min-width:0">
-                    <span style="font-weight:600;cursor:pointer;color:#004078" onclick="ctrl.openProjekt(${p.id})">${h.esc(p.title)}</span>
-                    <span style="font-size:11px;color:#8896a5;margin-left:6px">#${h.esc(p.projektNr||String(p.id))}</span>
-                  </div>
-                  <span style="font-size:11px;font-weight:600;color:${p.status==="aktiv"?"#0F6E56":"#8896a5"};margin-right:12px">${h.esc(p.status)}</span>
-                  <span style="font-size:13px;font-weight:700;color:#004078;white-space:nowrap">CHF ${h.chf(p.totalBetrag)}</span>
-                </div>`).join("") : `<div style="color:#8896a5;font-size:13px;padding:8px 0">Keine Projekte vorhanden.</div>`}
-            </div>
-          </div>
 
-        </div>
+            <!-- Aufgaben -->
+            <div class="fd-card">
+              <div class="fd-card-hd">
+                <span class="fd-card-title">Aufgaben</span>
+                <span class="fd-card-count">${offeneTasks.length} offen</span>
+              </div>
+              <div class="fd-card-body">
+                ${tasks.length ? tasks.sort((a, b) => (a.status !== "erledigt" ? -1 : 1)).slice(0, 8).map(t => {
+                  const c = kontakte.find(c => c.id === t.kontaktId);
+                  const offen = t.status !== "erledigt";
+                  return `<div class="fd-task">
+                    <div style="width:9px;height:9px;border-radius:50%;background:${offen ? "#854F0B" : "#1a6e40"};flex-shrink:0"></div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-weight:600;font-size:13px;${!offen ? "text-decoration:line-through;color:#8896a5" : ""}">${h.esc(t.title)}</div>
+                      <div style="font-size:11px;color:#8896a5">${c ? h.esc([c.vorname, c.nachname].filter(Boolean).join(" ")) : ""}${t.deadline ? ` · 📅 ${h.esc(h.fmtDate(t.deadline))}` : ""}</div>
+                    </div>
+                    <span style="font-size:11px;font-weight:600;color:${offen ? "#854F0B" : "#1a6e40"};white-space:nowrap">${h.esc(t.status || "offen")}</span>
+                  </div>`;
+                }).join("")
+                : `<div style="color:#8896a5;font-size:13px">Keine Aufgaben vorhanden.</div>`}
+              </div>
+            </div>
+
+            <!-- Aktivitäten (full width) -->
+            <div class="fd-card fd-full">
+              <div class="fd-card-hd">
+                <span class="fd-card-title">Aktivitäten</span>
+                <span class="fd-card-count">${history.length} total</span>
+              </div>
+              <div class="fd-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+                ${history.length ? history.slice(0, 10).map(act => {
+                  const c = kontakte.find(c => c.id === act.kontaktId);
+                  return `<div class="fd-act">
+                    <div class="fd-act-meta">
+                      <span>${fmtRel(act.datum)}</span>
+                      <span style="color:#dde3ea">·</span>
+                      <span>${h.esc(h.fmtDate(act.datum))}</span>
+                      ${c ? `<span style="color:#dde3ea">·</span><span>${h.esc([c.vorname, c.nachname].filter(Boolean).join(" "))}</span>` : ""}
+                      ${act.typ ? `<span class="fd-typ-tag">${h.esc(act.typ)}</span>` : ""}
+                    </div>
+                    <div class="fd-act-text">${h.esc(act.notizen || act.title || "")}</div>
+                  </div>`;
+                }).join("")
+                : `<div style="color:#8896a5;font-size:13px;grid-column:1/-1">Keine Aktivitäten vorhanden.</div>`}
+              </div>
+            </div>
+
+          </div>
         </div>
       `);
     },
+
+
 
   };
 
