@@ -1780,7 +1780,7 @@
               <div class="ei-tbl-wrap">
                 <table class="ei-tbl${!cols.ort?" hide-ort":""}${!cols.person?" hide-person":""}${!cols.status?" hide-status":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
-                    <th class="${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
+                    <th class="ei-td-date ${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="firma"?"ei-th-active":""}" data-sort-col="firma">Projekt / Firma ${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th>Person</th>
