@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true } },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -1512,6 +1512,7 @@
       const f  = state.filters.einsaetze;
       const all = state.enriched.einsaetze;
       const selId = state.ui.selectedEinsatzId;
+      const cols = state.ui.eiCols;
 
       // ── Filter-Optionen ────────────────────────────────────────────────────
       const jahre    = [...new Set(all.map(e => e.datum ? new Date(e.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
@@ -1704,16 +1705,14 @@
           .ei-person-name { font-size:12px; color:#8896a5; margin-left:3px; }
           .ei-td-muted { color:#8896a5; font-size:12px; }
 
-          /* Responsiv: niedrig-prio Spalten zuerst ausblenden */
-          @media(max-width:1300px) { .ei-td-abr { display:none; } }
-          @media(max-width:1100px) { .ei-td-status { display:none; } }
-          @media(max-width:950px)  { .ei-td-ort { display:none; } }
-          @media(max-width:800px)  { .ei-person-name { display:none; } .ei-td-person { width:60px; min-width:60px; } }
-          @media(max-width:680px)  { .ei-td-proj .ei-c2 { display:none; } }
+          /* Spalten ein/ausblenden via Klasse auf table */
+          .ei-tbl.hide-ort      .ei-td-ort    { display:none; }
+          .ei-tbl.hide-person   .ei-td-person  { display:none; }
+          .ei-tbl.hide-status   .ei-td-status  { display:none; }
+          .ei-tbl.hide-abr      .ei-td-abr     { display:none; }
 
           /* Detail Panel */
-          .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; transition:width .15s ease; }
-          .ei-detail-hidden { width:0 !important; min-width:0 !important; border-left:none !important; overflow:hidden !important; }
+          .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .ei-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
           .ei-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
           .ei-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
@@ -1774,11 +1773,12 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm ei-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="ei-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <button class="tm-btn tm-btn-sm ei-mob-hide" onclick="ctrl.toggleEiColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary ei-mob-hide" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
                 </div>
               </div>
               <div class="ei-tbl-wrap">
-                <table class="ei-tbl">
+                <table class="ei-tbl${!cols.ort?" hide-ort":""}${!cols.person?" hide-person":""}${!cols.status?" hide-status":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
                     <th class="${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
@@ -1796,10 +1796,9 @@
             </div>
 
             <!-- DETAIL -->
-            <div class="ei-detail${selId ? "" : " ei-detail-hidden"}">
+            <div class="ei-detail">
               <div class="ei-dp-head">
                 <div class="ei-dp-label">Detail</div>
-                <button style="background:none;border:none;cursor:pointer;font-size:16px;color:#8896a5;padding:0;line-height:1" onclick="state.ui.selectedEinsatzId=null;ctrl.render()">×</button>
               </div>
               <div class="ei-dp-scroll">
                 ${detailHtml()}
@@ -3541,6 +3540,49 @@
         document.addEventListener("click", function close(ev) {
           if (!document.getElementById("tm-export-dd")?.contains(ev.target) && ev.target.id !== "btn-export") {
             document.getElementById("tm-export-dd")?.remove();
+            document.removeEventListener("click", close);
+          }
+        });
+      }, 50);
+    },
+
+    toggleEiColPicker() {
+      let dd = document.getElementById("ei-col-picker");
+      if (dd) { dd.remove(); return; }
+
+      const cols = state.ui.eiCols;
+      const defs = [
+        { key: "person",     label: "Person" },
+        { key: "ort",        label: "Ort" },
+        { key: "status",     label: "Status" },
+        { key: "abrechnung", label: "Abrechnung" }
+      ];
+
+      dd = document.createElement("div");
+      dd.id = "ei-col-picker";
+      dd.style.cssText = "position:fixed;z-index:9999;background:#fff;border:1px solid rgba(0,0,0,0.13);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.14);padding:10px 14px;min-width:160px;display:flex;flex-direction:column;gap:6px;";
+      dd.innerHTML = `
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8896a5;margin-bottom:2px">Spalten</div>
+        ${defs.map(d => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-family:inherit">
+            <input type="checkbox" ${cols[d.key]?"checked":""} onchange="state.ui.eiCols['${d.key}']=this.checked;ctrl.render()" style="accent-color:#004078">
+            ${d.label}
+          </label>`).join("")}
+      `;
+
+      // Positionierung relativ zum ⊞-Button
+      const btn = document.querySelector("button[onclick='ctrl.toggleEiColPicker()']");
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        dd.style.top  = (rect.bottom + 4) + "px";
+        dd.style.left = rect.left + "px";
+      }
+      document.body.appendChild(dd);
+
+      setTimeout(() => {
+        document.addEventListener("click", function close(ev) {
+          if (!document.getElementById("ei-col-picker")?.contains(ev.target)) {
+            document.getElementById("ei-col-picker")?.remove();
             document.removeEventListener("click", close);
           }
         });
