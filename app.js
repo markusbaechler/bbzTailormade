@@ -2870,6 +2870,7 @@
                   const active = f.klassifizierung === kl;
                   return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
                 }).join("")}
+                <button class="fi-mob-chip${f.projektFilter==="mit"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="mit">Mit Projekten${f.projektFilter==="mit"?" ×":""}</button>
                 ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
               </div>
 
