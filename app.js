@@ -2504,8 +2504,8 @@
         return `vor ${Math.round(diff/365)} J.`;
       };
 
-      const klColor = k => k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#1a52a0" : k === "C-Kunde" ? "#6b7280" : "#9ca3af";
-      const klBg    = k => k === "A-Kunde" ? "#dcfce7" : k === "B-Kunde" ? "#dbeafe" : k === "C-Kunde" ? "#f3f4f6" : "#f9fafb";
+      const klColor = k => k === "Akquisition" ? "#7c3aed" : k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#1a52a0" : k === "C-Kunde" ? "#6b7280" : "#9ca3af";
+      const klBg    = k => k === "Akquisition" ? "#ede9fe" : k === "A-Kunde" ? "#dcfce7" : k === "B-Kunde" ? "#dbeafe" : k === "C-Kunde" ? "#f3f4f6" : "#f9fafb";
 
       // ── Filter ─────────────────────────────────────────────────────────────
       let list = [...all];
@@ -2517,7 +2517,7 @@
       else if (f.projektFilter === "mit")      list = list.filter(fi => hatProjekt(fi));
 
       // Sortierung: A > B > C > Rest, dann alphabetisch
-      const klRank = k => k === "A-Kunde" ? 0 : k === "B-Kunde" ? 1 : k === "C-Kunde" ? 2 : 3;
+      const klRank = k => k === "Akquisition" ? 0 : k === "A-Kunde" ? 1 : k === "B-Kunde" ? 2 : k === "C-Kunde" ? 3 : 4;
       list.sort((a, b) => {
         const rA = klRank(a.klassifizierung), rB = klRank(b.klassifizierung);
         if (rA !== rB) return rA - rB;
@@ -2703,7 +2703,7 @@
           /* Rows */
           .fi-row { display:flex; align-items:center; padding:9px 14px 9px 12px; border-bottom:1px solid #f3f4f6; cursor:pointer; transition:background .08s; background:#fff; }
           .fi-row:hover { background:#f8fafc; }
-          .fi-row-sel { background:#eff6ff !important; }
+          .fi-row-sel { background:#f0f9ff !important; border-left:3px solid #2563eb !important; padding-left:9px !important; }
           .fi-row-nopro .fi-row-title { color:#9ca3af; font-weight:500; }
           .fi-row-nopro .fi-row-sub { color:#d1d5db; }
 
@@ -2792,9 +2792,6 @@
                 <div class="fi-sb-item${f.projektFilter === "mit" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="mit">
                   <div class="fi-sb-dot" style="background:#16a34a"></div>Mit Projekten
                   <span class="fi-sb-n">${mitProjekt}</span>
-                </div>
-                <div class="fi-sb-item${f.projektFilter === "aktiv" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="aktiv">
-                  <div class="fi-sb-dot" style="background:#22c55e"></div>Aktive Proj.
                 </div>
                 <div class="fi-sb-item${f.projektFilter === "abgeschlossen" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="abgeschlossen">
                   <div class="fi-sb-dot" style="background:#9ca3af"></div>Abgeschlossen
@@ -2908,8 +2905,8 @@
       };
 
       const kl = fi.klassifizierung || "";
-      const klColor = k => k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#004078" : k === "C-Kunde" ? "#6b7280" : "#8896a5";
-      const klBg    = k => k === "A-Kunde" ? "#e6f5ed" : k === "B-Kunde" ? "#e6f1fb" : k === "C-Kunde" ? "#f3f4f6" : "#f5f7fa";
+      const klColor = k => k === "Akquisition" ? "#7c3aed" : k === "A-Kunde" ? "#1a6e40" : k === "B-Kunde" ? "#1a52a0" : k === "C-Kunde" ? "#6b7280" : "#9ca3af";
+      const klBg    = k => k === "Akquisition" ? "#ede9fe" : k === "A-Kunde" ? "#dcfce7" : k === "B-Kunde" ? "#dbeafe" : k === "C-Kunde" ? "#f3f4f6" : "#f9fafb";
 
       // Kontakt-Suche State
       const showAllContacts = state.ui.fdShowAllContacts === fi.id;
@@ -3410,29 +3407,11 @@
     updateFirmaDetailPanel() {
       const panel = document.querySelector(".fi-dp-scroll");
       if (!panel) return;
+      // Re-render via views.firmen() would lose scroll position — update innerHTML directly with new style
       const selId = state.ui.selectedFirmaId;
-      const fi = selId ? state.data.firms.find(fi=>fi.id===selId) : null;
-      if (!fi) { panel.innerHTML = `<div class="fi-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Firma auswählen</span></div>`; return; }
-      const projekte = state.enriched.projekte.filter(p=>p.firmaLookupId===fi.id&&!p.archiviert);
-      const kontakte = state.data.contacts.filter(c=>c.firmaLookupId===fi.id&&!c.archiviert);
-      const aktiv = projekte.filter(p=>p.status==="aktiv").length;
-      panel.innerHTML = `
-        <div class="fi-dp-title">${h.esc(fi.title)}</div>
-        <div class="fi-dp-sub">${[fi.klassifizierung,fi.ort].filter(Boolean).join(" · ")}</div>
-        ${fi.vip?`<div style="margin-bottom:8px"><span class="fi-badge-vip">VIP</span></div>`:""}
-        ${fi.website?`<div class="fi-dp-row"><span class="fi-dp-key">Website</span><span class="fi-dp-val"><a href="${h.esc(fi.website)}" target="_blank" style="color:#004078">${h.esc(fi.website.replace(/^https?:\/\//,""))}</a></span></div>`:""}
-        ${fi.telefon?`<div class="fi-dp-row"><span class="fi-dp-key">Telefon</span><span class="fi-dp-val">${h.esc(fi.telefon)}</span></div>`:""}
-        <div class="fi-dp-row"><span class="fi-dp-key">Projekte</span><span class="fi-dp-val">${projekte.length} total · ${aktiv} aktiv</span></div>
-        <div class="fi-dp-row"><span class="fi-dp-key">Kontakte</span><span class="fi-dp-val">${kontakte.length}</span></div>
-        ${kontakte.length?`<div style="margin-top:8px">${kontakte.slice(0,4).map(c=>`
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px">
-            <div style="width:24px;height:24px;border-radius:50%;background:#B5D4F4;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">${((c.vorname||"")[0]||"").toUpperCase()}${((c.nachname||"")[0]||"").toUpperCase()}</div>
-            <div><div style="font-weight:600">${h.esc([c.vorname,c.nachname].filter(Boolean).join(" "))}</div>${c.funktion?`<div style="color:#8896a5;font-size:11px">${h.esc(c.funktion)}</div>`:""}</div>
-          </div>`).join("")}
-        </div>`:""}
-        <div class="fi-dp-footer">
-          <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.openFirma(${fi.id})">Details öffnen</button>
-        </div>`;
+      if (!selId) { panel.innerHTML = `<div class="fi-dp-empty"><div style="font-size:40px;opacity:.08;margin-bottom:10px">🏢</div><div>Firma auswählen</div></div>`; return; }
+      // Delegate to firmen() detail generator by doing full re-render
+      ctrl.render();
     },
 
     updateAbrDetailPanel() {
