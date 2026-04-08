@@ -1679,7 +1679,7 @@
           .ei-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
           .ei-tbl th:hover { color:var(--tm-text); }
           .ei-tbl th.ei-th-active { color:#004078; }
-          .ei-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:0; }
+          .ei-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
           .ei-row { cursor:pointer; }
           .ei-row:hover td { background:#f6f8fb; }
           .ei-row-sel td { background:#e6f1fb !important; }
@@ -1687,7 +1687,7 @@
           .ei-row-cancelled .ei-c1 { text-decoration:line-through; }
 
           /* Spalten-Breiten */
-          .ei-td-date   { width:1%; white-space:nowrap; color:#8896a5; font-size:13px; }
+          .ei-td-date   { width:1px; white-space:nowrap; color:#8896a5; font-size:13px; padding-right:16px; }
           .ei-td-desc   { width:22%; }
           .ei-td-proj   { width:28%; }
           .ei-td-person { width:18%; }
@@ -1780,7 +1780,7 @@
               <div class="ei-tbl-wrap">
                 <table class="ei-tbl${!cols.ort?" hide-ort":""}${!cols.person?" hide-person":""}${!cols.status?" hide-status":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
-                    <th class="ei-td-date ${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
+                    <th class="${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum" style="white-space:nowrap;width:1px">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="firma"?"ei-th-active":""}" data-sort-col="firma">Projekt / Firma ${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th>Person</th>
