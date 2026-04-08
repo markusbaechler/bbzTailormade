@@ -2512,18 +2512,21 @@
       if (f.vip === "ja")    list = list.filter(fi => fi.vip);
       if (f.projektFilter === "aktiv")         list = list.filter(fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && p.status === "aktiv"));
       else if (f.projektFilter === "abgeschlossen") list = list.filter(fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id && p.status === "abgeschlossen"));
-      else if (!f.search && !f.showOhne)       list = list.filter(fi => hatProjekt(fi));
+      // Default: alle Firmen sichtbar; ohne Projekte werden visuell markiert (kein Filter)
 
-      // Sortierung: A-Kunden → B-Kunden → Rest, alphabetisch
+      // Sortierung: Mit Projekten zuerst, dann nach A/B/C, alphabetisch
       const klRank = k => k === "A-Kunde" ? 0 : k === "B-Kunde" ? 1 : k === "C-Kunde" ? 2 : 3;
       list.sort((a, b) => {
+        const haA = hatProjekt(a), haB = hatProjekt(b);
+        if (haA && !haB) return -1;
+        if (!haA && haB) return 1;
         const rA = klRank(a.klassifizierung), rB = klRank(b.klassifizierung);
         if (rA !== rB) return rA - rB;
         return a.title.localeCompare(b.title, "de");
       });
 
       const klassifizierungen = [...new Set(all.map(fi => fi.klassifizierung).filter(Boolean))].sort();
-      const hasFilter = f.search || f.klassifizierung || f.vip || f.showOhne || f.projektFilter;
+      const hasFilter = f.search || f.klassifizierung || f.vip || f.projektFilter;
       const mitProjekt  = all.filter(fi => hatProjekt(fi)).length;
       const ohneProjekt = all.filter(fi => !hatProjekt(fi)).length;
 
@@ -2559,7 +2562,7 @@
         return `<tr class="fi-row${isSel ? " fi-row-sel" : ""}" data-action="fi-select" data-id="${fi.id}">
           <td class="fi-td-sig"><div class="fi-signal" style="background:${dotCol}" title="${fmtSince(lc)}"></div></td>
           <td class="fi-td-name">
-            <div class="fi-row-name">${h.esc(fi.title)}</div>
+            <div class="fi-row-name" style="${!hatProjekt(fi) ? "color:#8896a5;font-weight:500" : ""}">${h.esc(fi.title)}</div>
             ${fi.ort ? `<div class="fi-row-sub">${h.esc(fi.ort)}</div>` : ""}
           </td>
           <td class="fi-td-kl">
@@ -2790,14 +2793,14 @@
                 <div class="fi-sb-item${f.projektFilter === "abgeschlossen" ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="abgeschlossen">
                   <div class="fi-sb-dot" style="background:#8896a5"></div>Abgeschlossen
                 </div>
-                <div class="fi-sb-item${f.showOhne ? " active" : ""}" data-action="fi-filter" data-fkey="showOhne" data-fval="${f.showOhne ? "" : "ja"}">
-                  <div class="fi-sb-dot" style="background:#dde3ea"></div>Ohne Projekte
+                <div class="fi-sb-item${!f.projektFilter ? " active" : ""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="">
+                  <div class="fi-sb-dot" style="background:#004078"></div>Alle Firmen
                 </div>
               </div>
               <div class="fi-sb-footer">
                 ${hasFilter
                   ? `<button class="fi-sb-reset" data-action="fi-reset-filters">✕ Filter löschen</button>`
-                  : `<span style="font-size:11px;color:#b0b8c4">${mitProjekt} mit · ${ohneProjekt} ohne</span>`}
+                  : `<span style="font-size:11px;color:#b0b8c4">${all.length} Firmen · ${mitProjekt} mit Projekten</span>`}
               </div>
             </div>
 
@@ -2806,7 +2809,7 @@
               <div class="fi-toolbar">
                 <div>
                   <div class="fi-title">Firmen</div>
-                  <div class="fi-count">${list.length} ${f.showOhne || f.search ? "Firmen" : "mit Projekten"}</div>
+                  <div class="fi-count">${list.length} Firmen${f.projektFilter === "aktiv" ? " · mit aktiven Projekten" : f.projektFilter === "abgeschlossen" ? " · mit abgeschlossenen Projekten" : ""}</div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <input type="search" class="fi-mob-search" placeholder="Suche…" value="${h.esc(f.search || "")}"
@@ -2832,18 +2835,24 @@
                   </thead>
                   <tbody>
                     ${(() => {
-                      // Gruppiert nach Klassifizierung
+                      // Gruppiert: mit Projekten nach Klassifizierung, dann ohne Projekte
+                      const mitProj  = list.filter(fi => hatProjekt(fi));
+                      const ohneProj = list.filter(fi => !hatProjekt(fi));
                       const groups = [];
                       const seen = new Set();
-                      list.forEach(fi => {
+                      mitProj.forEach(fi => {
                         const kl = fi.klassifizierung || "Weitere";
                         if (!seen.has(kl)) { groups.push({ kl, items: [] }); seen.add(kl); }
                         groups[groups.length - 1].items.push(fi);
                       });
-                      return groups.map(g => `
+                      let html = groups.map(g => `
                         <tr class="fi-tbl-group"><td colspan="8">${h.esc(g.kl)} (${g.items.length})</td></tr>
                         ${g.items.map(fiRow).join("")}
                       `).join("");
+                      if (ohneProj.length) {
+                        html += `<tr class="fi-tbl-group"><td colspan="8" style="color:#b0b8c4">Ohne Projekte (${ohneProj.length})</td></tr>` + ohneProj.map(fiRow).join("");
+                      }
+                      return html;
                     })()}
                   </tbody>
                 </table>` : `<div style="text-align:center;padding:40px;color:#8896a5;font-size:13px;font-weight:600">Keine Firmen gefunden.</div>`}
@@ -2914,7 +2923,7 @@
 
       ui.render(`
         <style>
-          .fd-page { min-height:calc(100vh - var(--tm-header-h,52px)); background:#f5f7fb; }
+          .fd-page { height:calc(100vh - var(--tm-header-h,52px)); background:#f5f7fb; overflow-y:auto; -webkit-overflow-scrolling:touch; }
           /* Header */
           .fd-hdr { background:#fff; border-bottom:1px solid #dde3ea; padding:0; }
           .fd-hdr-inner { padding:14px 24px 0; }
