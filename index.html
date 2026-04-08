@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TM-App · bbz st.gallen</title>
   <script src="https://unpkg.com/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -165,6 +166,59 @@
     }
     .tm-bn-item.active { color: #004078; }
     .tm-bn-item svg { width:22px; height:22px; }
+    /* ── Export Button + Dropdown ──────────────────────────────────────── */
+    #btn-export {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 12px;
+      height: 32px;
+      font-size: 12px;
+      font-family: 'Titillium Web', sans-serif;
+      font-weight: 600;
+      background: #004078;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #btn-export:hover { background: #003060; }
+    #btn-export svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    #tm-export-dd {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.13);
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.16);
+      min-width: 260px;
+      max-height: calc(100vh - 70px);
+      overflow-y: auto;
+    }
+    .tm-xdd-inner { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .tm-xdd-title { font-size: 13px; font-weight: 700; color: #004078; margin-bottom: 2px; }
+    .tm-xdd-sec   { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8896a5; margin-top: 6px; border-top: 1px solid #eef1f5; padding-top: 8px; }
+    .tm-xdd-cb    { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+    .tm-xdd-cb input { accent-color: #004078; }
+    .tm-xdd-row   { display: flex; flex-direction: column; gap: 3px; }
+    .tm-xdd-row label { font-size: 11px; font-weight: 600; color: #5a6a7a; }
+    .tm-xdd-row select {
+      font-size: 12px;
+      padding: 5px 8px;
+      border: 1px solid rgba(0,0,0,0.18);
+      border-radius: 5px;
+      background: #f8f9fb;
+      font-family: 'Titillium Web', sans-serif;
+    }
+    .tm-xdd-row select[multiple] { padding: 4px 6px; }
+    .tm-xdd-go {
+      margin-top: 8px;
+      width: 100%;
+      justify-content: center;
+      font-size: 13px;
+      height: 36px;
+    }
   </style>
 </head>
 <body>
@@ -185,6 +239,10 @@
     </nav>
     <div class="tm-header-right">
       <span id="auth-status" class="tm-auth-status"></span>
+      <button id="btn-export" onclick="ctrl.toggleExportDropdown()" style="display:none" title="Excel-Export">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
       <button id="btn-login" class="tm-btn tm-btn-primary" style="display:none">Anmelden</button>
       <button id="btn-refresh" class="tm-btn" style="display:none">&#8635;</button>
     </div>
