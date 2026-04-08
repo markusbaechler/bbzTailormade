@@ -1377,7 +1377,7 @@
           .pd-table td { padding:9px 10px; border-bottom:1px solid var(--tm-blue-pale); color:var(--tm-text); vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
           .pd-row { cursor:pointer; }
           .pd-row:hover td { background:#f6f8fb; }
-          .pd-row-sel td { background:var(--tm-blue-pale) !important; }
+          .pd-row-sel td { background:var(--tm-blue-light) !important; border-top:1px solid #b8d4ed; border-bottom:1px solid #b8d4ed; }
           .pd-row-cancelled td { color:var(--tm-text-muted); text-decoration:line-through; }
           .pd-td-muted { color:var(--tm-text-muted) !important; }
           .pd-td-right { text-align:right !important; }
@@ -4680,6 +4680,7 @@
       if (!e) return;
       const label = e.title || e.datumFmt || `Einsatz #${id}`;
       if (!confirm(`Einsatz "${label}" wirklich löschen?`)) return;
+      ui.closeModal();
       try {
         await api.deleteItem(CONFIG.lists.einsaetze, id);
         ui.setMsg("Einsatz gelöscht.", "success");
@@ -4712,6 +4713,7 @@
       if (!k) return;
       const label = k.title || k.datumFmt || `Konzeption #${id}`;
       if (!confirm(`Konzeptionsaufwand "${label}" wirklich löschen?`)) return;
+      ui.closeModal();
       try {
         await api.deleteItem(CONFIG.lists.konzeption, id);
         ui.setMsg("Konzeptionsaufwand gelöscht.", "success");
@@ -5235,9 +5237,10 @@
         .join("");
 
       // Betrag-Vorschau berechnen
-      const selKat   = k?.kategorie || "Konzeption";
+      const selKat   = k?.kategorie || copyOpts?.kategorie || "Konzeption";
       const ansatz   = selProjekt ? (selKat === "Admin" ? selProjekt.ansatzAdmin : selProjekt.ansatzKonzeption) : null;
-      const betragBer = (ansatz && k?.aufwandStunden) ? (ansatz / 8) * k.aufwandStunden : null;
+      const selAufwand = k?.aufwandStunden ?? copyOpts?.aufwandStunden ?? null;
+      const betragBer = (ansatz && selAufwand) ? (ansatz / 8) * selAufwand : null;
 
       // Kategorie-Buttons dynamisch — aus SP wenn vorhanden, sonst Fallback
       const konzKats = ["Konzeption", "Admin"];
