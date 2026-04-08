@@ -5678,6 +5678,7 @@
   window.state = state;
   window.h     = h;
   window.debug = debug;
+  window.ui    = ui;
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
