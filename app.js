@@ -1620,24 +1620,25 @@
         const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
         return `<tr class="ei-row${isSel?" ei-row-sel":""}${isAbgesagt?" ei-row-cancelled":""}" data-action="select-einsatz" data-id="${e.id}">
           <td class="ei-td-date">${h.esc(e.datumFmt)}</td>
-          <td>
-            <div class="ei-c1">${h.esc(e.title||e.kategorie)}${isAbgesagt?` ${h.badge("tm-badge tm-badge-cancelled","Abgesagt")}`:""}</div>
-            <div class="ei-c2">${h.esc(e.kategorie)}</div>
+          <td class="ei-td-desc">
+            <span class="ei-c1">${h.esc(e.title||e.kategorie)}</span>
+            <span class="ei-c-kat">${h.esc(e.kategorie)}</span>
+            ${isAbgesagt?` ${h.badge("tm-badge tm-badge-cancelled","Abgesagt")}`:""}
           </td>
-          <td>
-            ${fn?`<span class="ei-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span>`:""}
-            <div class="ei-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</div>
+          <td class="ei-td-proj">
+            ${fn?`<span class="ei-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
+            <span class="ei-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
           </td>
-          <td>
+          <td class="ei-td-person">
             <div style="display:inline-flex;align-items:center;gap:3px">
               <span class="ei-av ei-av-lead">${initials(e.personName)}</span>
               ${e.coPersonName&&e.coPersonName!=="—"?`<span class="ei-av ei-av-co">${initials(e.coPersonName)}</span>`:""}
-              <span class="ei-c2" style="margin-left:3px">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
+              <span class="ei-person-name">${h.esc(e.personName)}${e.coPersonName&&e.coPersonName!=="—"?` · ${h.esc(e.coPersonName)}`:""}</span>
             </div>
           </td>
-          <td class="ei-td-muted">${h.esc(e.ort||"—")}</td>
-          <td>${h.statusBadge(e)}</td>
-          <td>${h.abrBadge(e.abrechnung)}</td>
+          <td class="ei-td-ort ei-td-muted">${h.esc(e.ort||"—")}</td>
+          <td class="ei-td-status">${h.statusBadge(e)}</td>
+          <td class="ei-td-abr">${h.abrBadge(e.abrechnung)}</td>
         </tr>`;
       };
 
@@ -1674,23 +1675,39 @@
           .ei-meta { font-size:12px; color:#8896a5; }
           .ei-tbl-wrap { flex:1; overflow-y:auto; }
           table.ei-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
-          .ei-tbl th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
+          .ei-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
           .ei-tbl th:hover { color:var(--tm-text); }
           .ei-tbl th.ei-th-active { color:#004078; }
-          .ei-tbl td { padding:9px 10px; border-bottom:1px solid #dde3ea; vertical-align:middle; }
+          .ei-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:0; }
           .ei-row { cursor:pointer; }
           .ei-row:hover td { background:#f6f8fb; }
           .ei-row-sel td { background:#e6f1fb !important; }
           .ei-row-cancelled td { color:#8896a5; }
           .ei-row-cancelled .ei-c1 { text-decoration:line-through; }
-          .ei-td-date { white-space:nowrap; color:#8896a5; font-size:13px; width:100px; }
-          .ei-td-muted { color:#8896a5; font-size:12px; }
-          .ei-c1 { font-weight:600; font-size:13px; color:var(--tm-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-          .ei-c2 { font-size:11px; color:#8896a5; margin-top:1px; }
-          .ei-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap; margin-bottom:2px; }
-          .ei-av { width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+
+          /* Spalten-Breiten */
+          .ei-td-date   { width:96px; min-width:96px; color:#8896a5; font-size:13px; }
+          .ei-td-desc   { width:22%; }
+          .ei-td-proj   { width:28%; }
+          .ei-td-person { width:18%; }
+          .ei-td-ort    { width:10%; }
+          .ei-td-status { width:90px; min-width:90px; }
+          .ei-td-abr    { width:90px; min-width:90px; }
+
+          .ei-c1 { font-weight:600; font-size:13px; color:var(--tm-text); }
+          .ei-c-kat { font-size:11px; color:#b0bac6; margin-left:5px; }
+          .ei-c2 { font-size:11px; color:#8896a5; }
+          .ei-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:5px; white-space:nowrap; vertical-align:middle; }
+          .ei-av { width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
           .ei-av-lead { background:#B5D4F4; color:#0C447C; }
-          .ei-av-co { background:#CECBF6; color:#3C3489; margin-left:-6px; border:1.5px solid #fff; }
+          .ei-av-co { background:#CECBF6; color:#3C3489; margin-left:-5px; border:1.5px solid #fff; }
+          .ei-person-name { font-size:12px; color:#8896a5; margin-left:3px; }
+          .ei-td-muted { color:#8896a5; font-size:12px; }
+
+          /* Responsiv: bei schmalem Fenster Spalten ausblenden */
+          @media(max-width:1200px) { .ei-td-ort { display:none; } }
+          @media(max-width:1000px) { .ei-person-name { display:none; } .ei-td-person { width:60px; min-width:60px; } }
+          @media(max-width:860px)  { .ei-td-proj .ei-c2 { display:none; } }
 
           /* Detail Panel */
           .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
