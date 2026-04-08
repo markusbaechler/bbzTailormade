@@ -978,6 +978,8 @@
       if (this.els.auth)    this.els.auth.textContent = name || "";
       if (this.els.login)   this.els.login.style.display   = name ? "none" : "";
       if (this.els.refresh) this.els.refresh.style.display = name ? "" : "none";
+      const btnExport = document.getElementById("btn-export");
+      if (btnExport) btnExport.style.display = name ? "" : "none";
     },
     render(html) { if (this.els.root) this.els.root.innerHTML = html; },
     renderModal(html) {
@@ -3201,6 +3203,277 @@
       ui.setMsg("Aktualisiere…", "info");
       await api.loadAll();
       ctrl.render();
+    },
+
+    // ── Export ──────────────────────────────────────────────────────────────
+    exportXlsx(opts = {}) {
+      if (typeof XLSX === "undefined") { ui.setMsg("SheetJS nicht geladen.", "error"); return; }
+
+      const { jahre = [], firma = "", person = "", projekt = "",
+              status = "", abrechnung = "", verrechenbar = "",
+              konzKat = "", abrState = "", sheets = ["projekte","einsaetze","konzeption"] } = opts;
+
+      const inYear = (datum, jahrArr) => {
+        if (!jahrArr || !jahrArr.length) return true;
+        const d = h.toDate(datum);
+        return d ? jahrArr.includes(String(d.getFullYear())) : false;
+      };
+
+      const wb = XLSX.utils.book_new();
+
+      // ── Sheet: Projekte ──
+      if (sheets.includes("projekte")) {
+        let rows = state.enriched.projekte;
+        if (firma)   rows = rows.filter(p => p.firmaName === firma);
+        if (status)  rows = rows.filter(p => p.status === status);
+        rows = rows.sort((a,b) => (a.projektNr||"").localeCompare(b.projektNr||"","de"));
+
+        const data = rows.map(p => ({
+          "Projekt-Nr":          p.projektNr || "",
+          "Projektname":         p.title,
+          "Firma":               p.firmaName || "",
+          "Ansprechpartner":     p.ansprechpartner || "",
+          "Status":              p.status,
+          "Archiviert":          p.archiviert ? "Ja" : "Nein",
+          "Ansatz Einsatz":      p.ansatzEinsatz ?? "",
+          "Ansatz Halbtag":      p.ansatzHalbtag ?? "",
+          "Ansatz Co":           p.ansatzCoEinsatz ?? "",
+          "Ansatz Stunde":       p.ansatzStunde ?? "",
+          "Ansatz Konzeption":   p.ansatzKonzeption ?? "",
+          "Km zum Kunden":       p.kmZumKunden ?? "",
+          "Konz.-Rahmen (Tage)": p.konzeptionsrahmenTage ?? "",
+          "Konz.-Stunden (ist)": p.konzStunden,
+          "Total Einsätze CHF":  p.totalEinsaetze,
+          "Total Konzeption CHF":p.totalKonzeption,
+          "Total CHF":           p.totalBetrag,
+          "Bemerkungen":         p.bemerkungen || ""
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        ctrl._xlsxStyle(ws, data.length, Object.keys(data[0]||{}).length,
+          [8,8,8,12,8,8,8,8,8,8,8,8,8,8,10,10,10,20]);
+        XLSX.utils.book_append_sheet(wb, ws, "Projekte");
+      }
+
+      // ── Sheet: Einsätze ──
+      if (sheets.includes("einsaetze")) {
+        let rows = state.enriched.einsaetze;
+        if (jahre.length)  rows = rows.filter(e => inYear(e.datum, jahre));
+        if (firma)         rows = rows.filter(e => {
+          const p = state.enriched.projekte.find(x => x.id === e.projektLookupId);
+          return p?.firmaName === firma;
+        });
+        if (projekt)       rows = rows.filter(e => String(e.projektLookupId) === String(projekt) || e.projektTitle === projekt);
+        if (person)        rows = rows.filter(e => e.personName === person || e.coPersonName === person);
+        if (status)        rows = rows.filter(e => e.einsatzStatus === status);
+        if (abrechnung)    rows = rows.filter(e => e.abrechnung === abrechnung);
+        rows = rows.sort((a,b) => (b.datum||"").localeCompare(a.datum||""));
+
+        const data = rows.map(e => {
+          const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+          return {
+            "Datum":             e.datum ? h.toDate(e.datum)?.toISOString().slice(0,10) : "",
+            "Projekt-Nr":        proj?.projektNr || "",
+            "Projekt":           e.projektTitle,
+            "Firma":             proj?.firmaName || "",
+            "Beschreibung":      e.title,
+            "Ort":               e.ort || "",
+            "Kategorie":         e.kategorie,
+            "Tage":              e.dauerTage ?? "",
+            "Stunden":           e.dauerStunden ?? "",
+            "Lead":              e.personName || "",
+            "Co-Lead":           e.coPersonName || "",
+            "Betrag Lead":       e.anzeigeBetrag ?? "",
+            "Betrag Co":         e.coAnzeigeBetrag ?? "",
+            "Betrag Total":      e.totalBetrag,
+            "Wegspesen CHF":     e.spesenBerechnet ?? "",
+            "Status":            e.einsatzStatus,
+            "Abrechnung":        e.abrechnung,
+            "Bemerkungen":       e.bemerkungen || ""
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        ctrl._xlsxStyle(ws, data.length, Object.keys(data[0]||{}).length,
+          [10,8,16,16,20,10,10,6,6,14,14,10,10,10,10,10,10,20]);
+        XLSX.utils.book_append_sheet(wb, ws, "Einsätze");
+      }
+
+      // ── Sheet: Konzeption ──
+      if (sheets.includes("konzeption")) {
+        let rows = state.enriched.konzeption;
+        if (jahre.length)   rows = rows.filter(k => inYear(k.datum, jahre));
+        if (firma)          rows = rows.filter(k => {
+          const p = state.enriched.projekte.find(x => x.id === k.projektLookupId);
+          return p?.firmaName === firma;
+        });
+        if (projekt)        rows = rows.filter(k => String(k.projektLookupId) === String(projekt) || k.projektTitle === projekt);
+        if (person)         rows = rows.filter(k => k.personName === person);
+        if (verrechenbar)   rows = rows.filter(k => k.verrechenbar === verrechenbar);
+        if (konzKat)        rows = rows.filter(k => k.kategorie === konzKat);
+        if (abrechnung)     rows = rows.filter(k => k.abrechnung === abrechnung);
+        rows = rows.sort((a,b) => (b.datum||"").localeCompare(a.datum||""));
+
+        const data = rows.map(k => {
+          const proj = state.enriched.projekte.find(p => p.id === k.projektLookupId);
+          return {
+            "Datum":          k.datum ? h.toDate(k.datum)?.toISOString().slice(0,10) : "",
+            "Projekt-Nr":     proj?.projektNr || "",
+            "Projekt":        k.projektTitle,
+            "Firma":          proj?.firmaName || "",
+            "Beschreibung":   k.title,
+            "Kategorie":      k.kategorie,
+            "Person":         k.personName || "",
+            "Aufwand (h)":    k.aufwandStunden ?? "",
+            "Betrag CHF":     k.anzeigeBetrag ?? "",
+            "Verrechenbar":   k.verrechenbar,
+            "Abrechnung":     k.abrechnung,
+            "Bemerkungen":    k.bemerkungen || ""
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        ctrl._xlsxStyle(ws, data.length, Object.keys(data[0]||{}).length,
+          [10,8,18,18,24,12,14,8,10,14,10,20]);
+        XLSX.utils.book_append_sheet(wb, ws, "Konzeption");
+      }
+
+      if (wb.SheetNames.length === 0) { ui.setMsg("Keine Daten zum Exportieren.", "error"); return; }
+
+      const ts = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, `TM-Export_${ts}.xlsx`);
+      ui.setMsg("Export erfolgreich.", "success");
+    },
+
+    // Hilfsfunktion: Header fett + Spaltenbreiten setzen
+    _xlsxStyle(ws, rowCount, colCount, colWidths = []) {
+      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      // Spaltenbreiten
+      ws["!cols"] = colWidths.length
+        ? colWidths.map(w => ({ wch: w }))
+        : Array.from({length: colCount}, () => ({ wch: 14 }));
+      // Header-Zeile fett
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r: 0, c });
+        if (!ws[addr]) continue;
+        ws[addr].s = { font: { bold: true }, fill: { fgColor: { rgb: "E8ECF0" } } };
+      }
+    },
+
+    // Export-Dropdown rendern und toggeln
+    toggleExportDropdown() {
+      let dd = document.getElementById("tm-export-dd");
+      if (dd) { dd.remove(); return; }
+
+      // Jahres-Optionen aus Daten ableiten
+      const jahre = [...new Set(state.enriched.einsaetze.map(e => {
+        const d = h.toDate(e.datum); return d ? String(d.getFullYear()) : null;
+      }).filter(Boolean))].sort((a,b) => b-a);
+
+      const firmen = [...new Set([
+        ...state.enriched.einsaetze.map(e => state.enriched.projekte.find(p=>p.id===e.projektLookupId)?.firmaName).filter(Boolean),
+        ...state.enriched.projekte.map(p => p.firmaName).filter(Boolean)
+      ])].sort((a,b) => a.localeCompare(b,"de"));
+
+      const personen = [...new Set([
+        ...state.enriched.einsaetze.map(e => e.personName).filter(Boolean),
+        ...state.enriched.konzeption.map(k => k.personName).filter(Boolean)
+      ])].sort((a,b) => a.localeCompare(b,"de"));
+
+      dd = document.createElement("div");
+      dd.id = "tm-export-dd";
+      dd.innerHTML = `
+        <div class="tm-xdd-inner">
+          <div class="tm-xdd-title">Excel-Export</div>
+
+          <div class="tm-xdd-sec">Inhalt</div>
+          <label class="tm-xdd-cb"><input type="checkbox" id="xsh-projekte" checked> Projekte</label>
+          <label class="tm-xdd-cb"><input type="checkbox" id="xsh-einsaetze" checked> Einsätze</label>
+          <label class="tm-xdd-cb"><input type="checkbox" id="xsh-konzeption" checked> Konzeption</label>
+
+          <div class="tm-xdd-sec">Filter</div>
+          <div class="tm-xdd-row">
+            <label>Jahr</label>
+            <select id="x-jahr" multiple size="3" style="height:auto">
+              ${jahre.map(y=>`<option value="${y}">${y}</option>`).join("")}
+            </select>
+          </div>
+          <div class="tm-xdd-row">
+            <label>Firma</label>
+            <select id="x-firma">
+              <option value="">Alle</option>
+              ${firmen.map(f=>`<option value="${h.esc(f)}">${h.esc(f)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="tm-xdd-row">
+            <label>Person</label>
+            <select id="x-person">
+              <option value="">Alle</option>
+              ${personen.map(p=>`<option value="${h.esc(p)}">${h.esc(p)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="tm-xdd-row">
+            <label>Status</label>
+            <select id="x-status">
+              <option value="">Alle</option>
+              <option>geplant</option><option>durchgeführt</option>
+              <option>abgesagt</option><option>abgesagt mit Kostenfolge</option>
+            </select>
+          </div>
+          <div class="tm-xdd-row">
+            <label>Abrechnung</label>
+            <select id="x-abrechnung">
+              <option value="">Alle</option>
+              <option value="offen">offen</option>
+              <option value="zur Abrechnung">zur Abrechnung</option>
+              <option value="abgerechnet">abgerechnet</option>
+            </select>
+          </div>
+          <div class="tm-xdd-row">
+            <label>Verrechenbar</label>
+            <select id="x-verrechenbar">
+              <option value="">Alle</option>
+              ${(state.choices.konzVerrechenbar||[]).map(v=>`<option value="${h.esc(v)}">${h.esc(v)}</option>`).join("")}
+            </select>
+          </div>
+
+          <button class="tm-btn tm-btn-primary tm-xdd-go" onclick="
+            const jahre=[...document.getElementById('x-jahr').selectedOptions].map(o=>o.value);
+            ctrl.exportXlsx({
+              jahre,
+              firma: document.getElementById('x-firma').value,
+              person: document.getElementById('x-person').value,
+              status: document.getElementById('x-status').value,
+              abrechnung: document.getElementById('x-abrechnung').value,
+              verrechenbar: document.getElementById('x-verrechenbar').value,
+              sheets: [
+                document.getElementById('xsh-projekte').checked   ? 'projekte'   : null,
+                document.getElementById('xsh-einsaetze').checked  ? 'einsaetze'  : null,
+                document.getElementById('xsh-konzeption').checked ? 'konzeption' : null,
+              ].filter(Boolean)
+            });
+            document.getElementById('tm-export-dd')?.remove();
+          ">↓ Herunterladen</button>
+        </div>
+      `;
+
+      // Positionierung relativ zum Button
+      const btn = document.getElementById("btn-export");
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        dd.style.cssText = `position:fixed;top:${rect.bottom+4}px;right:${window.innerWidth-rect.right}px;z-index:9999`;
+      }
+      document.body.appendChild(dd);
+
+      // Klick ausserhalb schliesst Dropdown
+      setTimeout(() => {
+        document.addEventListener("click", function close(ev) {
+          if (!document.getElementById("tm-export-dd")?.contains(ev.target) && ev.target.id !== "btn-export") {
+            document.getElementById("tm-export-dd")?.remove();
+            document.removeEventListener("click", close);
+          }
+        });
+      }, 50);
     },
 
     render() {
