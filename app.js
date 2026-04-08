@@ -1704,10 +1704,12 @@
           .ei-person-name { font-size:12px; color:#8896a5; margin-left:3px; }
           .ei-td-muted { color:#8896a5; font-size:12px; }
 
-          /* Responsiv: bei schmalem Fenster Spalten ausblenden */
-          @media(max-width:1200px) { .ei-td-ort { display:none; } }
-          @media(max-width:1000px) { .ei-person-name { display:none; } .ei-td-person { width:60px; min-width:60px; } }
-          @media(max-width:860px)  { .ei-td-proj .ei-c2 { display:none; } }
+          /* Responsiv: niedrig-prio Spalten zuerst ausblenden */
+          @media(max-width:1300px) { .ei-td-abr { display:none; } }
+          @media(max-width:1100px) { .ei-td-status { display:none; } }
+          @media(max-width:950px)  { .ei-td-ort { display:none; } }
+          @media(max-width:800px)  { .ei-person-name { display:none; } .ei-td-person { width:60px; min-width:60px; } }
+          @media(max-width:680px)  { .ei-td-proj .ei-c2 { display:none; } }
 
           /* Detail Panel */
           .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
@@ -1781,9 +1783,9 @@
                     <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="firma"?"ei-th-active":""}" data-sort-col="firma">Projekt / Firma ${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th>Person</th>
-                    <th>Ort</th>
-                    <th class="${sort.col==="status"?"ei-th-active":""}" data-sort-col="status">Status ${sort.col==="status"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
-                    <th class="${sort.col==="abrechnung"?"ei-th-active":""}" data-sort-col="abrechnung">Abrechnung ${sort.col==="abrechnung"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
+                    <th class="ei-td-ort">Ort</th>
+                    <th class="ei-td-status${sort.col==="status"?" ei-th-active":""}" data-sort-col="status">Status ${sort.col==="status"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
+                    <th class="ei-td-abr${sort.col==="abrechnung"?" ei-th-active":""}" data-sort-col="abrechnung">Abrechnung ${sort.col==="abrechnung"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                   </tr></thead>
                   <tbody>
                     ${list.length ? list.map(eRow).join("") : `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einsätze gefunden.</td></tr>`}
