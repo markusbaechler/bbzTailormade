@@ -1279,7 +1279,11 @@
             </span></div>
             ${e.ort?`<div class="pd-dp-row"><span class="pd-dp-key">Ort</span><span class="pd-dp-val">${h.esc(e.ort)}</span></div>`:""}
             <div class="pd-dp-row"><span class="pd-dp-key">Status</span><span class="pd-dp-val">${h.statusBadge(e)}</span></div>
-            <div class="pd-dp-row"><span class="pd-dp-key">Betrag</span><span class="pd-dp-val" style="font-weight:700">${e.anzeigeBetrag!==null?`CHF ${h.chf(e.anzeigeBetrag)}`:"—"}</span></div>
+            <div class="pd-dp-row"><span class="pd-dp-key">Betrag</span><span class="pd-dp-val" style="font-weight:700">${
+              e.coAnzeigeBetrag
+                ? `CHF ${h.chf(e.totalBetrag)} <span style="font-size:11px;font-weight:400;color:#8896a5">(Lead ${h.chf(e.anzeigeBetrag)} + Co ${h.chf(e.coAnzeigeBetrag)})</span>`
+                : e.anzeigeBetrag !== null ? `CHF ${h.chf(e.anzeigeBetrag)}` : "—"
+            }</span></div>
             ${e.spesenBerechnet?`<div class="pd-dp-row"><span class="pd-dp-key">Wegspesen</span><span class="pd-dp-val">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
             <div class="pd-dp-row"><span class="pd-dp-key">Abrechnung</span><span class="pd-dp-val">${h.abrBadge(e.abrechnung)}</span></div>
             ${e.bemerkungen?`<div class="pd-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
@@ -3780,7 +3784,11 @@
         </span></div>
         ${sel.ort?`<div class="ei-dp-row"><span class="ei-dp-key">Ort</span><span class="ei-dp-val">${h.esc(sel.ort)}</span></div>`:""}
         <div class="ei-dp-row"><span class="ei-dp-key">Status</span><span class="ei-dp-val">${h.statusBadge(sel)}</span></div>
-        <div class="ei-dp-row"><span class="ei-dp-key">Betrag</span><span class="ei-dp-val" style="font-weight:700">${sel.anzeigeBetrag!==null?`CHF ${h.chf(sel.anzeigeBetrag)}`:"—"}</span></div>
+        <div class="ei-dp-row"><span class="ei-dp-key">Betrag</span><span class="ei-dp-val" style="font-weight:700">${
+          sel.coAnzeigeBetrag
+            ? `CHF ${h.chf(sel.totalBetrag)} <span style="font-size:11px;font-weight:400;color:#8896a5">(Lead ${h.chf(sel.anzeigeBetrag)} + Co ${h.chf(sel.coAnzeigeBetrag)})</span>`
+            : sel.anzeigeBetrag !== null ? `CHF ${h.chf(sel.anzeigeBetrag)}` : "—"
+        }</span></div>
         ${sel.spesenBerechnet?`<div class="ei-dp-row"><span class="ei-dp-key">Wegspesen</span><span class="ei-dp-val">CHF ${h.chf(sel.spesenBerechnet)}</span></div>`:""}
         <div class="ei-dp-row"><span class="ei-dp-key">Abrechnung</span><span class="ei-dp-val">${h.abrBadge(sel.abrechnung)}</span></div>
         ${sel.bemerkungen?`<div class="ei-dp-note">${h.esc(sel.bemerkungen)}</div>`:""}
@@ -3890,7 +3898,11 @@
         <div class="ef-bs-sec"><div class="ef-bs-lbl">Status</div><div class="ef-bs-val">${h.statusBadge(e)}</div></div>
         ${e.ort?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Ort</div><div class="ef-bs-val">${h.esc(e.ort)}</div></div>`:""}
         ${e.bemerkungen?`<div class="ef-bs-sec"><div class="ef-bs-lbl">Bemerkungen</div><div class="ef-bs-val" style="font-size:13px;color:var(--tm-text-muted);white-space:pre-wrap">${h.esc(e.bemerkungen)}</div></div>`:""}
-        <div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.anzeigeBetrag!==null?"CHF "+h.chf(e.anzeigeBetrag):"—"}</div></div>
+        <div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="font-weight:700">${
+          e.coAnzeigeBetrag
+            ? `CHF ${h.chf(e.totalBetrag)} <span style="font-size:11px;font-weight:400;opacity:.7">(Lead ${h.chf(e.anzeigeBetrag)} + Co ${h.chf(e.coAnzeigeBetrag)})</span>`
+            : e.anzeigeBetrag !== null ? "CHF " + h.chf(e.anzeigeBetrag) : "—"
+        }</div></div>
         <div class="ef-bs-sec"><div class="ef-bs-lbl">Wegspesen</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.spesenAnzeige?"CHF "+h.chf(e.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
         <div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">${h.abrBadge(e.abrechnung)}</div></div>
         <div style="padding:14px 16px 20px">
