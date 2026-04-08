@@ -2760,8 +2760,25 @@
             .fi-shell.fi-mob-filter .fi-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
             .fi-shell.fi-mob-filter .fi-main    { display:none !important; }
             .fi-mob-filter-btn { display:flex !important; }
-            .fi-col-next, .fi-col-lk { display:none !important; }
-            .fi-col-seg { width:80px; }
+
+            /* Tabellen-Header ausblenden */
+            .fi-hdr { display:none !important; }
+
+            /* Row → Card */
+            .fi-row {
+              flex-wrap:wrap;
+              padding:12px 14px;
+              gap:4px;
+              align-items:flex-start;
+              border-bottom:1px solid #f0f2f5;
+            }
+            .fi-col-sig  { width:auto; margin-top:3px; }
+            .fi-col-name { flex:1; min-width:0; padding-right:8px; }
+            .fi-col-seg  { width:auto; order:3; padding-right:0; }
+            .fi-col-num  { width:auto; order:4; text-align:left; padding-right:0; font-size:12px; }
+            .fi-col-next { display:flex !important; flex-basis:100%; order:5; padding:4px 0 0 22px; font-size:12px; }
+            .fi-col-lk   { display:flex !important; flex-basis:100%; order:6; padding:0 0 0 22px; font-size:11px; color:#9ca3af; width:auto; text-align:left; }
+            .fi-row-title { font-size:14px; }
           }
         </style>
 
