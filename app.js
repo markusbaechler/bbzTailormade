@@ -955,7 +955,7 @@
         if (a("[data-action='toggle-einsatz-filter']"))  { state.ui.einsatzFilterOpen = !state.ui.einsatzFilterOpen; ctrl.render(); return; }
         if (a("[data-sort-col]")) { const col = a("[data-sort-col]").dataset.sortCol; const s = state.ui.einsatzSort; s.dir = s.col===col ? (s.dir==="asc"?"desc":"asc") : "asc"; s.col=col; ctrl.render(); return; }
         if (a(".tm-tab[data-tab]"))                { const t = a(".tm-tab[data-tab]"); ctrl.setTab(t.dataset.route, t.dataset.tab); return; }
-        if (e.target.id === "tm-modal-bd") { ctrl.closeModal(); return; }
+        if (e.target.id === "tm-modal-bd" || e.target.classList.contains("ei-bs-bd") || e.target.classList.contains("pd-bs-bd")) { ctrl.closeModal(); return; }
       });
     },
 
@@ -1283,8 +1283,6 @@
             ${e.bemerkungen?`<div class="pd-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
             <div class="pd-dp-footer">
               <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
-              <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
-              <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
             </div>`;
         }
         if (tab === "konzeption") {
@@ -1303,7 +1301,6 @@
             ${k.bemerkungen?`<div class="pd-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
             <div class="pd-dp-footer">
               <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
-              <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
             </div>`;
         }
         return `<div class="pd-dp-empty"><div class="pd-dp-empty-icon">☰</div><span>Stammdaten links einsehbar</span></div>`;
@@ -1494,7 +1491,7 @@
           <!-- DETAIL PANEL -->
           <div class="pd-detail">
             <div class="pd-dp-head">
-              <div class="pd-dp-label">Bemerkungen</div>
+              <div class="pd-dp-label">Details</div>
             </div>
             <div class="pd-dp-scroll">
               ${detailPanel()}
@@ -1604,8 +1601,6 @@
           ${e.bemerkungen?`<div class="ei-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
           <div class="ei-dp-footer">
             <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
-            <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" title="Duplizieren">⧉</button>
-            <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
           </div>`;
       };
 
@@ -1863,7 +1858,6 @@
           ${k.bemerkungen?`<div class="kz-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
           <div class="kz-dp-footer">
             <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
-            <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
           </div>`;
       };
 
@@ -2005,7 +1999,7 @@
 
             <!-- DETAIL -->
             <div class="kz-detail">
-              <div class="kz-dp-head"><div class="kz-dp-label">Bemerkungen</div></div>
+              <div class="kz-dp-head"><div class="kz-dp-label">Details</div></div>
               <div class="kz-dp-scroll">${detailHtml()}</div>
             </div>
 
@@ -3161,7 +3155,7 @@
           .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
           .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
         </style>
-        <div class="ei-bs-bd" id="tm-modal-bd">
+        <div class="ei-bs-bd">
           <div class="ei-bs">
             <div class="ei-bs-handle"></div>
             <div class="ei-bs-head">
@@ -3258,7 +3252,7 @@
           .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
           .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
         </style>
-        <div class="ei-bs-bd" id="tm-modal-bd">
+        <div class="ei-bs-bd">
           <div class="ei-bs">
             <div class="ei-bs-handle"></div>
             <div class="ei-bs-head">
@@ -3315,8 +3309,6 @@
         ${sel.bemerkungen?`<div class="ei-dp-note">${h.esc(sel.bemerkungen)}</div>`:""}
         <div class="ei-dp-footer">
           <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${sel.id}">✎ Bearbeiten</button>
-          <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${sel.id}" title="Duplizieren">⧉</button>
-          <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${sel.id}" style="color:var(--tm-red)" title="Löschen">🗑</button>
         </div>`;
     },
 
@@ -3466,7 +3458,7 @@
           .ei-bs-val{font-weight:600;font-size:13px;text-align:right}
           .ei-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
         </style>
-        <div class="ei-bs-bd" id="tm-modal-bd">
+        <div class="ei-bs-bd">
           <div class="ei-bs">
             <div class="ei-bs-handle"></div>
             <div class="ei-bs-head">
@@ -3522,7 +3514,7 @@
           .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
           .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
         </style>
-        <div class="pd-bs-bd" id="tm-modal-bd">
+        <div class="pd-bs-bd">
           <div class="pd-bs">
             <div class="pd-bs-handle"></div>
             <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(e.title)}</div></div>
@@ -3565,7 +3557,7 @@
           .pd-bs-note{margin-top:10px;padding:10px 12px;background:#f5f7fa;border-radius:8px;font-size:13px;color:var(--tm-text-muted);line-height:1.5}
           .pd-bs-actions{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(0,0,0,0.09)}
         </style>
-        <div class="pd-bs-bd" id="tm-modal-bd">
+        <div class="pd-bs-bd">
           <div class="pd-bs">
             <div class="pd-bs-handle"></div>
             <div class="pd-bs-head"><div class="pd-bs-title">${h.esc(k.title)}</div></div>
