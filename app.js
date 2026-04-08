@@ -1712,7 +1712,8 @@
           @media(max-width:680px)  { .ei-td-proj .ei-c2 { display:none; } }
 
           /* Detail Panel */
-          .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; transition:width .15s ease; }
+          .ei-detail-hidden { width:0 !important; min-width:0 !important; border-left:none !important; overflow:hidden !important; }
           .ei-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
           .ei-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
           .ei-dp-scroll { flex:1; overflow-y:auto; padding:14px; }
@@ -1795,9 +1796,10 @@
             </div>
 
             <!-- DETAIL -->
-            <div class="ei-detail">
+            <div class="ei-detail${selId ? "" : " ei-detail-hidden"}">
               <div class="ei-dp-head">
                 <div class="ei-dp-label">Detail</div>
+                <button style="background:none;border:none;cursor:pointer;font-size:16px;color:#8896a5;padding:0;line-height:1" onclick="state.ui.selectedEinsatzId=null;ctrl.render()">×</button>
               </div>
               <div class="ei-dp-scroll">
                 ${detailHtml()}
