@@ -2030,18 +2030,19 @@
         const fn   = proj?.firmaName||"";
         const clr  = firmaColorMap[fn];
         const isSel = k.id === selId;
+        const mob = window.innerWidth <= 899;
         return `<tr class="kz-row${isSel?" kz-row-sel":""}" data-action="kz-select" data-id="${k.id}">
           <td class="kz-td-date">${h.esc(k.datumFmt)}</td>
           <td class="kz-td-proj">
             ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
             <span class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
-            ${window.innerWidth<=899 && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
+            ${mob && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
           </td>
-          ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
-          <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
-          <td class="kz-td-katdauer kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
-          <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
-          <td class="kz-td-abr">${h.abrBadge(k.abrechnung)}</td>
+          ${mob ? "" : `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>`}
+          ${mob ? "" : `<td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>`}
+          <td class="kz-td-katdauer kz-td-muted" style="${mob?'white-space:nowrap':''}">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
+          ${mob ? "" : `<td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>`}
+          ${mob ? "" : `<td class="kz-td-abr">${h.abrBadge(k.abrechnung)}</td>`}
         </tr>`;
       };
 
@@ -2195,15 +2196,15 @@
               </div>
               <div class="kz-tbl-wrap">
                 <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}" style="${window.innerWidth<=899?'table-layout:fixed;width:100%':''}">
-                  ${window.innerWidth<=899?`<colgroup><col style="width:68px"><col><col style="width:95px"></colgroup>`:""}
+                  ${window.innerWidth<=899?`<colgroup><col style="width:76px"><col><col style="width:100px"></colgroup>`:""}
                   <thead><tr>
                     <th style="white-space:nowrap;padding-right:8px">Datum ↓</th>
                     <th>Firma / Projekt</th>
                     ${window.innerWidth > 899 ? `<th class="kz-td-desc">Beschreibung</th>` : ""}
-                    <th class="kz-td-person">Person</th>
+                    ${window.innerWidth > 899 ? `<th class="kz-td-person">Person</th>` : ""}
                     <th class="kz-td-katdauer">Kat. / Dauer</th>
-                    <th class="kz-td-verrechenbar">Verrechenbar</th>
-                    <th class="kz-td-abr">Abrechnung</th>
+                    ${window.innerWidth > 899 ? `<th class="kz-td-verrechenbar">Verrechenbar</th>` : ""}
+                    ${window.innerWidth > 899 ? `<th class="kz-td-abr">Abrechnung</th>` : ""}
                   </tr></thead>
                   <tbody>
                     ${(() => {
