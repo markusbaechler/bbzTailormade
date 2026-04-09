@@ -2256,30 +2256,24 @@
       if (f.status)  list = list.filter(a => a.status===f.status);
       list.sort((a,b) => h.toDate(b.datum)-h.toDate(a.datum));
 
+      // ── Firma-Farben ───────────────────────────────────────────────────────
+      const COLORS = [
+        {bg:"#dbeafe",tx:"#185FA5"},{bg:"#dcfce7",tx:"#3B6D11"},{bg:"#fef3c7",tx:"#854F0B"},
+        {bg:"#fce7f3",tx:"#993556"},{bg:"#ede9fe",tx:"#534AB7"},{bg:"#ccfbf1",tx:"#0F6E56"},
+        {bg:"#ffedd5",tx:"#854F0B"},{bg:"#fce7f3",tx:"#72243E"}
+      ];
+      const firmaColorMap = {};
+      let ci = 0;
+      firmen.forEach(fn => { firmaColorMap[fn] = COLORS[ci++ % COLORS.length]; });
+
       const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.status;
       const total    = list.reduce((s,a)=>s+(a.totalBetrag||0),0);
       const byStatus = s => list.filter(a=>(a.status||"erstellt")===s).length;
-      const sb = state.ui.sbOpen;
 
       const abrStatusBadge = s => {
         const map={erstellt:"#B5D4F4:#0C447C",versendet:"#FEF3C7:#854F0B",bezahlt:"#D1FAE5:#0F6E56"};
         const [bg,tx]=(map[s]||"#f1f5f9:#475569").split(":");
         return `<span style="background:${bg};color:${tx};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${h.esc(s||"erstellt")}</span>`;
-      };
-
-      const sbSec = (key, label, items) => {
-        const isOpen = sb["abr_"+key] !== false;
-        const isActive = !!f[key];
-        return `<div class="abr-sb-sec">
-          <div class="abr-sb-sec-hdr" data-action="abr-toggle-sec" data-sec="abr_${key}">
-            <span class="abr-sb-label">${label}</span>
-            ${isActive?`<span class="abr-sb-count">1</span>`:""}
-            <span class="abr-sb-toggle${isOpen?" open":""}">▶</span>
-          </div>
-          ${isOpen?`<div class="abr-sb-body">${items.map(([val,lbl])=>`
-            <div class="abr-sb-chip${f[key]===val?" active":""}" data-action="abr-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
-          `).join("")}</div>`:""}
-        </div>`;
       };
 
       const detailHtml = () => {
@@ -2328,23 +2322,18 @@
         <style>
           .abr-wrap{display:flex;flex-direction:column;height:calc(100vh - var(--tm-header-h,52px));overflow:hidden}
           .abr-shell{display:flex;flex:1;min-height:0;overflow:hidden}
-          .abr-sidebar{width:220px;min-width:220px;border-right:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow:hidden}
-          .abr-sb-head{padding:10px 12px}
-          .abr-sb-head input{width:100%;padding:5px 9px;border:1px solid #dde3ea;border-radius:6px;font-size:12px;font-family:inherit;color:var(--tm-text);background:#f5f7fa;outline:none}
-          .abr-sb-head input:focus{border-color:#004078;background:#fff}
+          .abr-sidebar{width:188px;min-width:188px;border-right:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+          .abr-sb-search{padding:8px 10px;border-bottom:1px solid #dde3ea}
+          .abr-sb-search input{width:100%;padding:5px 9px;border:1px solid #dde3ea;border-radius:6px;font-size:12px;font-family:inherit;color:var(--tm-text);background:#f5f7fa;outline:none}
+          .abr-sb-search input:focus{border-color:#004078;background:#fff}
           .abr-sb-scroll{flex:1;overflow-y:auto}
-          .abr-sb-sec{border-bottom:1px solid #dde3ea}
-          .abr-sb-sec-hdr{display:flex;align-items:center;gap:6px;padding:7px 12px 6px;cursor:pointer;user-select:none}
-          .abr-sb-sec-hdr:hover{background:#f5f7fa}
-          .abr-sb-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8896a5;flex:1}
-          .abr-sb-count{font-size:9px;background:#004078;color:#fff;border-radius:8px;padding:1px 5px;font-weight:700}
-          .abr-sb-toggle{font-size:9px;color:#8896a5;transition:transform .15s;display:inline-block}
-          .abr-sb-toggle.open{transform:rotate(90deg)}
-          .abr-sb-body{padding:2px 8px 8px}
-          .abr-sb-chip{font-size:12px;padding:5px 8px 5px 12px;border-radius:0;border:none;border-left:2px solid transparent;background:transparent;color:var(--tm-text);cursor:pointer;display:block;width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:inherit;transition:background .1s}
-          .abr-sb-chip:hover{background:#f5f7fa}
-          .abr-sb-chip.active{background:#e6f1fb;border-left-color:#004078;color:#004078;font-weight:600}
-          .abr-sb-footer{padding:10px 12px;border-top:1px solid #dde3ea}
+          .abr-sb-sec{border-bottom:1px solid #dde3ea;padding:6px 0}
+          .abr-sb-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#8896a5;padding:2px 12px 5px}
+          .abr-sb-item{display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;border-left:2px solid transparent;font-size:12px;color:var(--tm-text);white-space:nowrap;overflow:hidden}
+          .abr-sb-item:hover{background:#f5f7fa}
+          .abr-sb-item.active{background:#e6f1fb;border-left-color:#004078;color:#004078;font-weight:600}
+          .abr-sb-iname{overflow:hidden;text-overflow:ellipsis}
+          .abr-sb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
           .abr-sb-reset{font-size:12px;color:#A32D2D;cursor:pointer;background:none;border:none;padding:0;font-family:inherit;font-weight:600}
           .abr-main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:#e8ecf0}
           .abr-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;background:#e8ecf0;flex-shrink:0;border-bottom:1px solid rgba(0,0,0,0.09)}
@@ -2395,18 +2384,42 @@
         <div class="abr-wrap">
           <div class="abr-shell${state.ui.abrMobFilter?" abr-mob-filter":""}">
             <div class="abr-sidebar">
-              <div class="abr-sb-head">
-                <button class="tm-btn tm-btn-sm abr-mob-filter-btn" data-action="abr-mob-filter-close" style="margin-bottom:8px;width:100%">← Zurück zu Abrechnungen</button>
-                <input type="search" placeholder="Suche Abrechnung, Firma…" value="${h.esc(f.search||"")}" data-search-key="abrechnungen.search" oninput="h.searchInput('abrechnungen.search',this.value)">
+              <div class="abr-sb-search">
+                <div class="abr-mob-filter-btn" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <button class="tm-btn tm-btn-sm" data-action="abr-mob-filter-close">← Zurück</button>
+                </div>
+                <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}" data-search-key="abrechnungen.search" oninput="h.searchInput('abrechnungen.search',this.value)">
+                ${hasFilter?`<button class="abr-sb-reset" data-action="abr-reset-filters" style="display:block;width:100%;margin-top:6px;padding:4px 0;text-align:center;border:1px dashed #f5b8b8;border-radius:6px;background:#fff8f8">✕ Filter löschen</button>`:""}
               </div>
               <div class="abr-sb-scroll">
-                ${hasFilter?`<div class="abr-sb-footer" style="border-bottom:1px solid #dde3ea;border-top:none"><button class="abr-sb-reset" data-action="abr-reset-filters">✕ Alle Filter löschen</button></div>`:""}
-                ${sbSec("jahr","Jahr",jahre.map(j=>[String(j),String(j)]))}
-                ${sbSec("firma","Firma",firmen.map(n=>[n,n]))}
-                ${sbSec("projekt","Projekt",projekte.map(([id,t])=>[String(id),t]))}
-                ${sbSec("status","Status",[["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]])}
+
+                <div class="abr-sb-sec">
+                  <div class="abr-sb-lbl">Jahr</div>
+                  ${jahre.map(j => `<div class="abr-sb-item${f.jahr===String(j)?" active":""}" data-action="abr-filter" data-fkey="jahr" data-fval="${j}">
+                    <span class="abr-sb-iname">${j}</span>
+                  </div>`).join("")}
+                </div>
+
+                <div class="abr-sb-sec">
+                  <div class="abr-sb-lbl">Firma</div>
+                  ${firmen.map(fn => {
+                    const clr = firmaColorMap[fn];
+                    return `<div class="abr-sb-item${f.firma===fn?" active":""}" data-action="abr-filter" data-fkey="firma" data-fval="${h.esc(fn)}">
+                      <div class="abr-sb-dot" style="background:${clr?.tx||"#8896a5"}"></div>
+                      <span class="abr-sb-iname">${h.esc(fn)}</span>
+                    </div>`;
+                  }).join("")}
+                </div>
+
+                <div class="abr-sb-sec">
+                  <div class="abr-sb-lbl">Status</div>
+                  ${[["erstellt","Erstellt"],["versendet","Versendet"],["bezahlt","Bezahlt"]].map(([val,lbl]) => `
+                    <div class="abr-sb-item${f.status===val?" active":""}" data-action="abr-filter" data-fkey="status" data-fval="${val}">
+                      <span class="abr-sb-iname">${lbl}</span>
+                    </div>`).join("")}
+                </div>
+
               </div>
-              ${hasFilter?"":`<div class="abr-sb-footer"><span style="font-size:11px;color:#8896a5">${all.length} Abrechnungen total</span></div>`}
             </div>
             <div class="abr-main">
               <div class="abr-toolbar">
