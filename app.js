@@ -2853,17 +2853,17 @@
           </div>
 
           <div class="fi-dp-nums">
-            <div class="fi-dp-num">
-              <div style="font-size:18px;font-weight:800;color:#374151">${aktiv||projekte.length}</div>
-              <div style="font-size:10px;color:#9ca3af">${aktiv>0?"aktiv":"Proj."}</div>
+            <div class="fi-dp-num" style="background:#e6f1fb;border-radius:6px">
+              <div style="font-size:18px;font-weight:800;color:#004078">${aktiv||projekte.length}</div>
+              <div style="font-size:10px;color:#185FA5">TM-Projekte</div>
             </div>
-            <div class="fi-dp-num">
+            <div class="fi-dp-num" style="background:#f3f4f6;border-radius:6px">
               <div style="font-size:18px;font-weight:800;color:#374151">${kontakte.length}</div>
-              <div style="font-size:10px;color:#9ca3af">Kont.</div>
+              <div style="font-size:10px;color:#6b7280">Kontakte</div>
             </div>
-            <div class="fi-dp-num">
+            <div class="fi-dp-num" style="background:${offTasks.length>0?"#fef3c7":"#f3f4f6"};border-radius:6px">
               <div style="font-size:18px;font-weight:800;color:${offTasks.length>0?"#b45309":"#374151"}">${offTasks.length}</div>
-              <div style="font-size:10px;color:#9ca3af">Tasks</div>
+              <div style="font-size:10px;color:${offTasks.length>0?"#b45309":"#6b7280"}">CRM-Tasks</div>
             </div>
           </div>
 
@@ -2902,7 +2902,7 @@
             return `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px">Letzte Aktivitäten</div>
               ${rows}
               <div style="font-size:12px;color:#6b7280;cursor:pointer;padding:5px 0"
-                onclick="ctrl.openFirma(${fi.id})">→ alle Aktivitäten in CRM</div>`;
+                onclick="window.open('https://markusbaechler.github.io/crm-spa','_blank')">→ alle Aktivitäten in CRM</div>`;
           })()}
 
           <div class="fi-dp-divider"></div>
@@ -2977,9 +2977,8 @@
           .fi-dp-loc { font-size:11px; color:#9ca3af; margin-top:2px; }
           .fi-dp-signal { display:flex; align-items:center; gap:6px; padding:6px 8px; background:#f9fafb; border-radius:7px; }
           .fi-dp-next { background:#f0fdf4; border-radius:7px; padding:7px 10px; border:1px solid #bbf7d0; }
-          .fi-dp-nums { display:flex; gap:0; }
+          .fi-dp-nums { display:flex; gap:6px; }
           .fi-dp-num { flex:1; text-align:center; padding:8px 4px; }
-          .fi-dp-num + .fi-dp-num { border-left:1px solid #f3f4f6; }
           .fi-dp-divider { height:1px; background:#f3f4f6; margin:4px 0; }
           .fi-dp-contact { display:flex; align-items:center; gap:8px; padding:4px 0; }
           .fi-dp-av { width:24px; height:24px; border-radius:50%; background:#dbeafe; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:800; flex-shrink:0; }
