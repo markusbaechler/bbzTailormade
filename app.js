@@ -2127,7 +2127,7 @@
             .kz-td-person       { display:none !important; }
             .kz-td-verrechenbar { display:none !important; }
             .kz-td-abr          { display:none !important; }
-            .kz-tbl.hide-katdauer .kz-td-katdauer { display:table-cell !important; }
+            .kz-td-katdauer     { display:table-cell !important; }
           }
         </style>
         <div class="kz-wrap">
