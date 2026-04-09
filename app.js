@@ -1621,14 +1621,14 @@
         const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
         return `<tr class="ei-row${isSel?" ei-row-sel":""}${isAbgesagt?" ei-row-cancelled":""}" data-action="select-einsatz" data-id="${e.id}">
           <td class="ei-td-date">${h.esc(e.datumFmt)}</td>
+          <td class="ei-td-proj">
+            ${fn?`<span class="ei-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
+            <span class="ei-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
+          </td>
           <td class="ei-td-desc">
             <span class="ei-c1">${h.esc(e.title||e.kategorie)}</span>
             <span class="ei-c-kat">${h.esc(e.kategorie)}</span>
             ${isAbgesagt?` ${h.badge("tm-badge tm-badge-cancelled","Abgesagt")}`:""}
-          </td>
-          <td class="ei-td-proj">
-            ${fn?`<span class="ei-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
-            <span class="ei-c2">${h.esc(e.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
           </td>
           <td class="ei-td-person">
             <div style="display:inline-flex;align-items:center;gap:3px">
@@ -1781,8 +1781,8 @@
                 <table class="ei-tbl${!cols.ort?" hide-ort":""}${!cols.person?" hide-person":""}${!cols.status?" hide-status":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
                     <th class="${sort.col==="datum"?"ei-th-active":""}" data-sort-col="datum" style="white-space:nowrap;width:1px">Datum ${sort.col==="datum"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
-                    <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th class="${sort.col==="firma"?"ei-th-active":""}" data-sort-col="firma">Projekt / Firma ${sort.col==="firma"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
+                    <th class="${sort.col==="title"?"ei-th-active":""}" data-sort-col="title">Beschreibung ${sort.col==="title"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                     <th>Person</th>
                     <th class="ei-td-ort">Ort</th>
                     <th class="ei-td-status${sort.col==="status"?" ei-th-active":""}" data-sort-col="status">Status ${sort.col==="status"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
