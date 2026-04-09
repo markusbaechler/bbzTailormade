@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true }, eiGroupBy: null, kzGroupBy: null },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true }, eiGroupBy: null, kzGroupBy: null, fiSort: { col: "name", dir: "asc" } },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -920,7 +920,7 @@
           const id = +a("[data-action='fi-select']").dataset.id;
           if (window.innerWidth <= 899) { ctrl.openFirma(id); return; }
           state.ui.selectedFirmaId = state.ui.selectedFirmaId===id ? null : id;
-          document.querySelectorAll("[data-action='fi-select']").forEach(c=>c.classList.toggle("fi-card-sel",+c.dataset.id===state.ui.selectedFirmaId));
+          document.querySelectorAll("[data-action='fi-select']").forEach(c=>c.classList.toggle("fi-row-sel",+c.dataset.id===state.ui.selectedFirmaId));
           ctrl.updateFirmaDetailPanel(); return;
         }
         if (a("[data-action='abr-reset-filters']"))  { state.filters.abrechnungen={search:"",status:"",projekt:"",firma:"",jahr:""}; state.ui.selectedAbrId=null; ctrl.render(); return; }
@@ -2775,56 +2775,55 @@
       const klassifizierungen = ["Akquisition","A-Kunde","B-Kunde","C-Kunde"].filter(kl => all.some(fi => fi.klassifizierung === kl));
       const hasFilter = f.search || f.klassifizierung || f.vip || f.anzeigen;
 
-      // ── Listenzeile ────────────────────────────────────────────────────────
-      const fiRow = fi => {
-        const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert);
-        const aktiv    = projekte.filter(p => p.status === "aktiv").length;
+      // ── Sortierung ─────────────────────────────────────────────────────────
+      const fiSort = state.ui.fiSort;
+      list.sort((a, b) => {
+        let va, vb;
+        const projA = state.enriched.projekte.filter(p => p.firmaLookupId === a.id).length;
+        const projB = state.enriched.projekte.filter(p => p.firmaLookupId === b.id).length;
+        const lcA = lastContact(a); const lcB = lastContact(b);
+        const naechsterA = state.enriched.einsaetze.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaLookupId===a.id&&h.toDate(e.datum)>=h.todayStart()&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); }).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum))[0];
+        const naechsterB = state.enriched.einsaetze.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaLookupId===b.id&&h.toDate(e.datum)>=h.todayStart()&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); }).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum))[0];
+        switch(fiSort.col) {
+          case "name":    va=a.title.toLowerCase(); vb=b.title.toLowerCase(); break;
+          case "seg":     va=klRank(a.klassifizierung); vb=klRank(b.klassifizierung); break;
+          case "crm":     va=lcA?lcA.getTime():0; vb=lcB?lcB.getTime():0; break;
+          case "proj":    va=projA; vb=projB; break;
+          case "next":    va=naechsterA?h.toDate(naechsterA.datum).getTime():Infinity; vb=naechsterB?h.toDate(naechsterB.datum).getTime():Infinity; break;
+          default:        va=a.title.toLowerCase(); vb=b.title.toLowerCase();
+        }
+        const cmp = va<vb?-1:va>vb?1:0;
+        return fiSort.dir==="asc"?cmp:-cmp;
+      });
+
+      const fiSortIcon = col => fiSort.col===col?(fiSort.dir==="asc"?"↑":"↓"):"↕";
+      const fiSortTh = (col, label, cls="") =>
+        `<th class="${cls}${fiSort.col===col?" fi-th-active":""}" onclick="const s=state.ui.fiSort;s.dir=s.col==='${col}'?(s.dir==='asc'?'desc':'asc'):'asc';s.col='${col}';ctrl.render()">${label} ${fiSortIcon(col)}</th>`;
+
+      // ── Zeilen ─────────────────────────────────────────────────────────────
+      const fiTblRow = fi => {
+        const isSel = fi.id === selId;
+        const kl = fi.klassifizierung || "";
         const kontakte = state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).length;
-        const lc   = lastContact(fi);
-        const d    = daysSince(lc);
-        const hasPro = hatProjekt(fi);
-        const dotCol = !hasPro ? "#e5e7eb" : d <= 30 ? "#16a34a" : d <= 90 ? "#d97706" : "#dc2626";
-        const isSel  = fi.id === selId;
-        const kl     = fi.klassifizierung || "";
-
+        const projekte = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id).length;
+        const aktivProj = state.enriched.projekte.filter(p => p.firmaLookupId === fi.id && !p.archiviert).length;
+        const lc = lastContact(fi);
+        const d = daysSince(lc);
+        const dotCol = !lc ? "#e5e7eb" : d <= 30 ? "#16a34a" : d <= 90 ? "#d97706" : "#dc2626";
         const naechster = state.enriched.einsaetze
-          .filter(e => {
-            const p = state.enriched.projekte.find(p => p.id === e.projektLookupId);
-            return p?.firmaLookupId === fi.id && h.toDate(e.datum) >= h.todayStart() && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus);
-          })
-          .sort((a, b) => h.toDate(a.datum) - h.toDate(b.datum))[0];
-
-        return `<div class="fi-row${isSel ? " fi-row-sel" : ""}${!hasPro ? " fi-row-nopro" : ""}" data-action="fi-select" data-id="${fi.id}">
-          <!-- Signal -->
-          <div class="fi-col-sig">
-            <div class="fi-dot" style="background:${dotCol}" title="${fmtSince(lc)}"></div>
-          </div>
-          <!-- Name + Ort -->
-          <div class="fi-col-name">
-            <div class="fi-row-title">${h.esc(fi.title)}${fi.vip ? ` <span class="fi-vip">VIP</span>` : ""}</div>
-            ${fi.ort ? `<div class="fi-row-sub">${h.esc(fi.ort)}</div>` : ""}
-          </div>
-          <!-- Segment -->
-          <div class="fi-col-seg">
-            ${kl ? `<span class="fi-kl" style="background:${klBg(kl)};color:${klColor(kl)}">${h.esc(kl)}</span>` : ""}
-          </div>
-          <!-- Proj / Kont -->
-          <div class="fi-col-num">
-            ${hasPro
-              ? `<span style="font-weight:700;color:${aktiv > 0 ? "#1a6e40" : "#6b7280"}">${aktiv > 0 ? aktiv + " aktiv" : projekte.length + " Proj."}</span><br><span style="font-size:11px;color:#9ca3af">${kontakte} Kont.</span>`
-              : `<span style="color:#d1d5db;font-size:12px">—</span><br><span style="font-size:11px;color:#9ca3af">${kontakte} Kont.</span>`}
-          </div>
-          <!-- Nächster Einsatz -->
-          <div class="fi-col-next">
-            ${naechster
-              ? `<span class="fi-next-date">${h.esc(naechster.datumFmt)}</span><span class="fi-next-title">${h.esc(naechster.title || naechster.kategorie)}</span>`
-              : `<span style="color:#e5e7eb">—</span>`}
-          </div>
-          <!-- Letzter Kontakt -->
-          <div class="fi-col-lk" style="color:${dotCol === "#e5e7eb" ? "#d1d5db" : dotCol}">
-            ${fmtSince(lc)}
-          </div>
-        </div>`;
+          .filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaLookupId===fi.id&&h.toDate(e.datum)>=h.todayStart()&&!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus); })
+          .sort((a,b)=>h.toDate(a.datum)-h.toDate(b.datum))[0];
+        return `<tr class="fi-tbl-row${isSel?" fi-row-sel":""}" data-action="fi-select" data-id="${fi.id}">
+          <td class="fi-td-name">
+            <span class="fi-dot-sig" style="background:${dotCol}"></span>${h.esc(fi.title)}${fi.vip?` <span class="fi-vip">VIP</span>`:""}
+            ${fi.ort?`<div style="font-size:11px;color:#9ca3af;margin-top:1px;padding-left:14px">${h.esc(fi.ort)}</div>`:""}
+          </td>
+          <td class="fi-td-seg">${kl?`<span class="fi-kl" style="background:${klBg(kl)};color:${klColor(kl)}">${h.esc(kl)}</span>`:""}</td>
+          <td class="fi-td-crm">${fmtSince(lc)}</td>
+          <td class="fi-td-kont">${kontakte}</td>
+          <td class="fi-td-proj">${aktivProj > 0 ? `<span style="color:#1a6e40;font-weight:600">${aktivProj} aktiv</span>` : projekte > 0 ? `${projekte} archiv.` : `<span style="color:#e5e7eb">—</span>`}</td>
+          <td class="fi-td-next">${naechster?`<span style="color:#15803d;font-weight:600;margin-right:4px">${h.esc(naechster.datumFmt)}</span><span style="color:#4b5563">${h.esc(naechster.title||naechster.kategorie)}</span>`:`<span style="color:#e5e7eb">—</span>`}</td>
+        </tr>`;
       };
 
       // ── Detail-Panel ───────────────────────────────────────────────────────
@@ -2931,47 +2930,26 @@
           .fi-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
 
           /* Main */
-          .fi-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#f8fafc; }
-          .fi-bar { display:flex; align-items:center; padding:10px 16px 9px; background:#fff; border-bottom:1px solid #e5e7eb; flex-shrink:0; }
-          .fi-bar-title { font-size:16px; font-weight:700; color:#111827; }
-          .fi-bar-count { font-size:12px; color:#9ca3af; margin-left:8px; }
-          .fi-bar-right { margin-left:auto; display:flex; gap:6px; align-items:center; }
-          .fi-mob-filter-btn { display:none; }
-
-          /* List */
-          .fi-list { flex:1; overflow-y:auto; }
-
-          /* Header row */
-          .fi-hdr { display:flex; align-items:center; padding:5px 14px 5px 12px; background:#f8fafc; border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:2; }
-          .fi-hdr-col { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#9ca3af; }
-
-          /* Rows */
-          .fi-row { display:flex; align-items:center; padding:9px 14px 9px 12px; border-bottom:1px solid #f3f4f6; cursor:pointer; transition:background .08s; background:#fff; }
-          .fi-row:hover { background:#f8fafc; }
-          .fi-row-sel { background:#f0f9ff !important; border-left:3px solid #2563eb !important; padding-left:9px !important; }
-          .fi-row-nopro .fi-row-title { color:#9ca3af; font-weight:500; }
-          .fi-row-nopro .fi-row-sub { color:#d1d5db; }
-
-          /* Columns — proportional */
-          .fi-col-sig  { width:22px; flex-shrink:0; }
-          .fi-col-name { flex:2; min-width:0; padding-right:12px; }
-          .fi-col-seg  { width:110px; flex-shrink:0; padding-right:10px; }
-          .fi-col-num  { width:90px; flex-shrink:0; text-align:right; padding-right:14px; }
-          .fi-col-next { flex:1.5; min-width:0; padding-right:10px; }
-          .fi-col-lk   { width:90px; flex-shrink:0; text-align:right; font-size:12px; font-weight:600; }
-
-          .fi-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-          .fi-row-title { font-size:13px; font-weight:700; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-          .fi-row-sub { font-size:11px; color:#9ca3af; margin-top:1px; }
-          .fi-kl { font-size:10px; font-weight:700; padding:2px 7px; border-radius:100px; white-space:nowrap; }
-          .fi-vip { font-size:10px; font-weight:700; padding:1px 5px; border-radius:4px; background:#fef9c3; color:#854d0e; border:1px solid #fde047; vertical-align:middle; }
-          .fi-next-date { font-size:11px; font-weight:700; color:#15803d; margin-right:5px; white-space:nowrap; }
-          .fi-next-title { font-size:11px; color:#4b5563; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
-          /* Group separator */
-          .fi-group-hd { display:flex; align-items:center; padding:6px 14px 5px 12px; background:#f3f4f6; border-bottom:1px solid #e5e7eb; border-top:1px solid #e5e7eb; }
-          .fi-group-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#6b7280; }
-          .fi-group-n { font-size:10px; color:#9ca3af; margin-left:6px; }
+          .fi-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+          .fi-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
+          .fi-title { font-size:18px; font-weight:700; color:var(--tm-text); }
+          .fi-meta { font-size:12px; color:#8896a5; }
+          .fi-tbl-wrap { flex:1; overflow-y:auto; }
+          table.fi-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
+          .fi-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
+          .fi-tbl th:hover { color:var(--tm-text); }
+          .fi-tbl th.fi-th-active { color:#004078; }
+          .fi-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .fi-tbl-row { cursor:pointer; }
+          .fi-tbl-row:hover td { background:#f6f8fb; }
+          .fi-tbl-row.fi-row-sel td { background:#e6f1fb !important; }
+          .fi-td-name { width:25%; font-weight:600; color:var(--tm-text); }
+          .fi-td-seg  { width:110px; }
+          .fi-td-crm  { width:14%; color:#8896a5; font-size:12px; }
+          .fi-td-kont { width:80px; color:#8896a5; font-size:12px; text-align:right; }
+          .fi-td-proj { width:80px; font-size:12px; text-align:right; }
+          .fi-td-next { width:22%; font-size:12px; }
+          .fi-dot-sig { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; flex-shrink:0; vertical-align:middle; }
 
           /* Detail */
           .fi-detail { width:270px; min-width:270px; border-left:1px solid #e5e7eb; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
@@ -3093,54 +3071,37 @@
 
             <!-- MAIN -->
             <div class="fi-main">
-              <div class="fi-bar">
-                <span class="fi-bar-title fi-mob-hide">Firmen</span>
-                <span class="fi-bar-count fi-mob-hide">${list.length}</span>
-                <div class="fi-bar-right">
-                  <input type="search" class="fi-mob-search" placeholder="Suche Firma, Ort…" value="${h.esc(f.search || "")}"
-                    data-search-key="firmen.search" oninput="h.searchInput('firmen.search',this.value)">
+              <div class="fi-toolbar">
+                <div>
+                  <div class="fi-title">${[f.klassifizierung, f.anzeigen==="projekte"?"Tailormade-Projekte":f.anzeigen==="crm"?"CRM-Aktivitäten":""].filter(Boolean).concat(["Firmen"]).join(" · ")}</div>
+                  <div class="fi-meta">${list.length} Firmen</div>
                 </div>
               </div>
 
-              <!-- Mobile Klassifizierungs-Chips -->
+              <!-- Mobile Chips -->
               <div class="fi-mob-chips">
                 ${["A-Kunde","B-Kunde","C-Kunde","Akquisition"].map(kl => {
                   const active = f.klassifizierung === kl;
                   return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
                 }).join("")}
-                <button class="fi-mob-chip${f.projektFilter==="mit"?" active":""}" data-action="fi-filter" data-fkey="projektFilter" data-fval="mit">Mit Projekten${f.projektFilter==="mit"?" ×":""}</button>
+                <button class="fi-mob-chip${f.anzeigen==="projekte"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="projekte">Mit Projekten${f.anzeigen==="projekte"?" ×":""}</button>
                 ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
               </div>
 
-              <div class="fi-list">
-                <!-- Spalten-Header -->
-                <div class="fi-hdr">
-                  <div class="fi-col-sig"></div>
-                  <div class="fi-col-name fi-hdr-col">Firma</div>
-                  <div class="fi-col-seg fi-hdr-col">Segment</div>
-                  <div class="fi-col-num fi-hdr-col" style="text-align:right">Proj. / Kont.</div>
-                  <div class="fi-col-next fi-hdr-col">Nächster Einsatz</div>
-                  <div class="fi-col-lk fi-hdr-col" style="text-align:right">Letzter Kont.</div>
-                </div>
-
-                ${list.length ? (() => {
-                  // Gruppierung nach Klassifizierung, ohne eigene "Ohne Projekte"-Gruppe
-                  const groups = [];
-                  const seen = new Set();
-                  list.forEach(fi => {
-                    const kl = fi.klassifizierung || "Weitere";
-                    if (!seen.has(kl)) { groups.push({ kl, items: [] }); seen.add(kl); }
-                    groups[groups.length - 1].items.push(fi);
-                  });
-                  return groups.map(g => `
-                    <div class="fi-group-hd">
-                      <span class="fi-group-lbl">${h.esc(g.kl)}</span>
-                      <span class="fi-group-n">${g.items.length}</span>
-                    </div>
-                    ${g.items.map(fiRow).join("")}
-                  `).join("");
-                })()
-                : `<div style="padding:40px;text-align:center;color:#9ca3af;font-size:13px;font-weight:600">Keine Firmen gefunden.</div>`}
+              <div class="fi-tbl-wrap">
+                <table class="fi-tbl">
+                  <thead><tr>
+                    ${fiSortTh("name","Firma","fi-td-name")}
+                    ${fiSortTh("seg","Segment","fi-td-seg")}
+                    ${fiSortTh("crm","Letzte CRM-Aktivität","fi-td-crm")}
+                    <th class="fi-td-kont" style="text-align:right">Kontakte</th>
+                    ${fiSortTh("proj","Projekte","fi-td-proj")}
+                    ${fiSortTh("next","Nächster Einsatz","fi-td-next")}
+                  </tr></thead>
+                  <tbody>
+                    ${list.length ? list.map(fiTblRow).join("") : `<tr><td colspan="6" style="text-align:center;padding:32px;color:#8896a5">Keine Firmen gefunden.</td></tr>`}
+                  </tbody>
+                </table>
               </div>
             </div>
 
