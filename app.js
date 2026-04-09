@@ -2039,7 +2039,7 @@
           </td>
           ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
           <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
-          <td class="kz-td-katdauer kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
+          <td class="kz-td-katdauer kz-td-muted">${window.innerWidth<=899 ? h.esc((k.kategorie||"").substring(0,5)) : h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
           <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
           <td class="kz-td-abr">${h.abrBadge(k.abrechnung)}</td>
         </tr>`;
