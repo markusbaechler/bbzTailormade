@@ -2184,11 +2184,12 @@
                   <div class="kz-group-toggle kz-mob-hide">
                     <button class="${!state.ui.kzGroupBy?"active":""}" onclick="state.ui.kzGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.kzGroupBy==="projekt"?"active":""}" onclick="state.ui.kzGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
                   </div>
+                  <button class="tm-btn tm-btn-sm kz-mob-hide" onclick="ctrl.toggleKzColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
               </div>
               <div class="kz-tbl-wrap">
-                <table class="kz-tbl">
+                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
                     <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
                     <th class="kz-td-proj">Firma / Projekt</th>
