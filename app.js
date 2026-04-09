@@ -2852,18 +2852,6 @@
             </div>
           </div>
 
-          <div class="fi-dp-signal">
-            <div class="fi-dot" style="background:${dotCol};width:8px;height:8px"></div>
-            <span style="font-size:12px;font-weight:600;color:${dotCol}">${fmtSince(lc)}</span>
-            <span style="font-size:11px;color:#9ca3af;margin-left:auto">Letzter Kontakt</span>
-          </div>
-
-          ${naechster ? `
-          <div class="fi-dp-next">
-            <div style="font-size:11px;font-weight:700;color:#15803d">▶ ${h.esc(naechster.datumFmt)}</div>
-            <div style="font-size:11px;color:#15803d;opacity:.8">${h.esc(naechster.title || naechster.kategorie)}</div>
-          </div>` : ""}
-
           <div class="fi-dp-nums">
             <div class="fi-dp-num">
               <div style="font-size:18px;font-weight:800;color:${aktiv>0?"#15803d":"#374151"}">${aktiv||projekte.length}</div>
@@ -2878,6 +2866,37 @@
               <div style="font-size:10px;color:#9ca3af">Tasks</div>
             </div>
           </div>
+
+          ${naechster ? `
+          <div class="fi-dp-next">
+            <div style="font-size:11px;font-weight:700;color:#15803d">▶ ${h.esc(naechster.datumFmt)}</div>
+            <div style="font-size:11px;color:#15803d;opacity:.8">${h.esc(naechster.title || naechster.kategorie)}</div>
+          </div>` : ""}
+
+          <div class="fi-dp-divider"></div>
+
+          ${(() => {
+            const recentActs = state.data.history
+              .filter(h2 => ids.has(h2.kontaktId))
+              .sort((a,b) => h.toDate(b.datum)-h.toDate(a.datum))
+              .slice(0,3);
+            if (!recentActs.length) return "";
+            const rows = recentActs.map(a => {
+              const c = state.data.contacts.find(c2 => c2.id === a.kontaktId);
+              const name = c ? [c.vorname,c.nachname].filter(Boolean).join(" ") : "";
+              return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6">
+                <div style="font-size:11px;color:#9ca3af;white-space:nowrap;padding-top:1px;min-width:50px">${h.esc(h.fmtDate(a.datum))}</div>
+                <div>
+                  <div style="font-size:12px;color:#1f2937">${h.esc(a.title||a.kontaktart||"—")}</div>
+                  ${name||a.kontaktart?`<div style="font-size:11px;color:#9ca3af">${h.esc([name,a.kontaktart].filter(Boolean).join(" · "))}</div>`:""}
+                </div>
+              </div>`;
+            }).join("");
+            return `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px">Letzte Aktivitäten</div>
+              ${rows}
+              <div style="font-size:12px;color:#6b7280;cursor:pointer;padding:5px 0;border-bottom:1px solid #f3f4f6"
+                onclick="ctrl.openFirma(${fi.id})">→ alle Aktivitäten in CRM</div>`;
+          })()}
 
           <div class="fi-dp-divider"></div>
 
