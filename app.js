@@ -2004,7 +2004,7 @@
             <!-- SIDEBAR -->
             <div class="kz-sidebar">
               <div class="kz-sb-search">
-                <div class="kz-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="kz-mob-filter-btn" style="align-items:center;justify-content:space-between;margin-bottom:8px">
                   <button class="tm-btn tm-btn-sm" data-action="kz-mob-filter-close">← Konzeption</button>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px">
@@ -2012,8 +2012,8 @@
                     data-search-key="konzeption.search"
                     oninput="h.searchInput('konzeption.search',this.value)"
                     style="flex:1">
-                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D;flex-shrink:0" data-action="kz-reset-filters">✕</button>`:""}
                 </div>
+                ${hasFilter?`<button class="kz-sb-reset" data-action="kz-reset-filters" style="display:block;width:100%;margin-top:6px;padding:4px 0;text-align:center;border:1px dashed #f5b8b8;border-radius:6px;background:#fff8f8">✕ Filter löschen</button>`:""}
               </div>
               <div class="kz-sb-scroll">
 
