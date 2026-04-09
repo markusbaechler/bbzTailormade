@@ -2883,7 +2883,7 @@
                 <span style="font-size:12px;font-weight:600;color:#004078;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(p.title)}</span>
                 <span style="font-size:11px;color:#9ca3af;margin-left:8px;flex-shrink:0">CHF ${h.chf(Math.round(p.totalBetrag))}</span>
               </div>`).join("")}
-            <div class="fi-dp-divider" style="margin-top:8px"></div>` : ""}
+` : ""}
 
           ${(() => {
             const recentActs = state.data.history
@@ -2907,6 +2907,7 @@
 
           <div class="fi-dp-divider"></div>
 
+          ${kontakte.length ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;margin:8px 0 5px">Kontakte</div>` : ""}
           ${kontakte.length ? kontakte.slice(0,5).map(c => `
             <div class="fi-dp-contact">
               <div class="fi-dp-av">${h.esc(init2([c.vorname,c.nachname].filter(Boolean).join(" ")))}</div>
