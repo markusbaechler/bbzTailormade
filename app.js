@@ -1059,20 +1059,34 @@
 
       // ── Sidebar HTML ───────────────────────────────────────────────────────
       const sbSearch = state.filters.projekte.search.toLowerCase();
+      const pdCollapsed = state.ui.pdFirmaCollapsed || {};
+      const statusFilter = state.filters.projekte.status;
+
       const firmenGruppen = firmenSorted.map(fn => {
-        const projekte = alle.filter(pp => pp.firmaName === fn &&
+        let projekte = alle.filter(pp => pp.firmaName === fn &&
           (!sbSearch || pp.title.toLowerCase().includes(sbSearch) || fn.toLowerCase().includes(sbSearch)));
+        if (statusFilter) projekte = projekte.filter(pp => pp.status === statusFilter);
         if (!projekte.length) return "";
+        const hasActive = projekte.some(pp => pp.id === id);
+        const isExpanded = hasActive || pdCollapsed[fn] === true || projekte.length === 1;
+        const dot = `<div class="pd-sb-dot" style="background:${firmaColor(fn)}"></div>`;
+
+        if (projekte.length === 1) {
+          // Direktklick zur Firma → öffnet sofort das einzige Projekt
+          return `<div class="pd-sb-firma${hasActive?" has-active":""}" data-action="open-projekt" data-id="${projekte[0].id}">
+            ${dot}<span class="pd-sb-firma-name">${h.esc(fn)}</span>
+          </div>`;
+        }
+        // Mehrere Projekte → aufklappbar
         return `<div>
-          <div class="pd-firma-label">
-            <span class="pd-firma-dot" style="background:${firmaColor(fn)}"></span>
-            ${h.esc(fn)}
+          <div class="pd-sb-firma${hasActive?" has-active":""}" onclick="if(!state.ui.pdFirmaCollapsed)state.ui.pdFirmaCollapsed={};state.ui.pdFirmaCollapsed['${fn.replace(/'/g,"\\'")}']=${!isExpanded};ctrl.render()">
+            ${dot}<span class="pd-sb-firma-name">${h.esc(fn)}</span>
+            <span class="pd-sb-firma-arrow">${isExpanded?"▾":"▸"}</span>
           </div>
-          ${projekte.map(pp => `
-            <div class="pd-proj-item${pp.id === id ? " active" : ""}" data-action="open-projekt" data-id="${pp.id}">
-              <div class="pd-proj-name">${h.esc(pp.title)}</div>
-              <div class="pd-proj-meta">#${h.esc(pp.projektNr||pp.id)} · ${pp.status} · CHF ${h.chf(pp.totalBetrag)}</div>
-            </div>`).join("")}
+          ${isExpanded ? projekte.map(pp => `
+            <div class="pd-sb-proj${pp.id===id?" active":""}" data-action="open-projekt" data-id="${pp.id}">
+              <span class="pd-sb-proj-name">${h.esc(pp.title)}</span>
+            </div>`).join("") : ""}
         </div>`;
       }).join("");
 
@@ -1328,22 +1342,29 @@
           .pd-mob-back { display:none; }
 
           /* Sidebar */
-          .pd-sidebar { width:230px; min-width:230px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .pd-sb-head { padding:10px 12px; background:#fff; }
-          .pd-sb-head input { width:100%; padding:5px 9px; border:1px solid rgba(0,0,0,0.12); border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#e8ecf0; outline:none; }
-          .pd-sb-head input:focus { border-color:var(--tm-blue); background:#fff; }
+          .pd-sidebar { width:188px; min-width:188px; border-right:1px solid rgba(0,0,0,0.09); background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .pd-sb-search { padding:8px 10px; border-bottom:1px solid #dde3ea; }
+          .pd-sb-search input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .pd-sb-search input:focus { border-color:#004078; background:#fff; }
           .pd-sb-scroll { flex:1; overflow-y:auto; }
-          .pd-firma-label { display:flex; align-items:center; gap:6px; padding:8px 12px 3px; font-size:10px; font-weight:700; color:var(--tm-text-muted); text-transform:uppercase; letter-spacing:0.06em; }
-          .pd-firma-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-          .pd-proj-item { padding:6px 12px 6px 26px; cursor:pointer; border-left:2px solid transparent; }
-          .pd-proj-item:hover { background:var(--tm-surface); }
-          .pd-proj-item.active { background:var(--tm-blue-pale); border-left-color:var(--tm-blue); }
-          .pd-proj-name { font-size:13px; font-weight:600; color:var(--tm-text); line-height:1.3; }
-          .pd-proj-item.active .pd-proj-name { color:var(--tm-blue); }
-          .pd-proj-meta { font-size:11px; color:var(--tm-text-muted); margin-top:1px; }
-          .pd-sb-footer { padding:10px 12px; border-top:1px solid var(--tm-blue-pale); }
-          .pd-sb-new-btn { width:100%; padding:6px; background:#fff; color:var(--tm-blue); border:1px solid var(--tm-blue); border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
-          .pd-sb-new-btn:hover { background:var(--tm-blue-pale); }
+          .pd-sb-sec { border-bottom:1px solid #dde3ea; padding:6px 0; }
+          .pd-sb-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; padding:2px 12px 5px; }
+          .pd-sb-firma { display:flex; align-items:center; gap:8px; padding:6px 12px; cursor:pointer; border-left:2px solid transparent; font-size:12px; font-weight:600; color:var(--tm-text); white-space:nowrap; overflow:hidden; user-select:none; }
+          .pd-sb-firma:hover { background:#f5f7fa; }
+          .pd-sb-firma.has-active { border-left-color:#004078; background:#e6f1fb; color:#004078; }
+          .pd-sb-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+          .pd-sb-firma-name { overflow:hidden; text-overflow:ellipsis; flex:1; }
+          .pd-sb-firma-arrow { font-size:9px; color:#8896a5; flex-shrink:0; }
+          .pd-sb-proj { display:flex; align-items:center; gap:6px; padding:5px 12px 5px 26px; cursor:pointer; border-left:2px solid transparent; font-size:12px; color:var(--tm-text); white-space:nowrap; overflow:hidden; }
+          .pd-sb-proj:hover { background:#f5f7fa; }
+          .pd-sb-proj.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .pd-sb-proj-name { overflow:hidden; text-overflow:ellipsis; }
+          .pd-sb-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; border-left:2px solid transparent; font-size:12px; color:var(--tm-text); white-space:nowrap; overflow:hidden; }
+          .pd-sb-item:hover { background:#f5f7fa; }
+          .pd-sb-item.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .pd-sb-footer { padding:8px 10px; border-top:1px solid #dde3ea; }
+          .pd-sb-new-btn { width:100%; padding:6px; background:#fff; color:#004078; border:1px solid #004078; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+          .pd-sb-new-btn:hover { background:#e6f1fb; }
 
           /* Main */
           .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
@@ -1423,13 +1444,25 @@
 
           <!-- SIDEBAR -->
           <div class="pd-sidebar">
-            <div class="pd-sb-head">
+            <div class="pd-sb-search">
               <input type="search" placeholder="Suche Projekt oder Firma…"
                 id="pd-sb-search" value="${h.esc(state.filters.projekte.search)}"
                 data-search-key="projekte.search"
                 oninput="h.searchInput('projekte.search',this.value)">
             </div>
-            <div class="pd-sb-scroll" id="pd-sb-list">${firmenGruppen}</div>
+            <div class="pd-sb-scroll">
+              <div class="pd-sb-sec" style="padding-bottom:2px">
+                <div class="pd-sb-lbl">Firma / Projekt</div>
+                ${firmenGruppen || `<div style="padding:8px 12px;font-size:12px;color:#8896a5">Keine Projekte</div>`}
+              </div>
+              <div class="pd-sb-sec">
+                <div class="pd-sb-lbl">Status</div>
+                ${["aktiv","abgeschlossen","pausiert"].map(s => `
+                  <div class="pd-sb-item${statusFilter===s?" active":""}" onclick="state.filters.projekte.status=state.filters.projekte.status==='${s}'?'':'${s}';ctrl.render()">
+                    ${h.esc(s.charAt(0).toUpperCase()+s.slice(1))}
+                  </div>`).join("")}
+              </div>
+            </div>
             <div class="pd-sb-footer">
               <button class="pd-sb-new-btn" data-action="new-projekt">+ Neues Projekt</button>
             </div>
