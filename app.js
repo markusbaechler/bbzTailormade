@@ -2817,8 +2817,8 @@
           <td class="fi-td-seg">${kl?`<span class="fi-kl" style="background:${klBg(kl)};color:${klColor(kl)}">${h.esc(kl)}</span>`:""}</td>
           <td class="fi-td-crm">${fmtSince(lc)}</td>
           <td class="fi-td-kont">${kontakte}</td>
-          <td class="fi-td-proj">${aktivProj > 0 ? `<span style="color:#1a6e40;font-weight:600">${aktivProj} aktiv</span>` : projekte > 0 ? `${projekte} archiv.` : `<span style="color:#e5e7eb">—</span>`}</td>
-          <td class="fi-td-next">${naechster?`<span style="color:#15803d;font-weight:600;margin-right:4px">${h.esc(naechster.datumFmt)}</span><span style="color:#4b5563">${h.esc(naechster.title||naechster.kategorie)}</span>`:`<span style="color:#e5e7eb">—</span>`}</td>
+          <td class="fi-td-proj">${aktivProj > 0 ? `<span style="color:#374151;font-weight:500">${aktivProj} aktiv</span>` : projekte > 0 ? `${projekte} archiv.` : `<span style="color:#e5e7eb">—</span>`}</td>
+          <td class="fi-td-next">${naechster?`<span style="color:#374151;font-weight:500;margin-right:4px">${h.esc(naechster.datumFmt)}</span><span style="color:#8896a5">${h.esc(naechster.title||naechster.kategorie)}</span>`:`<span style="color:#e5e7eb">—</span>`}</td>
         </tr>`;
       };
 
@@ -2959,10 +2959,10 @@
           .fi-tbl-row.fi-row-sel td { background:#e6f1fb !important; }
           .fi-td-name { width:25%; font-weight:600; color:var(--tm-text); }
           .fi-td-seg  { width:110px; }
-          .fi-td-crm  { width:14%; color:#8896a5; font-size:12px; }
-          .fi-td-kont { width:80px; color:#8896a5; font-size:12px; text-align:right; }
-          .fi-td-proj { width:80px; font-size:12px; text-align:right; }
-          .fi-td-next { width:22%; font-size:12px; }
+          .fi-td-crm  { width:130px; color:#8896a5; font-size:12px; }
+          .fi-td-kont { width:80px; color:#8896a5; font-size:12px; text-align:center; }
+          .fi-td-proj { width:90px; font-size:12px; text-align:center; }
+          .fi-td-next { width:220px; font-size:12px; }
           .fi-dot-sig { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:6px; flex-shrink:0; vertical-align:middle; }
 
           /* Detail */
@@ -3100,7 +3100,7 @@
                       `${list.length} Firmen`,
                       `${totalKont} Kontakte`,
                       `${aktivProj} Projekte aktiv`,
-                      offTasks > 0 ? `<span style="color:#b45309;font-weight:600">${offTasks} Tasks offen</span>` : `${offTasks} Tasks offen`,
+                      `${offTasks} Tasks offen`,
                       naechster ? `Nächster Einsatz ${naechster.datumFmt}` : ""
                     ].filter(Boolean).join(" · ");
                   })()}</div>
