@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TM-App · bbz st.gallen</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#004078">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="bbz TM">
+  <link rel="apple-touch-icon" href="icons/android-chrome-192x192.png">
   <script src="https://unpkg.com/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -295,5 +303,12 @@
       <span>Firmen</span>
     </button>
   </nav>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/bbzTailormade/service-worker.js')
+        .then(r => console.log('[SW] registriert', r.scope))
+        .catch(e => console.warn('[SW] Fehler', e));
+    }
+  </script>
 </body>
 </html>
