@@ -2077,12 +2077,12 @@
           .kz-row { cursor:pointer; }
           .kz-row:hover td { background:#f6f8fb; }
           .kz-row-sel td { background:#e6f1fb !important; }
-          .kz-td-date     { width:1px; white-space:nowrap; color:#8896a5; font-size:13px; padding-right:16px; }
+          .kz-td-date     { width:90px; white-space:nowrap; color:#8896a5; font-size:13px; padding-right:16px; }
           .kz-td-proj     { width:22%; }
-          .kz-td-desc     { width:30%; }
-          .kz-td-person   { width:14%; }
-          .kz-td-katdauer { width:14%; }
-          .kz-td-verrechenbar { width:130px; }
+          .kz-td-desc     { width:28%; }
+          .kz-td-person   { width:12%; }
+          .kz-td-katdauer { width:110px; }
+          .kz-td-verrechenbar { width:120px; }
           .kz-td-abr      { width:90px; }
           .kz-td-muted { color:#8896a5; font-size:12px; }
           .kz-c1 { font-weight:600; font-size:13px; color:var(--tm-text); }
@@ -2123,9 +2123,12 @@
             .kz-shell.kz-mob-filter .kz-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
             .kz-shell.kz-mob-filter .kz-main    { display:none !important; }
             .kz-mob-filter-btn { display:flex !important; }
+            .kz-td-date         { width:76px !important; }
+            .kz-td-katdauer     { width:90px !important; }
             .kz-td-person       { display:none !important; }
             .kz-td-verrechenbar { display:none !important; }
             .kz-td-abr          { display:none !important; }
+            .kz-td-desc         { display:none !important; }
             .kz-tbl .kz-td-katdauer { display:table-cell !important; }
           }
         </style>
@@ -2194,7 +2197,7 @@
                 </div>
               </div>
               <div class="kz-tbl-wrap">
-                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}" style="${window.innerWidth<=899?'table-layout:fixed;width:100%':''}">
+                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}" style="table-layout:fixed;width:100%">
                   <thead><tr>
                     <th style="white-space:nowrap;padding-right:8px">Datum ↓</th>
                     <th>Firma / Projekt</th>
