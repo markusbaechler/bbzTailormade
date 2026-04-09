@@ -2122,6 +2122,13 @@
             .kz-shell.kz-mob-filter .kz-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
             .kz-shell.kz-mob-filter .kz-main    { display:none !important; }
             .kz-mob-filter-btn { display:flex !important; }
+            .kz-td-person { display:none !important; }
+            .kz-td-verrechenbar { display:none !important; }
+            .kz-td-abr    { display:none !important; }
+            .kz-td-date   { font-size:12px; padding-right:8px; }
+            .kz-td-proj   { width:auto; max-width:120px; }
+            .kz-td-desc   { width:auto; }
+            .kz-td-katdauer { width:auto; white-space:nowrap; }
           }
         </style>
         <div class="kz-wrap">
