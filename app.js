@@ -1485,7 +1485,7 @@
                 <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
                 <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
-                <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" style="background:var(--tm-green,#1D9E75);color:#fff;border-color:transparent">Abrechnung</button>
+                <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" >Abrechnung</button>
               </div>
             </div>
 
@@ -1668,7 +1668,7 @@
           <div class="ei-dp-row"><span class="ei-dp-key">Abrechnung</span><span class="ei-dp-val">${h.abrBadge(e.abrechnung)}</span></div>
           ${e.bemerkungen?`<div class="ei-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
           <div class="ei-dp-footer">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
+            <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
           </div>`;
       };
 
@@ -1868,7 +1868,7 @@
                     <button class="${!state.ui.eiGroupBy?"active":""}" onclick="state.ui.eiGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.eiGroupBy==="projekt"?"active":""}" onclick="state.ui.eiGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
                   </div>
                   <button class="tm-btn tm-btn-sm ei-mob-hide" onclick="ctrl.toggleEiColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
-                  <button class="tm-btn tm-btn-sm tm-btn-primary ei-mob-hide" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
+                  <button class="tm-btn tm-btn-sm" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
                 </div>
               </div>
               <div class="ei-tbl-wrap">
@@ -2020,7 +2020,7 @@
           <div class="kz-dp-row"><span class="kz-dp-key">Abrechnung</span><span class="kz-dp-val">${h.abrBadge(k.abrechnung)}</span></div>
           ${k.bemerkungen?`<div class="kz-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
           <div class="kz-dp-footer">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
+            <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
           </div>`;
       };
 
@@ -2185,7 +2185,7 @@
                     <button class="${!state.ui.kzGroupBy?"active":""}" onclick="state.ui.kzGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.kzGroupBy==="projekt"?"active":""}" onclick="state.ui.kzGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
                   </div>
                   <button class="tm-btn tm-btn-sm kz-mob-hide" onclick="ctrl.toggleKzColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
-                  <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
+                  <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
               </div>
               <div class="kz-tbl-wrap">
@@ -2295,7 +2295,7 @@
           ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
           ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
           <div class="abr-dp-footer">
-            <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+            <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
             ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
             <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
           </div>`;
@@ -2663,7 +2663,7 @@
             .ae-footer-grand{font-size:17px;font-weight:700;color:#004078}
             .ae-footer-grand-lbl{font-size:10px;color:#8896a5;text-transform:uppercase;letter-spacing:.4px}
             .ae-btn-c{padding:7px 14px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;background:none;border:1.5px solid #dde4ec;color:#4a5568;cursor:pointer}
-            .ae-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#1D9E75;border:none;color:#fff;cursor:pointer}
+            .ae-btn-s{padding:7px 20px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer}
           </style>
 
           <button class="ae-back" onclick="ctrl.openProjekt(${p.id})">← ${h.esc(p.title)}</button>
@@ -3990,7 +3990,7 @@
         <div class="kz-dp-row"><span class="kz-dp-key">Abrechnung</span><span class="kz-dp-val">${h.abrBadge(k.abrechnung)}</span></div>
         ${k.bemerkungen?`<div class="kz-dp-note">${h.esc(k.bemerkungen)}</div>`:""}
         <div class="kz-dp-footer">
-          <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
+          <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}">✎ Bearbeiten</button>
           <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" style="color:var(--tm-red)">🗑</button>
         </div>`;
     },
@@ -4030,7 +4030,7 @@
               <div class="ei-bs-row"><span class="ei-bs-key">Total</span><span class="ei-bs-val" style="color:#004078">CHF ${h.chf(a.totalBetrag||0)}</span></div>
             </div>
             <div class="ei-bs-actions">
-              <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id});ui.closeModal()">⬇ PDF</button>
+              <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id});ui.closeModal()">⬇ PDF</button>
               ${proj?`<button class="tm-btn tm-btn-sm" onclick="ui.closeModal();ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
             </div>
           </div>
@@ -4070,7 +4070,7 @@
         ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
         ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
         <div class="abr-dp-footer">
-          <button class="tm-btn tm-btn-sm tm-btn-primary" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
+          <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
           ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
           <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
         </div>`;
@@ -4113,7 +4113,7 @@
               <div class="ei-bs-row"><span class="ei-bs-key">Abrechnung</span><span class="ei-bs-val">${h.abrBadge(k.abrechnung)}</span></div>
             </div>
             <div class="ei-bs-actions">
-              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
               <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
             </div>
           </div>
@@ -4155,7 +4155,7 @@
         <div class="ei-dp-row"><span class="ei-dp-key">Abrechnung</span><span class="ei-dp-val">${h.abrBadge(sel.abrechnung)}</span></div>
         ${sel.bemerkungen?`<div class="ei-dp-note">${h.esc(sel.bemerkungen)}</div>`:""}
         <div class="ei-dp-footer">
-          <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${sel.id}">✎ Bearbeiten</button>
+          <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${sel.id}">✎ Bearbeiten</button>
         </div>`;
     },
 
@@ -4328,7 +4328,7 @@
               <div class="ei-bs-row"><span class="ei-bs-key">Abrechnung</span><span class="ei-bs-val">${h.abrBadge(e.abrechnung)}</span></div>
             </div>
             <div class="ei-bs-actions">
-              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
               <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉</button>
               <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
             </div>
@@ -4381,7 +4381,7 @@
               ${e.bemerkungen?`<div class="pd-bs-note">${h.esc(e.bemerkungen)}</div>`:""}
             </div>
             <div class="pd-bs-actions">
-              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
               <button class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${e.id}" onclick="ui.closeModal()">⧉ Duplizieren</button>
               <button class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${e.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
             </div>
@@ -4423,7 +4423,7 @@
               ${k.bemerkungen?`<div class="pd-bs-note">${h.esc(k.bemerkungen)}</div>`:""}
             </div>
             <div class="pd-bs-actions">
-              <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
+              <button class="tm-btn tm-btn-sm" data-action="edit-konzeption" data-id="${k.id}" onclick="ui.closeModal()">✎ Bearbeiten</button>
               <button class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${k.id}" onclick="ui.closeModal()" style="color:var(--tm-red)">🗑</button>
             </div>
           </div>
