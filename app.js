@@ -2065,7 +2065,7 @@
           .kz-sb-mehr:hover { color:var(--tm-text); }
           .kz-sb-footer { padding:8px 12px; border-top:1px solid #dde3ea; }
           .kz-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
-          .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
+          .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
           .kz-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
           .kz-title { font-size:18px; font-weight:700; color:var(--tm-text); }
           .kz-meta { font-size:12px; color:#8896a5; }
