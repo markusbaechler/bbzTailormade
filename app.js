@@ -2035,6 +2035,7 @@
           <td class="kz-td-proj">
             ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
             <span class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
+            ${window.innerWidth<=899 && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
           </td>
           ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
           <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
@@ -2125,11 +2126,9 @@
             .kz-td-person { display:none !important; }
             .kz-td-verrechenbar { display:none !important; }
             .kz-td-abr    { display:none !important; }
-            table.kz-tbl    { table-layout:fixed; }
-            .kz-td-date     { width:88px; font-size:12px; padding-right:4px; white-space:nowrap; overflow:hidden; }
-            .kz-td-proj     { width:auto; overflow:hidden; text-overflow:ellipsis; }
-            td.kz-td-desc { display:none !important; }
-            .kz-td-katdauer { width:130px; white-space:nowrap; padding-left:4px; overflow:hidden; text-overflow:clip; }
+            .kz-td-person { display:none !important; }
+            .kz-td-verrechenbar { display:none !important; }
+            .kz-td-abr { display:none !important; }
           }
         </style>
         <div class="kz-wrap">
@@ -2199,11 +2198,11 @@
               <div class="kz-tbl-wrap">
                 <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
-                    <th style="${window.innerWidth<=899?'width:88px;':'width:1px;'}white-space:nowrap;padding-right:8px">Datum ↓</th>
-                    <th style="overflow:hidden;text-overflow:ellipsis">Firma / Projekt</th>
+                    <th style="white-space:nowrap;padding-right:8px">Datum ↓</th>
+                    <th>Firma / Projekt</th>
                     ${window.innerWidth > 899 ? `<th class="kz-td-desc">Beschreibung</th>` : ""}
                     <th class="kz-td-person">Person</th>
-                    <th style="${window.innerWidth<=899?'width:130px;white-space:nowrap;':''}">Kat. / Dauer</th>
+                    <th class="kz-td-katdauer">Kat. / Dauer</th>
                     <th class="kz-td-verrechenbar">Verrechenbar</th>
                     <th class="kz-td-abr">Abrechnung</th>
                   </tr></thead>
