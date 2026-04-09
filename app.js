@@ -2125,10 +2125,10 @@
             .kz-td-person { display:none !important; }
             .kz-td-verrechenbar { display:none !important; }
             .kz-td-abr    { display:none !important; }
-            .kz-td-date   { font-size:12px; padding-right:8px; }
-            .kz-td-proj   { width:auto; max-width:120px; }
-            .kz-td-desc   { width:auto; }
-            .kz-td-katdauer { width:auto; white-space:nowrap; }
+            .kz-td-date     { font-size:12px; padding-right:6px; width:1px; white-space:nowrap; }
+            .kz-td-proj     { width:auto; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+            .kz-td-desc     { display:none !important; }
+            .kz-td-katdauer { width:1px; white-space:nowrap; padding-left:6px; }
           }
         </style>
         <div class="kz-wrap">
