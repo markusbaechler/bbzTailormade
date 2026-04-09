@@ -3026,6 +3026,12 @@
             .fi-mob-hide { display:none !important; }
             .fi-mob-chips { display:flex !important; }
 
+            /* Mobile scroll fix: Firmen-Liste vollständig scrollbar */
+            .fi-wrap  { height:auto; overflow:visible; }
+            .fi-shell { overflow:visible; min-height:0; }
+            .fi-main  { overflow:visible; }
+            .fi-tbl-wrap { overflow:visible; flex:none; -webkit-overflow-scrolling:touch; }
+
             /* Suchfeld full-width */
             .fi-bar { padding:8px 12px; }
             .fi-bar-right { flex:1; }
@@ -3208,7 +3214,10 @@
 
       ui.render(`
         <style>
-          .fd-page { height:calc(100vh - var(--tm-header-h,52px)); background:#f5f7fb; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+          .fd-page { height:calc(100vh - var(--tm-header-h,52px)); min-height:0; background:#f5f7fb; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+          @supports (height: 100dvh) {
+            .fd-page { height:calc(100dvh - var(--tm-header-h,52px)); }
+          }
           /* Header */
           .fd-hdr { background:#fff; border-bottom:1px solid #dde3ea; padding:0; }
           .fd-hdr-inner { padding:14px 24px 0; }
