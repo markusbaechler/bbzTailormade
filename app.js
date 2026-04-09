@@ -2036,7 +2036,7 @@
             ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
             <span class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
           </td>
-          <td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>
+          ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
           <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
           <td class="kz-td-katdauer kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
           <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
@@ -2128,7 +2128,7 @@
             table.kz-tbl    { table-layout:fixed; }
             .kz-td-date     { width:88px; font-size:12px; padding-right:4px; white-space:nowrap; overflow:hidden; }
             .kz-td-proj     { width:auto; overflow:hidden; text-overflow:ellipsis; }
-            .kz-td-desc     { display:none !important; }
+            td.kz-td-desc { display:none !important; }
             .kz-td-katdauer { width:130px; white-space:nowrap; padding-left:4px; overflow:hidden; text-overflow:clip; }
           }
         </style>
@@ -2201,7 +2201,7 @@
                   <thead><tr>
                     <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
                     <th class="kz-td-proj">Firma / Projekt</th>
-                    <th class="kz-td-desc" style="display:none">Beschreibung</th>
+                    ${window.innerWidth > 899 ? `<th class="kz-td-desc">Beschreibung</th>` : ""}
                     <th class="kz-td-person">Person</th>
                     <th class="kz-td-katdauer">Kat. / Dauer</th>
                     <th class="kz-td-verrechenbar">Verrechenbar</th>
