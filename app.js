@@ -2199,11 +2199,11 @@
               <div class="kz-tbl-wrap">
                 <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
-                    <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
-                    <th class="kz-td-proj">Firma / Projekt</th>
+                    <th style="${window.innerWidth<=899?'width:88px;':'width:1px;'}white-space:nowrap;padding-right:8px">Datum ↓</th>
+                    <th style="overflow:hidden;text-overflow:ellipsis">Firma / Projekt</th>
                     ${window.innerWidth > 899 ? `<th class="kz-td-desc">Beschreibung</th>` : ""}
                     <th class="kz-td-person">Person</th>
-                    <th class="kz-td-katdauer">Kat. / Dauer</th>
+                    <th style="${window.innerWidth<=899?'width:130px;white-space:nowrap;':''}">Kat. / Dauer</th>
                     <th class="kz-td-verrechenbar">Verrechenbar</th>
                     <th class="kz-td-abr">Abrechnung</th>
                   </tr></thead>
