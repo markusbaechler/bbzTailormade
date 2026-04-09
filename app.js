@@ -2887,8 +2887,8 @@
               return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6">
                 <div style="font-size:11px;color:#9ca3af;white-space:nowrap;padding-top:1px;min-width:50px">${h.esc(h.fmtDate(a.datum))}</div>
                 <div>
-                  <div style="font-size:12px;color:#1f2937">${h.esc(a.title||a.kontaktart||"—")}</div>
-                  ${name||a.kontaktart?`<div style="font-size:11px;color:#9ca3af">${h.esc([name,a.kontaktart].filter(Boolean).join(" · "))}</div>`:""}
+                  <div style="font-size:12px;color:#1f2937">${h.esc(a.notizen||a.title||"—")}</div>
+                  ${name||a.typ?`<div style="font-size:11px;color:#9ca3af">${h.esc([name,a.typ].filter(Boolean).join(" · "))}</div>`:""}
                 </div>
               </div>`;
             }).join("");
@@ -3089,7 +3089,22 @@
               <div class="fi-toolbar">
                 <div>
                   <div class="fi-title">${[f.klassifizierung, f.anzeigen==="projekte"?"Tailormade-Projekte":f.anzeigen==="crm"?"CRM-Aktivitäten":""].filter(Boolean).concat(["Firmen"]).join(" · ")}</div>
-                  <div class="fi-meta">${list.length} Firmen</div>
+                  <div class="fi-meta">${(() => {
+                    const totalKont  = state.data.contacts.filter(c => !c.archiviert).length;
+                    const aktivProj  = state.enriched.projekte.filter(p => !p.archiviert).length;
+                    const allKontIds = new Set(state.data.contacts.filter(c => !c.archiviert).map(c => c.id));
+                    const offTasks   = state.data.tasks.filter(t => allKontIds.has(t.kontaktId) && t.status !== "erledigt").length;
+                    const naechster  = state.enriched.einsaetze
+                      .filter(e => h.toDate(e.datum) >= h.todayStart() && !["abgesagt","abgesagt-chf"].includes(e.einsatzStatus))
+                      .sort((a,b) => h.toDate(a.datum)-h.toDate(b.datum))[0];
+                    return [
+                      `${list.length} Firmen`,
+                      `${totalKont} Kontakte`,
+                      `${aktivProj} Projekte aktiv`,
+                      offTasks > 0 ? `<span style="color:#b45309;font-weight:600">${offTasks} Tasks offen</span>` : `${offTasks} Tasks offen`,
+                      naechster ? `Nächster Einsatz ${naechster.datumFmt}` : ""
+                    ].filter(Boolean).join(" · ");
+                  })()}</div>
                 </div>
               </div>
 
