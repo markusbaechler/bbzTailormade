@@ -2766,11 +2766,6 @@
 
       // Sortierung: Akquisition > A > B > C > Rest, dann alphabetisch
       const klRank = k => k === "Akquisition" ? 0 : k === "A-Kunde" ? 1 : k === "B-Kunde" ? 2 : k === "C-Kunde" ? 3 : 4;
-      list.sort((a, b) => {
-        const rA = klRank(a.klassifizierung), rB = klRank(b.klassifizierung);
-        if (rA !== rB) return rA - rB;
-        return a.title.localeCompare(b.title, "de");
-      });
 
       const klassifizierungen = ["Akquisition","A-Kunde","B-Kunde","C-Kunde"].filter(kl => all.some(fi => fi.klassifizierung === kl));
       const hasFilter = f.search || f.klassifizierung || f.vip || f.anzeigen;
@@ -2788,6 +2783,7 @@
           case "name":    va=a.title.toLowerCase(); vb=b.title.toLowerCase(); break;
           case "seg":     va=klRank(a.klassifizierung); vb=klRank(b.klassifizierung); break;
           case "crm":     va=lcA?lcA.getTime():0; vb=lcB?lcB.getTime():0; break;
+          case "kont":    va=state.data.contacts.filter(c=>c.firmaLookupId===a.id&&!c.archiviert).length; vb=state.data.contacts.filter(c=>c.firmaLookupId===b.id&&!c.archiviert).length; break;
           case "proj":    va=projA; vb=projB; break;
           case "next":    va=naechsterA?h.toDate(naechsterA.datum).getTime():Infinity; vb=naechsterB?h.toDate(naechsterB.datum).getTime():Infinity; break;
           default:        va=a.title.toLowerCase(); vb=b.title.toLowerCase();
@@ -2939,7 +2935,7 @@
           .fi-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
           .fi-tbl th:hover { color:var(--tm-text); }
           .fi-tbl th.fi-th-active { color:#004078; }
-          .fi-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .fi-tbl td { padding:4px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
           .fi-tbl-row { cursor:pointer; }
           .fi-tbl-row:hover td { background:#f6f8fb; }
           .fi-tbl-row.fi-row-sel td { background:#e6f1fb !important; }
@@ -2977,7 +2973,7 @@
             padding: 6px 12px 8px;
             background: #fff;
             border-bottom: 1px solid #e5e7eb;
-            overflow-x: auto;
+            flex-wrap: wrap;
             flex-shrink: 0;
           }
           .fi-mob-chip {
@@ -3084,7 +3080,8 @@
                   const active = f.klassifizierung === kl;
                   return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
                 }).join("")}
-                <button class="fi-mob-chip${f.anzeigen==="projekte"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="projekte">Mit Projekten${f.anzeigen==="projekte"?" ×":""}</button>
+                <button class="fi-mob-chip${f.anzeigen==="projekte"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="projekte"?"":"projekte"}">Tailormade-Projekte${f.anzeigen==="projekte"?" ×":""}</button>
+                <button class="fi-mob-chip${f.anzeigen==="crm"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="crm"?"":"crm"}">CRM-Aktivitäten${f.anzeigen==="crm"?" ×":""}</button>
                 ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
               </div>
 
@@ -3094,7 +3091,7 @@
                     ${fiSortTh("name","Firma","fi-td-name")}
                     ${fiSortTh("seg","Segment","fi-td-seg")}
                     ${fiSortTh("crm","Letzte CRM-Aktivität","fi-td-crm")}
-                    <th class="fi-td-kont" style="text-align:right">Kontakte</th>
+                    ${fiSortTh("kont","Kontakte","fi-td-kont")}
                     ${fiSortTh("proj","Projekte","fi-td-proj")}
                     ${fiSortTh("next","Nächster Einsatz","fi-td-next")}
                   </tr></thead>
