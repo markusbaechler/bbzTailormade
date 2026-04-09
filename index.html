@@ -138,6 +138,8 @@
       body { padding-bottom:60px; }
       .tm-view-root { height:calc(100vh - 52px - 60px); }
       .ei-wrap, .kz-wrap, .pd-wrap { height:calc(100vh - 52px - 60px); }
+      /* fi-wrap: normaler Page-Scroll statt fixed-height overflow:hidden */
+      .tm-view-root > .fi-wrap { height:auto; overflow-y:auto; -webkit-overflow-scrolling:touch; }
     }
 
     .tm-bottom-nav {
