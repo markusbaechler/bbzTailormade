@@ -141,7 +141,7 @@
     },
     filters: {
       route:        "projekte",
-      projekte:     { search: "", status: "" },
+      projekte:     { search: "", status: "aktiv" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
       konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "" },
       abrechnungen: { search: "", status: "", projekt: "", firma: "", jahr: "" },
@@ -1041,7 +1041,7 @@
 
     projektDetail(id) {
       // ── Daten ──────────────────────────────────────────────────────────────
-      const alle = state.enriched.projekte.filter(p => !p.archiviert);
+      const alle = state.enriched.projekte; // alle inkl. archivierte — Filterung in Sidebar
       const p = alle.find(p => p.id === id);
       if (!p) { ui.render(`<p class="tm-muted">Projekt nicht gefunden (ID: ${id}).</p>`); return; }
 
@@ -1060,24 +1060,33 @@
       // ── Sidebar HTML ───────────────────────────────────────────────────────
       const sbSearch = state.filters.projekte.search.toLowerCase();
       const pdCollapsed = state.ui.pdFirmaCollapsed || {};
-      const statusFilter = state.filters.projekte.status;
+      const statusFilter = state.filters.projekte.status !== undefined ? state.filters.projekte.status : "aktiv";
+      // Sicherstellen dass Default "aktiv" gesetzt ist
+      if (state.filters.projekte.status === undefined || state.filters.projekte.status === "") {
+        state.filters.projekte.status = "aktiv";
+      }
 
-      const firmenGruppen = firmenSorted.map(fn => {
-        let projekte = alle.filter(pp => pp.firmaName === fn &&
+      const alleGefiltert = statusFilter === "alle"
+        ? state.enriched.projekte
+        : statusFilter === "archiviert"
+          ? state.enriched.projekte.filter(p => p.archiviert)
+          : state.enriched.projekte.filter(p => !p.archiviert);
+
+      const firmenSortedSb = [...new Set(alleGefiltert.map(p => p.firmaName).filter(Boolean))].sort();
+
+      const firmenGruppen = firmenSortedSb.map(fn => {
+        let projekte = alleGefiltert.filter(pp => pp.firmaName === fn &&
           (!sbSearch || pp.title.toLowerCase().includes(sbSearch) || fn.toLowerCase().includes(sbSearch)));
-        if (statusFilter) projekte = projekte.filter(pp => pp.status === statusFilter);
         if (!projekte.length) return "";
         const hasActive = projekte.some(pp => pp.id === id);
         const isExpanded = hasActive || pdCollapsed[fn] === true || projekte.length === 1;
         const dot = `<div class="pd-sb-dot" style="background:${firmaColor(fn)}"></div>`;
 
         if (projekte.length === 1) {
-          // Direktklick zur Firma → öffnet sofort das einzige Projekt
           return `<div class="pd-sb-firma${hasActive?" has-active":""}" data-action="open-projekt" data-id="${projekte[0].id}">
             ${dot}<span class="pd-sb-firma-name">${h.esc(fn)}</span>
           </div>`;
         }
-        // Mehrere Projekte → aufklappbar
         return `<div>
           <div class="pd-sb-firma${hasActive?" has-active":""}" onclick="if(!state.ui.pdFirmaCollapsed)state.ui.pdFirmaCollapsed={};state.ui.pdFirmaCollapsed['${fn.replace(/'/g,"\\'")}']=${!isExpanded};ctrl.render()">
             ${dot}<span class="pd-sb-firma-name">${h.esc(fn)}</span>
@@ -1456,10 +1465,10 @@
                 ${firmenGruppen || `<div style="padding:8px 12px;font-size:12px;color:#8896a5">Keine Projekte</div>`}
               </div>
               <div class="pd-sb-sec">
-                <div class="pd-sb-lbl">Status</div>
-                ${["aktiv","abgeschlossen","pausiert"].map(s => `
-                  <div class="pd-sb-item${statusFilter===s?" active":""}" onclick="state.filters.projekte.status=state.filters.projekte.status==='${s}'?'':'${s}';ctrl.render()">
-                    ${h.esc(s.charAt(0).toUpperCase()+s.slice(1))}
+                <div class="pd-sb-lbl">Projekte</div>
+                ${[["aktiv","Aktive"],["alle","Alle"],["archiviert","Archivierte"]].map(([val,lbl]) => `
+                  <div class="pd-sb-item${state.filters.projekte.status===val?" active":""}" onclick="state.filters.projekte.status='${val}';ctrl.render()">
+                    ${lbl}
                   </div>`).join("")}
               </div>
             </div>
