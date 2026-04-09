@@ -1850,21 +1850,41 @@
       const sumStunden= list.reduce((s,k)=>s+(k.aufwandStunden||0),0);
       const sb = state.ui.sbOpen;
 
-      // ── Sidebar-Sektion ────────────────────────────────────────────────────
-      const sbSec = (key, label, items) => {
-        const isOpen = sb["kz_"+key] !== false;
-        const isActive = !!f[key];
-        return `<div class="kz-sb-sec">
-          <div class="kz-sb-sec-hdr" data-action="kz-toggle-sec" data-sec="kz_${key}">
-            <span class="kz-sb-label">${label}</span>
-            ${isActive ? `<span class="kz-sb-count">1</span>` : ""}
-            <span class="kz-sb-toggle${isOpen?" open":""}">▶</span>
-          </div>
-          ${isOpen ? `<div class="kz-sb-body">${items.map(([val,lbl]) => `
-            <div class="kz-sb-chip${f[key]===val?" active":""}" data-action="kz-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
-          `).join("")}</div>` : ""}
+      // ── Personen nach Häufigkeit sortiert ─────────────────────────────────
+      const personCount = {};
+      all.forEach(k => { if (k.personName) personCount[k.personName] = (personCount[k.personName]||0) + 1; });
+      const personenSorted = [...new Set(all.map(k=>k.personName).filter(n=>n&&n!=="—"))]
+        .sort((a,b) => (personCount[b]||0) - (personCount[a]||0));
+      const top5Personen = personenSorted.slice(0, 5);
+      const restPersonen = personenSorted.slice(5);
+
+      const initials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      const AVCOLORS = ["#B5D4F4:#0C447C","#CECBF6:#3C3489","#C0DD97:#3B6D11","#FAC775:#854F0B","#F4C0D1:#993556","#9FE1CB:#0F6E56","#F5C4B3:#993C1D","#D3D1C7:#444441"];
+      const avColor = i => { const [bg,tx] = AVCOLORS[i % AVCOLORS.length].split(":"); return {bg,tx}; };
+
+      const personItem = (name, idx) => {
+        const c = avColor(personenSorted.indexOf(name));
+        return `<div class="kz-sb-item${f.person===name?" active":""}" data-action="kz-filter" data-fkey="person" data-fval="${h.esc(name)}">
+          <div class="kz-sb-av" style="background:${c.bg};color:${c.tx}">${initials(name)}</div>
+          <span class="kz-sb-iname">${h.esc(name)}</span>
         </div>`;
       };
+
+      const firmaItem = (name, idx) => {
+        const clr = firmaColorMap[name];
+        return `<div class="kz-sb-item${f.firma===name?" active":""}" data-action="kz-filter" data-fkey="firma" data-fval="${h.esc(name)}">
+          <div class="kz-sb-dot" style="background:${clr?.tx||"#8896a5"}"></div>
+          <span class="kz-sb-iname">${h.esc(name)}</span>
+        </div>`;
+      };
+
+      const sbSimple = (key, label, values) => `
+        <div class="kz-sb-sec">
+          <div class="kz-sb-lbl">${label}</div>
+          ${values.map(v => `<div class="kz-sb-item${f[key]===v?" active":""}" data-action="kz-filter" data-fkey="${key}" data-fval="${h.esc(v)}">
+            <span class="kz-sb-iname">${h.esc(v)}</span>
+          </div>`).join("")}
+        </div>`;
 
       // ── Detail-Panel ───────────────────────────────────────────────────────
       const detailHtml = () => {
@@ -1912,23 +1932,22 @@
         <style>
           .kz-wrap { display:flex; flex-direction:column; height:calc(100vh - var(--tm-header-h,52px)); overflow:hidden; }
           .kz-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
-          .kz-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
-          .kz-sb-head { padding:10px 12px; }
-          .kz-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
-          .kz-sb-head input:focus { border-color:#004078; background:#fff; }
+          .kz-sidebar { width:188px; min-width:188px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
+          .kz-sb-search { padding:8px 10px; border-bottom:1px solid #dde3ea; }
+          .kz-sb-search input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .kz-sb-search input:focus { border-color:#004078; background:#fff; }
           .kz-sb-scroll { flex:1; overflow-y:auto; }
-          .kz-sb-sec { border-bottom:1px solid #dde3ea; }
-          .kz-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
-          .kz-sb-sec-hdr:hover { background:#f5f7fa; }
-          .kz-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
-          .kz-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; }
-          .kz-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; }
-          .kz-sb-toggle.open { transform:rotate(90deg); }
-          .kz-sb-body { padding:2px 8px 8px; }
-          .kz-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
-          .kz-sb-chip:hover { background:#f5f7fa; }
-          .kz-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
-          .kz-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
+          .kz-sb-sec { border-bottom:1px solid #dde3ea; padding:6px 0; }
+          .kz-sb-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; padding:2px 12px 5px; }
+          .kz-sb-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; border-left:2px solid transparent; font-size:12px; color:var(--tm-text); white-space:nowrap; overflow:hidden; }
+          .kz-sb-item:hover { background:#f5f7fa; }
+          .kz-sb-item.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .kz-sb-iname { overflow:hidden; text-overflow:ellipsis; }
+          .kz-sb-av { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; }
+          .kz-sb-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+          .kz-sb-mehr { display:flex; align-items:center; gap:5px; padding:4px 12px; cursor:pointer; color:#8896a5; font-size:12px; }
+          .kz-sb-mehr:hover { color:var(--tm-text); }
+          .kz-sb-footer { padding:8px 12px; border-top:1px solid #dde3ea; }
           .kz-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
           .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
           .kz-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
@@ -1984,24 +2003,46 @@
 
             <!-- SIDEBAR -->
             <div class="kz-sidebar">
-              <div class="kz-sb-head">
+              <div class="kz-sb-search">
                 <div class="kz-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                   <button class="tm-btn tm-btn-sm" data-action="kz-mob-filter-close">← Konzeption</button>
-                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="kz-reset-filters">✕ Filter löschen</button>`:""}
+                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="kz-reset-filters">✕ löschen</button>`:""}
                 </div>
-                <input type="search" placeholder="Suche Konzeption, Projekt…" value="${h.esc(f.search||"")}"
+                <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}"
                   data-search-key="konzeption.search"
                   oninput="h.searchInput('konzeption.search',this.value)">
               </div>
               <div class="kz-sb-scroll">
-                ${sbSec("jahr",        "Jahr",        jahre.map(j=>[String(j),String(j)]))}
-                ${sbSec("firma",       "Firma",       firmen.map(n=>[n,n]))}
-                ${sbSec("projekt",     "Projekt",     projekte.map(([id,t])=>[String(id),t]))}
-                ${sbSec("verrechenbar","Verrechenbar",state.choices.konzVerrechenbar.map(v=>[v,v]))}
-                ${sbSec("person",      "Person",      personen.map(n=>[n,n]))}
-                ${sbSec("abrechnung",  "Abrechnung",  state.choices.konzAbrechnung.map(v=>[v,v]))}
+
+                ${sbSimple("jahr", "Jahr", jahre.map(j=>String(j)))}
+
+                <div class="kz-sb-sec">
+                  <div class="kz-sb-lbl">Firma</div>
+                  ${firmen.map((n,i) => firmaItem(n,i)).join("")}
+                </div>
+
+                <div class="kz-sb-sec">
+                  <div class="kz-sb-lbl">Person</div>
+                  ${top5Personen.map((n,i) => personItem(n,i)).join("")}
+                  ${restPersonen.length ? `
+                    <div class="kz-sb-mehr" onclick="
+                      const l=this.nextElementSibling;
+                      const open=l.style.display==='none';
+                      l.style.display=open?'block':'none';
+                      this.innerHTML=open?'▾ Weniger':'▸ + ${restPersonen.length} weitere';
+                    ">▸ + ${restPersonen.length} weitere</div>
+                    <div style="display:none">
+                      ${restPersonen.map((n,i) => personItem(n, top5Personen.length+i)).join("")}
+                    </div>` : ""}
+                </div>
+
+                ${sbSimple("verrechenbar", "Verrechenbar", state.choices.konzVerrechenbar||[])}
+                ${sbSimple("abrechnung",   "Abrechnung",   state.choices.konzAbrechnung||[])}
+
               </div>
-              <div class="kz-sb-footer"${hasFilter?"":`style="display:none"`}><button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button></div>
+              <div class="kz-sb-footer"${hasFilter?"":`style="display:none"`}>
+                <button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button>
+              </div>
             </div>
 
             <!-- MAIN -->
