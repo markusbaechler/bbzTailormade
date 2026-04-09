@@ -2006,11 +2006,14 @@
               <div class="kz-sb-search">
                 <div class="kz-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
                   <button class="tm-btn tm-btn-sm" data-action="kz-mob-filter-close">← Konzeption</button>
-                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="kz-reset-filters">✕ löschen</button>`:""}
                 </div>
-                <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}"
-                  data-search-key="konzeption.search"
-                  oninput="h.searchInput('konzeption.search',this.value)">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}"
+                    data-search-key="konzeption.search"
+                    oninput="h.searchInput('konzeption.search',this.value)"
+                    style="flex:1">
+                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D;flex-shrink:0" data-action="kz-reset-filters">✕</button>`:""}
+                </div>
               </div>
               <div class="kz-sb-scroll">
 
@@ -2040,9 +2043,7 @@
                 ${sbSimple("abrechnung",   "Abrechnung",   state.choices.konzAbrechnung||[])}
 
               </div>
-              <div class="kz-sb-footer"${hasFilter?"":`style="display:none"`}>
-                <button class="kz-sb-reset" data-action="kz-reset-filters">✕ Alle Filter löschen</button>
-              </div>
+              <div class="kz-sb-footer" style="display:none"></div>
             </div>
 
             <!-- MAIN -->
