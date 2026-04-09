@@ -119,8 +119,8 @@ html, body {
 }
 .tm-btn:hover { background: var(--tm-gray-light); }
 .tm-btn:active { transform: scale(0.98); }
-.tm-btn-primary { background: var(--tm-green); color: #fff; border-color: var(--tm-green); }
-.tm-btn-primary:hover { background: #0a5240; }
+.tm-btn-primary { background: var(--tm-blue); color: #fff; border-color: var(--tm-blue); }
+.tm-btn-primary:hover { background: #003060; }
 .tm-btn-sm { padding: 4px 10px; font-size: 12px; }
 .tm-btn-danger { background: var(--tm-red-light); color: var(--tm-red); border-color: #f0c0c0; }
 .tm-btn-danger:hover { background: #f7d0d0; }
