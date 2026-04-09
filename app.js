@@ -2758,9 +2758,10 @@
       if (f.vip === "ja")    list = list.filter(fi => fi.vip);
       if (f.anzeigen === "projekte")   list = list.filter(fi => state.enriched.projekte.some(p => p.firmaLookupId === fi.id));
       if (f.anzeigen === "crm")        list = list.filter(fi => {
-        const ids = new Set(state.data.contacts.filter(c => c.firmaLookupId === fi.id).map(c => c.id));
+        const ids = new Set(state.data.contacts.filter(c => c.firmaLookupId === fi.id && !c.archiviert).map(c => c.id));
+        if (!ids.size) return false;
         return state.data.history.some(h2 => ids.has(h2.kontaktId)) ||
-               state.data.tasks.some(t => ids.has(t.kontaktId));
+               state.data.tasks.some(t => ids.has(t.kontaktId) && t.status !== "erledigt");
       });
 
       // Sortierung: Akquisition > A > B > C > Rest, dann alphabetisch
