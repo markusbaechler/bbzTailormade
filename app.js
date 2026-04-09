@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true } },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true }, eiGroupBy: null, kzGroupBy: null },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -1728,6 +1728,16 @@
           .ei-tbl.hide-status   .ei-td-status  { display:none; }
           .ei-tbl.hide-abr      .ei-td-abr     { display:none; }
 
+          /* Gruppe Toggle */
+          .ei-group-toggle { display:flex; border:1px solid #dde3ea; border-radius:6px; overflow:hidden; }
+          .ei-group-toggle button { padding:4px 10px; font-size:12px; font-weight:600; font-family:inherit; background:#fff; border:none; cursor:pointer; color:#8896a5; }
+          .ei-group-toggle button.active { background:#004078; color:#fff; }
+          .ei-group-toggle button:hover:not(.active) { background:#f5f7fa; }
+
+          /* Gruppen-Header */
+          .ei-grp-hd td { background:#f0f4f8 !important; font-size:11px; font-weight:700; color:#004078; padding:6px 10px; border-top:2px solid #dde3ea; cursor:pointer; user-select:none; }
+          .ei-grp-hd:hover td { background:#e6f1fb !important; }
+
           /* Detail Panel */
           .ei-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .ei-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
@@ -1812,6 +1822,9 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm ei-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="ei-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <div class="ei-group-toggle ei-mob-hide">
+                    <button class="${!state.ui.eiGroupBy?"active":""}" onclick="state.ui.eiGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.eiGroupBy==="projekt"?"active":""}" onclick="state.ui.eiGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
+                  </div>
                   <button class="tm-btn tm-btn-sm ei-mob-hide" onclick="ctrl.toggleEiColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary ei-mob-hide" data-action="new-einsatz" data-projekt-id="">+ Einsatz</button>
                 </div>
@@ -1828,7 +1841,29 @@
                     <th class="ei-td-abr${sort.col==="abrechnung"?" ei-th-active":""}" data-sort-col="abrechnung">Abrechnung ${sort.col==="abrechnung"?(sort.dir==="asc"?"↑":"↓"):"↕"}</th>
                   </tr></thead>
                   <tbody>
-                    ${list.length ? list.map(eRow).join("") : `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einsätze gefunden.</td></tr>`}
+                    ${(() => {
+                      if (!list.length) return `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einsätze gefunden.</td></tr>`;
+                      if (state.ui.eiGroupBy !== "projekt") return list.map(eRow).join("");
+                      // Gruppiert nach Projekt
+                      const groups = new Map();
+                      list.forEach(e => {
+                        const key = e.projektLookupId || 0;
+                        if (!groups.has(key)) groups.set(key, { titel: e.projektTitle||"—", proj: state.enriched.projekte.find(p=>p.id===e.projektLookupId), items: [] });
+                        groups.get(key).items.push(e);
+                      });
+                      const collapsed = state.ui.eiCollapsed || {};
+                      return [...groups.entries()].map(([key, g]) => {
+                        const fn = g.proj?.firmaName||"";
+                        const clr = firmaColorMap[fn];
+                        const total = g.items.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>s+(e.totalBetrag||0),0);
+                        const isCollapsed = collapsed[key];
+                        const badge = fn ? `<span class="ei-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> ` : "";
+                        return `<tr class="ei-grp-hd" onclick="if(!state.ui.eiCollapsed)state.ui.eiCollapsed={};state.ui.eiCollapsed[${key}]=!state.ui.eiCollapsed[${key}];ctrl.render()">
+                          <td colspan="7">${badge}${h.esc(g.titel)}${g.proj?.projektNr?` #${g.proj.projektNr}`:""} <span style="font-weight:400;color:#5a6a7a;margin-left:8px">${g.items.length} Einträge · CHF ${h.chf(total)}</span> <span style="float:right;opacity:.5">${isCollapsed?"▶":"▼"}</span></td>
+                        </tr>
+                        ${isCollapsed ? "" : g.items.map(eRow).join("")}`;
+                      }).join("");
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -2015,6 +2050,16 @@
           .kz-tbl.hide-katdauer    .kz-td-katdauer    { display:none; }
           .kz-tbl.hide-verrechenbar .kz-td-verrechenbar { display:none; }
           .kz-tbl.hide-abr         .kz-td-abr         { display:none; }
+
+          /* Gruppe Toggle */
+          .kz-group-toggle { display:flex; border:1px solid #dde3ea; border-radius:6px; overflow:hidden; }
+          .kz-group-toggle button { padding:4px 10px; font-size:12px; font-weight:600; font-family:inherit; background:#fff; border:none; cursor:pointer; color:#8896a5; }
+          .kz-group-toggle button.active { background:#004078; color:#fff; }
+          .kz-group-toggle button:hover:not(.active) { background:#f5f7fa; }
+
+          /* Gruppen-Header */
+          .kz-grp-hd td { background:#f0f4f8 !important; font-size:11px; font-weight:700; color:#004078; padding:6px 10px; border-top:2px solid #dde3ea; cursor:pointer; user-select:none; }
+          .kz-grp-hd:hover td { background:#e6f1fb !important; }
           .kz-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .kz-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
           .kz-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
@@ -2094,6 +2139,9 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm kz-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="kz-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <div class="kz-group-toggle kz-mob-hide">
+                    <button class="${!state.ui.kzGroupBy?"active":""}" onclick="state.ui.kzGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.kzGroupBy==="projekt"?"active":""}" onclick="state.ui.kzGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
+                  </div>
                   <button class="tm-btn tm-btn-sm kz-mob-hide" onclick="ctrl.toggleKzColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
@@ -2110,7 +2158,29 @@
                     <th class="kz-td-abr">Abrechnung</th>
                   </tr></thead>
                   <tbody>
-                    ${list.length ? list.map(kRow).join("") : `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einträge gefunden.</td></tr>`}
+                    ${(() => {
+                      if (!list.length) return `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einträge gefunden.</td></tr>`;
+                      if (state.ui.kzGroupBy !== "projekt") return list.map(kRow).join("");
+                      const groups = new Map();
+                      list.forEach(k => {
+                        const key = k.projektLookupId || 0;
+                        if (!groups.has(key)) groups.set(key, { titel: k.projektTitle||"—", proj: state.enriched.projekte.find(p=>p.id===k.projektLookupId), items: [] });
+                        groups.get(key).items.push(k);
+                      });
+                      const collapsed = state.ui.kzCollapsed || {};
+                      return [...groups.entries()].map(([key, g]) => {
+                        const fn = g.proj?.firmaName||"";
+                        const clr = firmaColorMap[fn];
+                        const totalH = g.items.reduce((s,k)=>s+(k.aufwandStunden||0),0);
+                        const totalCHF = g.items.filter(k=>k.verrechenbar==="verrechenbar").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+                        const isCollapsed = collapsed[key];
+                        const badge = fn ? `<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> ` : "";
+                        return `<tr class="kz-grp-hd" onclick="if(!state.ui.kzCollapsed)state.ui.kzCollapsed={};state.ui.kzCollapsed[${key}]=!state.ui.kzCollapsed[${key}];ctrl.render()">
+                          <td colspan="7">${badge}${h.esc(g.titel)}${g.proj?.projektNr?` #${g.proj.projektNr}`:""} <span style="font-weight:400;color:#5a6a7a;margin-left:8px">${g.items.length} Einträge · ${totalH.toFixed(1)} h · CHF ${h.chf(totalCHF)} verr.</span> <span style="float:right;opacity:.5">${isCollapsed?"▶":"▼"}</span></td>
+                        </tr>
+                        ${isCollapsed ? "" : g.items.map(kRow).join("")}`;
+                      }).join("");
+                    })()}
                   </tbody>
                 </table>
               </div>
