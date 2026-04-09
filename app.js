@@ -2065,7 +2065,7 @@
           .kz-sb-mehr:hover { color:var(--tm-text); }
           .kz-sb-footer { padding:8px 12px; border-top:1px solid #dde3ea; }
           .kz-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
-          .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#fff; }
+          .kz-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
           .kz-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px 8px; background:#e8ecf0; flex-shrink:0; border-bottom:1px solid rgba(0,0,0,0.09); }
           .kz-title { font-size:18px; font-weight:700; color:var(--tm-text); }
           .kz-meta { font-size:12px; color:#8896a5; }
@@ -2184,12 +2184,11 @@
                   <div class="kz-group-toggle kz-mob-hide">
                     <button class="${!state.ui.kzGroupBy?"active":""}" onclick="state.ui.kzGroupBy=null;ctrl.render()">≡ Liste</button><button class="${state.ui.kzGroupBy==="projekt"?"active":""}" onclick="state.ui.kzGroupBy='projekt';ctrl.render()">⊟ Projekt</button>
                   </div>
-                  <button class="tm-btn tm-btn-sm kz-mob-hide" onclick="ctrl.toggleKzColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
               </div>
               <div class="kz-tbl-wrap">
-                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
+                <table class="kz-tbl">
                   <thead><tr>
                     <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
                     <th class="kz-td-proj">Firma / Projekt</th>
