@@ -2854,7 +2854,7 @@
 
           <div class="fi-dp-nums">
             <div class="fi-dp-num">
-              <div style="font-size:18px;font-weight:800;color:${aktiv>0?"#15803d":"#374151"}">${aktiv||projekte.length}</div>
+              <div style="font-size:18px;font-weight:800;color:${aktiv>0?"#374151":"#374151"}">${aktiv||projekte.length}</div>
               <div style="font-size:10px;color:#9ca3af">${aktiv>0?"aktiv":"Proj."}</div>
             </div>
             <div class="fi-dp-num">
@@ -2869,11 +2869,20 @@
 
           ${naechster ? `
           <div class="fi-dp-next">
-            <div style="font-size:11px;font-weight:700;color:#15803d">▶ ${h.esc(naechster.datumFmt)}</div>
-            <div style="font-size:11px;color:#15803d;opacity:.8">${h.esc(naechster.title || naechster.kategorie)}</div>
+            <div style="font-size:11px;font-weight:700;color:#004078">▶ ${h.esc(naechster.datumFmt)}</div>
+            <div style="font-size:11px;color:#8896a5">${h.esc(naechster.title || naechster.kategorie)}</div>
           </div>` : ""}
 
           <div class="fi-dp-divider"></div>
+
+          ${projekte.filter(p=>p.status==="aktiv").length ? `
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px">Tailormade-Projekte</div>
+            ${projekte.filter(p=>p.status==="aktiv").map(p=>`
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f3f4f6;cursor:pointer" onclick="ctrl.openProjekt(${p.id})">
+                <span style="font-size:12px;color:#004078;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(p.title)}</span>
+                <span style="font-size:11px;color:#9ca3af;margin-left:8px;flex-shrink:0">CHF ${h.chf(p.totalBetrag)}</span>
+              </div>`).join("")}
+            <div class="fi-dp-divider" style="margin-top:8px"></div>` : ""}
 
           ${(() => {
             const recentActs = state.data.history
@@ -2886,15 +2895,12 @@
               const name = c ? [c.vorname,c.nachname].filter(Boolean).join(" ") : "";
               return `<div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6">
                 <div style="font-size:11px;color:#9ca3af;white-space:nowrap;padding-top:1px;min-width:50px">${h.esc(h.fmtDate(a.datum))}</div>
-                <div>
-                  <div style="font-size:12px;color:#1f2937">${h.esc(a.notizen||a.title||"—")}</div>
-                  ${name||a.typ?`<div style="font-size:11px;color:#9ca3af">${h.esc([name,a.typ].filter(Boolean).join(" · "))}</div>`:""}
-                </div>
+                <div style="font-size:12px;color:#374151">${h.esc([name,a.typ].filter(Boolean).join(" · ")||"—")}</div>
               </div>`;
             }).join("");
             return `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px">Letzte Aktivitäten</div>
               ${rows}
-              <div style="font-size:12px;color:#6b7280;cursor:pointer;padding:5px 0;border-bottom:1px solid #f3f4f6"
+              <div style="font-size:12px;color:#6b7280;cursor:pointer;padding:5px 0"
                 onclick="ctrl.openFirma(${fi.id})">→ alle Aktivitäten in CRM</div>`;
           })()}
 
@@ -2909,14 +2915,6 @@
               </div>
             </div>`).join("") : ""}
           ${kontakte.length > 5 ? `<div style="font-size:11px;color:#9ca3af;padding:6px 0">+ ${kontakte.length-5} weitere</div>` : ""}
-
-          ${projekte.filter(p=>p.status==="aktiv").length ? `
-          <div class="fi-dp-divider"></div>
-          ${projekte.filter(p=>p.status==="aktiv").map(p=>`
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;cursor:pointer" onclick="ctrl.openProjekt(${p.id})">
-              <span style="font-size:12px;font-weight:600;color:#1d4ed8;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(p.title)}</span>
-              <span style="font-size:11px;color:#9ca3af;margin-left:8px;flex-shrink:0">CHF ${h.chf(p.totalBetrag)}</span>
-            </div>`).join("")}` : ""}
 
           <div style="padding:12px 0 0">
             <button class="tm-btn tm-btn-sm tm-btn-primary" style="width:100%" onclick="ctrl.openFirma(${fi.id})">Firma öffnen →</button>
