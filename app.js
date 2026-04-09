@@ -2194,7 +2194,8 @@
                 </div>
               </div>
               <div class="kz-tbl-wrap">
-                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
+                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}" style="${window.innerWidth<=899?'table-layout:fixed;width:100%':''}">
+                  ${window.innerWidth<=899?`<colgroup><col style="width:68px"><col><col style="width:95px"></colgroup>`:""}
                   <thead><tr>
                     <th style="white-space:nowrap;padding-right:8px">Datum ↓</th>
                     <th>Firma / Projekt</th>
