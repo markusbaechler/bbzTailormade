@@ -2123,12 +2123,10 @@
             .kz-shell.kz-mob-filter .kz-sidebar { display:flex !important; width:100% !important; min-width:0 !important; border-right:none !important; }
             .kz-shell.kz-mob-filter .kz-main    { display:none !important; }
             .kz-mob-filter-btn { display:flex !important; }
-            .kz-td-person { display:none !important; }
+            .kz-td-person       { display:none !important; }
             .kz-td-verrechenbar { display:none !important; }
-            .kz-td-abr    { display:none !important; }
-            .kz-td-person { display:none !important; }
-            .kz-td-verrechenbar { display:none !important; }
-            .kz-td-abr { display:none !important; }
+            .kz-td-abr          { display:none !important; }
+            .kz-tbl.hide-katdauer .kz-td-katdauer { display:table-cell !important; }
           }
         </style>
         <div class="kz-wrap">
