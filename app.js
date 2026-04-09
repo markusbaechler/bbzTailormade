@@ -3027,13 +3027,10 @@
             .fi-detail  { display:none !important; }
             .fi-mob-filter-btn { display:none !important; }
             .fi-mob-hide { display:none !important; }
-            .fi-mob-chips { display:flex !important; height:auto !important; overflow:visible !important; }
 
-            /* Mobile scroll fix: Firmen-Liste vollständig scrollbar */
-            .fi-wrap  { height:auto; overflow:visible; }
-            .fi-shell { overflow:visible; min-height:0; }
-            .fi-main  { overflow:visible; }
-            .fi-tbl-wrap { overflow:visible; flex:none; -webkit-overflow-scrolling:touch; }
+            /* Toolbar wird 2-zeilig: Titel oben, Chips unten */
+            .fi-toolbar { flex-direction:column; align-items:flex-start; gap:8px; padding-bottom:0; }
+            .fi-mob-chips { display:flex !important; flex-wrap:wrap !important; width:100%; padding:0 0 8px 0; border-bottom:none; background:transparent; }
 
             /* Suchfeld full-width */
             .fi-bar { padding:8px 12px; }
@@ -3122,17 +3119,16 @@
                     ].filter(Boolean).join(" · ");
                   })()}</div>
                 </div>
-              </div>
-
-              <!-- Mobile Chips -->
-              <div class="fi-mob-chips">
-                ${["A-Kunde","B-Kunde","C-Kunde","Akquisition"].map(kl => {
-                  const active = f.klassifizierung === kl;
-                  return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
-                }).join("")}
-                <button class="fi-mob-chip${f.anzeigen==="projekte"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="projekte"?"":"projekte"}">Tailormade-Projekte${f.anzeigen==="projekte"?" ×":""}</button>
-                <button class="fi-mob-chip${f.anzeigen==="crm"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="crm"?"":"crm"}">CRM-Aktivitäten${f.anzeigen==="crm"?" ×":""}</button>
-                ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
+                <!-- Mobile Chips (innerhalb Toolbar = flex-shrink:0) -->
+                <div class="fi-mob-chips">
+                  ${["A-Kunde","B-Kunde","C-Kunde","Akquisition"].map(kl => {
+                    const active = f.klassifizierung === kl;
+                    return `<button class="fi-mob-chip${active?" active":""}" data-action="fi-filter" data-fkey="klassifizierung" data-fval="${h.esc(kl)}">${h.esc(kl)}${active?" ×":""}</button>`;
+                  }).join("")}
+                  <button class="fi-mob-chip${f.anzeigen==="projekte"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="projekte"?"":"projekte"}">Tailormade-Projekte${f.anzeigen==="projekte"?" ×":""}</button>
+                  <button class="fi-mob-chip${f.anzeigen==="crm"?" active":""}" data-action="fi-filter" data-fkey="anzeigen" data-fval="${f.anzeigen==="crm"?"":"crm"}">CRM-Aktivitäten${f.anzeigen==="crm"?" ×":""}</button>
+                  ${hasFilter ? `<button class="fi-mob-chip fi-mob-chip-reset" data-action="fi-reset-filters">Alle</button>` : ""}
+                </div>
               </div>
 
               <div class="fi-tbl-wrap">
