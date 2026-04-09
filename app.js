@@ -2126,10 +2126,10 @@
             .kz-td-verrechenbar { display:none !important; }
             .kz-td-abr    { display:none !important; }
             table.kz-tbl    { table-layout:fixed; }
-            .kz-td-date     { width:72px; font-size:12px; padding-right:4px; white-space:nowrap; overflow:hidden; }
+            .kz-td-date     { width:88px; font-size:12px; padding-right:4px; white-space:nowrap; overflow:hidden; }
             .kz-td-proj     { width:auto; overflow:hidden; text-overflow:ellipsis; }
             .kz-td-desc     { display:none !important; }
-            .kz-td-katdauer { width:100px; white-space:nowrap; padding-left:4px; overflow:hidden; }
+            .kz-td-katdauer { width:130px; white-space:nowrap; padding-left:4px; overflow:hidden; text-overflow:clip; }
           }
         </style>
         <div class="kz-wrap">
@@ -2201,7 +2201,7 @@
                   <thead><tr>
                     <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
                     <th class="kz-td-proj">Firma / Projekt</th>
-                    <th class="kz-td-desc">Beschreibung</th>
+                    <th class="kz-td-desc" style="display:none">Beschreibung</th>
                     <th class="kz-td-person">Person</th>
                     <th class="kz-td-katdauer">Kat. / Dauer</th>
                     <th class="kz-td-verrechenbar">Verrechenbar</th>
