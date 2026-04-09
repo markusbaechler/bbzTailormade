@@ -1522,7 +1522,7 @@
 
       // ── Filter anwenden ────────────────────────────────────────────────────
       let list = [...all];
-      if (f.search)        list = list.filter(e => h.inc(e.title,f.search)||h.inc(e.projektTitle,f.search)||h.inc(e.personName,f.search));
+      if (f.search)        list = list.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return h.inc(e.title,f.search)||h.inc(e.projektTitle,f.search)||h.inc(e.personName,f.search)||h.inc(p?.firmaName||"",f.search); });
       if (f.jahr)          list = list.filter(e => e.datum && new Date(e.datum).getFullYear() === +f.jahr);
       if (f.firma)         list = list.filter(e => { const p = state.enriched.projekte.find(p=>p.id===e.projektLookupId); return p?.firmaName===f.firma; });
       if (f.projekt)       list = list.filter(e => e.projektLookupId === +f.projekt);
@@ -1863,7 +1863,7 @@
 
       // ── Filter anwenden ────────────────────────────────────────────────────
       let list = [...all];
-      if (f.search)      list = list.filter(k => h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search));
+      if (f.search)      list = list.filter(k => { const p = state.enriched.projekte.find(p=>p.id===k.projektLookupId); return h.inc(k.title,f.search)||h.inc(k.projektTitle,f.search)||h.inc(p?.firmaName||"",f.search); });
       if (f.jahr)        list = list.filter(k => k.datum && new Date(k.datum).getFullYear() === +f.jahr);
       if (f.firma)       list = list.filter(k => { const p = state.enriched.projekte.find(p=>p.id===k.projektLookupId); return p?.firmaName===f.firma; });
       if (f.projekt)     list = list.filter(k => k.projektLookupId === +f.projekt);
