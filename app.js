@@ -1460,16 +1460,16 @@
                 oninput="h.searchInput('projekte.search',this.value)">
             </div>
             <div class="pd-sb-scroll">
-              <div class="pd-sb-sec" style="padding-bottom:2px">
-                <div class="pd-sb-lbl">Firma / Projekt</div>
-                ${firmenGruppen || `<div style="padding:8px 12px;font-size:12px;color:#8896a5">Keine Projekte</div>`}
-              </div>
               <div class="pd-sb-sec">
                 <div class="pd-sb-lbl">Projekte</div>
                 ${[["aktiv","Aktive"],["alle","Alle"],["archiviert","Archivierte"]].map(([val,lbl]) => `
                   <div class="pd-sb-item${state.filters.projekte.status===val?" active":""}" onclick="state.filters.projekte.status='${val}';ctrl.render()">
                     ${lbl}
                   </div>`).join("")}
+              </div>
+              <div class="pd-sb-sec" style="padding-bottom:2px">
+                <div class="pd-sb-lbl">Firma / Projekt</div>
+                ${firmenGruppen || `<div style="padding:8px 12px;font-size:12px;color:#8896a5">Keine Projekte</div>`}
               </div>
             </div>
             <div class="pd-sb-footer">
