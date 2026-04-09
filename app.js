@@ -2035,9 +2035,9 @@
           <td class="kz-td-proj">
             ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
             <span class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
-            ${mob && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
+            ${window.innerWidth<=899 && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
           </td>
-          ${mob ? "" : `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>`}
+          ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
           <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
           <td class="kz-td-katdauer kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
           <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
