@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true } },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true } },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -1814,6 +1814,7 @@
       const f   = state.filters.konzeption;
       const all = state.enriched.konzeption;
       const selId = state.ui.selectedKonzId;
+      const cols  = state.ui.kzCols;
 
       // ── Filter-Optionen ────────────────────────────────────────────────────
       const jahre   = [...new Set(all.map(k => k.datum ? new Date(k.datum).getFullYear() : null).filter(Boolean))].sort((a,b)=>b-a);
@@ -1895,16 +1896,15 @@
         const isSel = k.id === selId;
         return `<tr class="kz-row${isSel?" kz-row-sel":""}" data-action="kz-select" data-id="${k.id}">
           <td class="kz-td-date">${h.esc(k.datumFmt)}</td>
-          <td>
-            ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span>`:""}
-            <div class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</div>
-            <div class="kz-c2 kz-mob-desc">${h.esc(k.title)}</div>
+          <td class="kz-td-proj">
+            ${fn?`<span class="kz-firma-badge" style="background:${clr?.bg||"#f1f5f9"};color:${clr?.tx||"#475569"}">${h.esc(fn)}</span> `:""}
+            <span class="kz-c2">${h.esc(k.projektTitle||"—")}${proj?.projektNr?` #${proj.projektNr}`:""}</span>
           </td>
-          <td><div class="kz-c1">${h.esc(k.title)}</div></td>
-          <td class="kz-td-muted">${h.esc(k.personName||"—")}</td>
-          <td class="kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
-          <td>${h.verrBadge(k.verrechenbar)}</td>
-          <td>${h.abrBadge(k.abrechnung)}</td>
+          <td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>
+          <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
+          <td class="kz-td-katdauer kz-td-muted">${h.esc(k.kategorie)} · ${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</td>
+          <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
+          <td class="kz-td-abr">${h.abrBadge(k.abrechnung)}</td>
         </tr>`;
       };
 
@@ -1936,16 +1936,27 @@
           .kz-meta { font-size:12px; color:#8896a5; }
           .kz-tbl-wrap { flex:1; overflow-y:auto; }
           table.kz-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
-          .kz-tbl th { padding:7px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
-          .kz-tbl td { padding:9px 10px; border-bottom:1px solid #dde3ea; vertical-align:middle; }
+          .kz-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+          .kz-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
           .kz-row { cursor:pointer; }
           .kz-row:hover td { background:#f6f8fb; }
           .kz-row-sel td { background:#e6f1fb !important; }
-          .kz-td-date { white-space:nowrap; color:#8896a5; font-size:13px; width:90px; }
-          .kz-td-muted { color:#8896a5; font-size:12px; white-space:nowrap; }
-          .kz-c1 { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
-          .kz-c2 { font-size:11px; color:#8896a5; margin-top:1px; }
-          .kz-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; white-space:nowrap; margin-bottom:2px; }
+          .kz-td-date     { width:1px; white-space:nowrap; color:#8896a5; font-size:13px; padding-right:16px; }
+          .kz-td-proj     { width:22%; }
+          .kz-td-desc     { width:30%; }
+          .kz-td-person   { width:14%; }
+          .kz-td-katdauer { width:14%; }
+          .kz-td-verrechenbar { width:130px; }
+          .kz-td-abr      { width:90px; }
+          .kz-td-muted { color:#8896a5; font-size:12px; }
+          .kz-c1 { font-weight:600; font-size:13px; color:var(--tm-text); }
+          .kz-c2 { font-size:11px; color:#8896a5; }
+          .kz-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:5px; white-space:nowrap; vertical-align:middle; }
+          /* Spalten ein/ausblenden */
+          .kz-tbl.hide-person      .kz-td-person      { display:none; }
+          .kz-tbl.hide-katdauer    .kz-td-katdauer    { display:none; }
+          .kz-tbl.hide-verrechenbar .kz-td-verrechenbar { display:none; }
+          .kz-tbl.hide-abr         .kz-td-abr         { display:none; }
           .kz-detail { width:272px; min-width:272px; border-left:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; }
           .kz-dp-head { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid #dde3ea; flex-shrink:0; }
           .kz-dp-label { font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.06em; }
@@ -2002,19 +2013,20 @@
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
                   <button class="tm-btn tm-btn-sm kz-mob-filter-btn${hasFilter?" tm-btn-primary":""}" data-action="kz-mob-filter">⚙ Filter${hasFilter?" ●":""}</button>
+                  <button class="tm-btn tm-btn-sm kz-mob-hide" onclick="ctrl.toggleKzColPicker()" title="Spalten" style="font-size:16px;padding:0 8px">⊞</button>
                   <button class="tm-btn tm-btn-sm tm-btn-primary kz-mob-hide" data-action="new-konzeption" data-projekt-id="">+ Aufwand</button>
                 </div>
               </div>
               <div class="kz-tbl-wrap">
-                <table class="kz-tbl">
+                <table class="kz-tbl${!cols.person?" hide-person":""}${!cols.katdauer?" hide-katdauer":""}${!cols.verrechenbar?" hide-verrechenbar":""}${!cols.abrechnung?" hide-abr":""}">
                   <thead><tr>
-                    <th style="width:90px">Datum ↓</th>
-                    <th style="width:180px">Firma / Projekt</th>
-                    <th>Beschreibung</th>
-                    <th style="width:120px">Person</th>
-                    <th style="width:120px">Kat. / Dauer</th>
-                    <th style="width:120px">Verrechenbar</th>
-                    <th style="width:110px">Abrechnung</th>
+                    <th style="width:1px;white-space:nowrap;padding-right:16px">Datum ↓</th>
+                    <th class="kz-td-proj">Firma / Projekt</th>
+                    <th class="kz-td-desc">Beschreibung</th>
+                    <th class="kz-td-person">Person</th>
+                    <th class="kz-td-katdauer">Kat. / Dauer</th>
+                    <th class="kz-td-verrechenbar">Verrechenbar</th>
+                    <th class="kz-td-abr">Abrechnung</th>
                   </tr></thead>
                   <tbody>
                     ${list.length ? list.map(kRow).join("") : `<tr><td colspan="7" style="text-align:center;padding:32px;color:#8896a5">Keine Einträge gefunden.</td></tr>`}
@@ -3583,6 +3595,44 @@
         document.addEventListener("click", function close(ev) {
           if (!document.getElementById("ei-col-picker")?.contains(ev.target)) {
             document.getElementById("ei-col-picker")?.remove();
+            document.removeEventListener("click", close);
+          }
+        });
+      }, 50);
+    },
+
+    toggleKzColPicker() {
+      let dd = document.getElementById("kz-col-picker");
+      if (dd) { dd.remove(); return; }
+      const cols = state.ui.kzCols;
+      const defs = [
+        { key: "person",       label: "Person" },
+        { key: "katdauer",     label: "Kat. / Dauer" },
+        { key: "verrechenbar", label: "Verrechenbar" },
+        { key: "abrechnung",   label: "Abrechnung" }
+      ];
+      dd = document.createElement("div");
+      dd.id = "kz-col-picker";
+      dd.style.cssText = "position:fixed;z-index:9999;background:#fff;border:1px solid rgba(0,0,0,0.13);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.14);padding:10px 14px;min-width:170px;display:flex;flex-direction:column;gap:6px;";
+      dd.innerHTML = `
+        <div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8896a5;margin-bottom:2px">Spalten</div>
+        ${defs.map(d => `
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;font-family:inherit">
+            <input type="checkbox" ${cols[d.key]?"checked":""} onchange="state.ui.kzCols['${d.key}']=this.checked;ctrl.render()" style="accent-color:#004078">
+            ${d.label}
+          </label>`).join("")}
+      `;
+      const btn = document.querySelector("button[onclick='ctrl.toggleKzColPicker()']");
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        dd.style.top  = (rect.bottom + 4) + "px";
+        dd.style.left = rect.left + "px";
+      }
+      document.body.appendChild(dd);
+      setTimeout(() => {
+        document.addEventListener("click", function close(ev) {
+          if (!document.getElementById("kz-col-picker")?.contains(ev.target)) {
+            document.getElementById("kz-col-picker")?.remove();
             document.removeEventListener("click", close);
           }
         });
