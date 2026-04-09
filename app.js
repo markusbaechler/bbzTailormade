@@ -3254,12 +3254,13 @@
           .fd-act { padding:9px 0; border-bottom:1px solid #f5f7fa; }
           .fd-act:last-child { border-bottom:none; }
           .fd-act-meta { font-size:10px; color:#8896a5; margin-bottom:3px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-          .fd-act-text { font-size:13px; color:#1a2332; line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+          .fd-act-text { font-size:13px; color:#1a2332; line-height:1.45; }
           .fd-task { display:flex; align-items:center; gap:9px; padding:7px 0; border-bottom:1px solid #f5f7fa; font-size:13px; }
           .fd-task:last-child { border-bottom:none; }
           .fd-proj { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f5f7fa; }
           .fd-proj:last-child { border-bottom:none; }
-          .fd-full { grid-column:1/-1; }
+          .fd-act-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 24px; }
+          @media(max-width:899px) { .fd-act-grid { grid-template-columns:1fr; } }
           .fd-typ-tag { font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; background:#e8f1f9; color:#004078; }
         </style>
 
@@ -3427,7 +3428,7 @@
                 <span class="fd-card-title">Aktivitäten</span>
                 <span class="fd-card-count">${history.length} total</span>
               </div>
-              <div class="fd-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+              <div class="fd-card-body fd-act-grid">
                 ${history.length ? history.slice(0, 10).map(act => {
                   const c = kontakte.find(c => c.id === act.kontaktId);
                   return `<div class="fd-act">
