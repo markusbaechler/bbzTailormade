@@ -178,7 +178,7 @@
     },
     fmtDate(v) {
       const d = h.toDate(v);
-      return d ? d.toLocaleDateString("de-CH", {day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+      return d ? d.toLocaleDateString("de-CH", {day:"2-digit",month:"2-digit",year:"2-digit"}) : "";
     },
     toDateInput(v) {
       const d = h.toDate(v);
