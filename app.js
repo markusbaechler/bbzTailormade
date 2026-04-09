@@ -3001,6 +3001,9 @@
             border-bottom: 1px solid #e5e7eb;
             flex-wrap: wrap;
             flex-shrink: 0;
+            overflow: visible;
+            height: auto;
+            max-height: none;
           }
           .fi-mob-chip {
             flex-shrink: 0;
@@ -3024,7 +3027,7 @@
             .fi-detail  { display:none !important; }
             .fi-mob-filter-btn { display:none !important; }
             .fi-mob-hide { display:none !important; }
-            .fi-mob-chips { display:flex !important; }
+            .fi-mob-chips { display:flex !important; height:auto !important; overflow:visible !important; }
 
             /* Mobile scroll fix: Firmen-Liste vollständig scrollbar */
             .fi-wrap  { height:auto; overflow:visible; }
