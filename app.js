@@ -1560,28 +1560,47 @@
       let ci = 0;
       list.forEach(e => { const fn = firmaOf(e); if (fn && !(fn in firmaColorMap)) firmaColorMap[fn] = COLORS[ci++ % COLORS.length]; });
 
-      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.einsatzStatus||f.person||f.abrechnung;
-      const totalBetrag = list.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>s+(e.totalBetrag||0),0);
-      const sb = state.ui.sbOpen;
+      // ── Personen nach Häufigkeit sortiert ─────────────────────────────────
+      const personCount = {};
+      all.forEach(e => {
+        if (e.personName && e.personName !== "—") personCount[e.personName] = (personCount[e.personName]||0) + 1;
+        if (e.coPersonName && e.coPersonName !== "—") personCount[e.coPersonName] = (personCount[e.coPersonName]||0) + 1;
+      });
+      const personenSorted = [...new Set([...all.map(e=>e.personName),...all.map(e=>e.coPersonName)].filter(n=>n&&n!=="—"))]
+        .sort((a,b) => (personCount[b]||0) - (personCount[a]||0));
+      const top5 = personenSorted.slice(0, 5);
+      const restPersonen = personenSorted.slice(5);
 
-      // ── Sidebar-Sektion ────────────────────────────────────────────────────
-      const sbSec = (key, label, items, renderItem) => {
-        const isOpen = sb[key] !== false;
-        const activeVal = f[key];
-        const count = items.filter(([v])=>v===activeVal).length > 0 ? 1 : 0;
-        return `<div class="ei-sb-sec">
-          <div class="ei-sb-sec-hdr" data-action="toggle-sb-sec" data-sec="${key}">
-            <span class="ei-sb-label">${label}</span>
-            ${count ? `<span class="ei-sb-count">${count}</span>` : ""}
-            <span class="ei-sb-toggle${isOpen?" open":""}">▶</span>
-          </div>
-          ${isOpen ? `<div class="ei-sb-body">${items.map(([val,lbl]) => `
-            <div class="ei-sb-chip${f[key]===val?" active":""}" data-action="ei-filter" data-fkey="${key}" data-fval="${h.esc(val)}">${h.esc(lbl)}</div>
-          `).join("")}</div>` : ""}
+      const eiInitials = n => (n||"").split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+      const AVCOLORS = ["#B5D4F4:#0C447C","#CECBF6:#3C3489","#C0DD97:#3B6D11","#FAC775:#854F0B","#F4C0D1:#993556","#9FE1CB:#0F6E56","#F5C4B3:#993C1D","#D3D1C7:#444441"];
+      const avColor = name => { const i = personenSorted.indexOf(name); const [bg,tx] = AVCOLORS[i % AVCOLORS.length].split(":"); return {bg,tx}; };
+
+      const eiPersonItem = name => {
+        const c = avColor(name);
+        return `<div class="ei-sb-item${f.person===name?" active":""}" data-action="ei-filter" data-fkey="person" data-fval="${h.esc(name)}">
+          <div class="ei-sb-av" style="background:${c.bg};color:${c.tx}">${eiInitials(name)}</div>
+          <span class="ei-sb-iname">${h.esc(name)}</span>
         </div>`;
       };
 
-      // ── Detail-Panel Inhalt ────────────────────────────────────────────────
+      const eiFirmaItem = name => {
+        const clr = firmaColorMap[name];
+        return `<div class="ei-sb-item${f.firma===name?" active":""}" data-action="ei-filter" data-fkey="firma" data-fval="${h.esc(name)}">
+          <div class="ei-sb-dot" style="background:${clr?.tx||"#8896a5"}"></div>
+          <span class="ei-sb-iname">${h.esc(name)}</span>
+        </div>`;
+      };
+
+      const eiSimple = (key, label, values) => `
+        <div class="ei-sb-sec">
+          <div class="ei-sb-lbl">${label}</div>
+          ${values.map(([val,lbl]) => `<div class="ei-sb-item${f[key]===val?" active":""}" data-action="ei-filter" data-fkey="${key}" data-fval="${h.esc(val)}">
+            <span class="ei-sb-iname">${h.esc(lbl)}</span>
+          </div>`).join("")}
+        </div>`;
+
+      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.einsatzStatus||f.person||f.abrechnung;
+      const totalBetrag = list.filter(e=>!["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)).reduce((s,e)=>s+(e.totalBetrag||0),0);      // ── Detail-Panel Inhalt ────────────────────────────────────────────────
       const detailHtml = () => {
         const e = selId ? list.find(e=>e.id===selId) || all.find(e=>e.id===selId) : null;
         if (!e) return `<div class="ei-dp-empty"><div style="font-size:28px;opacity:0.2">☰</div><span>Zeile auswählen für Details</span></div>`;
@@ -1650,23 +1669,21 @@
           .ei-shell { display:flex; flex:1; min-height:0; overflow:hidden; }
 
           /* Sidebar */
-          .ei-sidebar { width:220px; min-width:220px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; border-left:none; }
-          .ei-sb-head { padding:10px 12px; }
-          .ei-sb-head input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
-          .ei-sb-head input:focus { border-color:#004078; background:#fff; }
+          .ei-sidebar { width:188px; min-width:188px; border-right:1px solid #dde3ea; background:#fff; display:flex; flex-direction:column; overflow:hidden; border-left:none; }
+          .ei-sb-search { padding:8px 10px; border-bottom:1px solid #dde3ea; }
+          .ei-sb-search input { width:100%; padding:5px 9px; border:1px solid #dde3ea; border-radius:6px; font-size:12px; font-family:inherit; color:var(--tm-text); background:#f5f7fa; outline:none; }
+          .ei-sb-search input:focus { border-color:#004078; background:#fff; }
           .ei-sb-scroll { flex:1; overflow-y:auto; }
-          .ei-sb-sec { border-bottom:1px solid #dde3ea; }
-          .ei-sb-sec-hdr { display:flex; align-items:center; gap:6px; padding:7px 12px 6px; cursor:pointer; user-select:none; }
-          .ei-sb-sec-hdr:hover { background:#f5f7fa; }
-          .ei-sb-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; flex:1; }
-          .ei-sb-count { font-size:9px; background:#004078; color:#fff; border-radius:8px; padding:1px 5px; font-weight:700; flex-shrink:0; }
-          .ei-sb-toggle { font-size:9px; color:#8896a5; transition:transform .15s; display:inline-block; flex-shrink:0; }
-          .ei-sb-toggle.open { transform:rotate(90deg); }
-          .ei-sb-body { padding:2px 8px 8px; }
-          .ei-sb-chip { font-size:12px; padding:5px 8px 5px 12px; border-radius:0; border:none; border-left:2px solid transparent; background:transparent; color:var(--tm-text); cursor:pointer; display:block; width:100%; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family:inherit; transition:background .1s; }
-          .ei-sb-chip:hover { background:#f5f7fa; }
-          .ei-sb-chip.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
-          .ei-sb-footer { padding:10px 12px; border-top:1px solid #dde3ea; }
+          .ei-sb-sec { border-bottom:1px solid #dde3ea; padding:6px 0; }
+          .ei-sb-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#8896a5; padding:2px 12px 5px; }
+          .ei-sb-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; border-left:2px solid transparent; font-size:12px; color:var(--tm-text); white-space:nowrap; overflow:hidden; }
+          .ei-sb-item:hover { background:#f5f7fa; }
+          .ei-sb-item.active { background:#e6f1fb; border-left-color:#004078; color:#004078; font-weight:600; }
+          .ei-sb-iname { overflow:hidden; text-overflow:ellipsis; }
+          .ei-sb-av { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; }
+          .ei-sb-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+          .ei-sb-mehr { display:flex; align-items:center; gap:5px; padding:4px 12px; cursor:pointer; color:#8896a5; font-size:12px; }
+          .ei-sb-mehr:hover { color:var(--tm-text); }
           .ei-sb-reset { font-size:12px; color:#A32D2D; cursor:pointer; background:none; border:none; padding:0; font-family:inherit; font-weight:600; }
 
           /* Main */
@@ -1738,24 +1755,46 @@
 
             <!-- SIDEBAR -->
             <div class="ei-sidebar">
-              <div class="ei-sb-head">
-                <div class="ei-mob-filter-btn" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="ei-sb-search">
+                <div class="ei-mob-filter-btn" style="align-items:center;justify-content:space-between;margin-bottom:8px">
                   <button class="tm-btn tm-btn-sm" data-action="ei-mob-filter-close">← Einsätze</button>
-                  ${hasFilter?`<button class="tm-btn tm-btn-sm" style="color:#A32D2D" data-action="reset-einsatz-filters">✕ Filter löschen</button>`:""}
                 </div>
-                <input type="search" placeholder="Suche Einsatz, Projekt…" value="${h.esc(f.search||"")}"
-                  data-search-key="einsaetze.search"
-                  oninput="h.searchInput('einsaetze.search',this.value)">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <input type="search" placeholder="Suche…" value="${h.esc(f.search||"")}"
+                    data-search-key="einsaetze.search"
+                    oninput="h.searchInput('einsaetze.search',this.value)"
+                    style="flex:1">
+                </div>
+                ${hasFilter?`<button class="ei-sb-reset" data-action="reset-einsatz-filters" style="display:block;width:100%;margin-top:6px;padding:4px 0;text-align:center;border:1px dashed #f5b8b8;border-radius:6px;background:#fff8f8">✕ Filter löschen</button>`:""}
               </div>
               <div class="ei-sb-scroll">
-                ${sbSec("jahr",     "Jahr",       jahre.map(j=>[String(j),String(j)]))}
-                ${sbSec("firma",    "Firma",      firmen.map(n=>[n,n]))}
-                ${sbSec("projekt",  "Projekt",    projekte.map(([id,t])=>[String(id),t]))}
-                ${sbSec("einsatzStatus","Status", [["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]])}
-                ${sbSec("person",   "Person",     personen.map(n=>[n,n]))}
-                ${sbSec("abrechnung","Abrechnung",state.choices.einsatzAbrechnung.map(v=>[v,v]))}
+
+                ${eiSimple("jahr", "Jahr", jahre.map(j=>[ String(j), String(j) ]))}
+
+                <div class="ei-sb-sec">
+                  <div class="ei-sb-lbl">Firma</div>
+                  ${firmen.map(n => eiFirmaItem(n)).join("")}
+                </div>
+
+                <div class="ei-sb-sec">
+                  <div class="ei-sb-lbl">Person</div>
+                  ${top5.map(n => eiPersonItem(n)).join("")}
+                  ${restPersonen.length ? `
+                    <div class="ei-sb-mehr" onclick="
+                      const l=this.nextElementSibling;
+                      const open=l.style.display==='none';
+                      l.style.display=open?'block':'none';
+                      this.innerHTML=open?'▾ Weniger':'▸ + ${restPersonen.length} weitere';
+                    ">▸ + ${restPersonen.length} weitere</div>
+                    <div style="display:none">
+                      ${restPersonen.map(n => eiPersonItem(n)).join("")}
+                    </div>` : ""}
+                </div>
+
+                ${eiSimple("einsatzStatus", "Status", [["geplant","Geplant"],["durchgefuehrt","Durchgeführt"],["abgesagt","Abgesagt"],["abgesagt-chf","Abgesagt (CHF)"]])}
+                ${eiSimple("abrechnung", "Abrechnung", state.choices.einsatzAbrechnung.map(v=>[v,v]))}
+
               </div>
-              <div class="ei-sb-footer"${hasFilter?"":`style="display:none"`}><button class="ei-sb-reset" data-action="reset-einsatz-filters">✕ Alle Filter löschen</button></div>
             </div>
 
             <!-- MAIN -->
