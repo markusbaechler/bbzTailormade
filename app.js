@@ -5109,6 +5109,13 @@
         .ef-btn-c:hover{border-color:#4a5568}
         .ef-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
         .ef-btn-s:hover{background:#0a5a9e}
+        @media(max-width:699px){
+          .ef-ft{flex-wrap:wrap;padding:10px 14px 14px;}
+          .ef-ft>div:first-child{width:100%;order:2;display:flex;gap:6px;flex-wrap:wrap;}
+          .ef-ft>div:last-child{width:100%;order:1;display:flex;gap:8px;justify-content:flex-end;}
+          .ef-btn-s{flex:1;justify-content:center;}
+          .ef-btn-c{flex:1;text-align:center;}
+        }
       </style>
       <div class="ef-m">
         <div class="ef-hd">
@@ -6348,6 +6355,13 @@
         .kf-btn-c:hover{border-color:#4a5568}
         .kf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
         .kf-btn-s:hover{background:#0a5a9e}
+        @media(max-width:699px){
+          .kf-ft{flex-wrap:wrap;padding:10px 14px 14px;}
+          .kf-ft>div:first-child{width:100%;order:2;display:flex;gap:6px;flex-wrap:wrap;}
+          .kf-ft>div:last-child{width:100%;order:1;display:flex;gap:8px;justify-content:flex-end;}
+          .kf-btn-s{flex:1;justify-content:center;}
+          .kf-btn-c{flex:1;text-align:center;}
+        }
       </style>
       <div class="kf-m">
         <div class="kf-hd">
