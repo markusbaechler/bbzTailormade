@@ -55,9 +55,11 @@
     // KonzeptionTM — Lesen (PersonLookupId OHNE "0")
     konz_projekt_r:    "ProjektLookupIdLookupId",
     konz_person_r:     "PersonLookupIdLookupId",
+    konz_coperson_r:   "CoPersonLookupIdLookupId",
     // KonzeptionTM — Schreiben
     konz_projekt_w:    "ProjektLookupId",
     konz_person_w:     "PersonLookupId",
+    konz_coperson_w:   "CoPersonLookupId",
 
     // AbrechnungenTM — Lesen
     abr_projekt_r:     "ProjektLookupIdLookupId",
@@ -329,6 +331,21 @@
         if (pill) pill.style.display = "inline-flex";
         if (ta)   ta.style.display = "none";
       }
+      // Konzeption-CoPerson Pill aktualisieren
+      if (name === "coPersonLookupId" && document.getElementById("kf-coperson-pill")) {
+        const pName = item.textContent.trim();
+        const initials = n => n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+        const av   = document.getElementById("kf-coperson-av");
+        const nm   = document.getElementById("kf-coperson-name");
+        const pill = document.getElementById("kf-coperson-pill");
+        const ta   = document.getElementById("kf-coperson-ta");
+        if (av)   { av.textContent = initials(pName); av.style.background = "#004078"; av.style.color = "#fff"; }
+        if (nm)   { nm.textContent = pName; nm.style.color = ""; nm.style.fontWeight = ""; }
+        if (pill) { pill.style.display = "inline-flex"; pill.style.borderStyle = ""; }
+        if (ta)   ta.style.display = "none";
+        const rmBtn = pill?.nextElementSibling;
+        if (rmBtn && rmBtn.tagName === "BUTTON") rmBtn.style.display = "";
+      }
     },
     einsatzStatus(e) {
       const s = String(e.status||"").toLowerCase();
@@ -525,6 +542,7 @@
       projektLookupId: h.rdLookup(raw, F.konz_projekt_r),
       kategorie:       raw.Kategorie || "",
       personLookupId:  h.rdLookup(raw, F.konz_person_r),
+      coPersonLookupId: h.rdLookup(raw, F.konz_coperson_r),
       aufwandStunden:  h.num(raw.AufwandStunden),
       betragBerechnet:   h.num(raw.BetragBerechnet),
       betragFinal:       h.num(raw.BetragFinal),
@@ -538,6 +556,7 @@
     k.datumFmt      = h.fmtDate(k.datum);
     k.anzeigeBetrag = h.num(k.betragFinal) ?? h.num(k.betragBerechnet);
     k.personName    = h.contactName(k.personLookupId);
+    k.coPersonName  = h.contactName(k.coPersonLookupId);
     k.projektTitle  = state.data.projekte.find(p => Number(p.id) === k.projektLookupId)?.Title || "";
     return k;
   }
@@ -1327,6 +1346,7 @@
             <div class="pd-dp-row"><span class="pd-dp-key">Datum</span><span class="pd-dp-val">${h.esc(k.datumFmt)}</span></div>
             <div class="pd-dp-row"><span class="pd-dp-key">Kategorie</span><span class="pd-dp-val">${h.esc(k.kategorie)}</span></div>
             <div class="pd-dp-row"><span class="pd-dp-key">Person</span><span class="pd-dp-val">${h.esc(k.personName||"—")}</span></div>
+            ${k.coPersonName?`<div class="pd-dp-row"><span class="pd-dp-key">Co-Person</span><span class="pd-dp-val">${h.esc(k.coPersonName)}</span></div>`:""}
             <div class="pd-dp-row"><span class="pd-dp-key">Aufwand</span><span class="pd-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
             <div class="pd-dp-row"><span class="pd-dp-key">Betrag</span><span class="pd-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
             <div class="pd-dp-row"><span class="pd-dp-key">Verrechenbar</span><span class="pd-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
@@ -2019,6 +2039,7 @@
           <div class="kz-dp-row"><span class="kz-dp-key">Projekt</span><span class="kz-dp-val">${h.esc(k.projektTitle||"—")}</span></div>
           <div class="kz-dp-row"><span class="kz-dp-key">Kategorie</span><span class="kz-dp-val">${h.esc(k.kategorie)}</span></div>
           <div class="kz-dp-row"><span class="kz-dp-key">Person</span><span class="kz-dp-val">${h.esc(k.personName||"—")}</span></div>
+          ${k.coPersonName?`<div class="kz-dp-row"><span class="kz-dp-key">Co-Person</span><span class="kz-dp-val">${h.esc(k.coPersonName)}</span></div>`:""}
           <div class="kz-dp-row"><span class="kz-dp-key">Aufwand</span><span class="kz-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
           <div class="kz-dp-row"><span class="kz-dp-key">Betrag</span><span class="kz-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
           <div class="kz-dp-row"><span class="kz-dp-key">Verrechenbar</span><span class="kz-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
@@ -2043,7 +2064,7 @@
             ${window.innerWidth<=899 && k.title ? `<div style="font-size:11px;color:#8896a5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.esc(k.title)}</div>` : ""}
           </td>
           ${window.innerWidth > 899 ? `<td class="kz-td-desc"><span class="kz-c1">${h.esc(k.title)}</span></td>` : ""}
-          <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}</td>
+          <td class="kz-td-person kz-td-muted">${h.esc(k.personName||"—")}${k.coPersonName?`<div style="font-size:11px;color:#8896a5;margin-top:1px">${h.esc(k.coPersonName)}</div>`:""}</td>
           <td class="kz-td-katdauer kz-td-muted">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"} · ${window.innerWidth<=899 ? h.esc((k.kategorie||"").substring(0,5)) : h.esc(k.kategorie)}</td>
           <td class="kz-td-verrechenbar">${h.verrBadge(k.verrechenbar)}</td>
           <td class="kz-td-abr">${h.abrBadge(k.abrechnung)}</td>
@@ -3965,6 +3986,7 @@
         '<div class="ef-bs-sec"><div class="ef-bs-lbl">Datum</div><div class="ef-bs-val">'+h.esc(k.datumFmt)+'</div></div>'
         +(proj?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Projekt</div><div class="ef-bs-val">'+h.esc(proj.title)+(proj.projektNr?' <span style="color:var(--tm-text-muted);font-size:12px">#'+h.esc(proj.projektNr)+'</span>':'')+'</div></div>':"")
         +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Person</div><div class="ef-bs-val">'+h.esc(k.personName)+'</div></div>'
+        +(k.coPersonName?'<div class="ef-bs-sec"><div class="ef-bs-lbl">Co-Person</div><div class="ef-bs-val">'+h.esc(k.coPersonName)+'</div></div>':"")
         +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Kategorie</div><div class="ef-bs-val">'+h.esc(k.kategorie||"—")+'</div></div>'
         +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Dauer</div><div class="ef-bs-val">'+(k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+' h':'—')+'</div></div>'
         +'<div class="ef-bs-sec"><div class="ef-bs-lbl">Betrag</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">'+(k.anzeigeBetrag!==null?'CHF '+h.chf(k.anzeigeBetrag):'—')+'</div></div>'
@@ -4024,6 +4046,7 @@
         <div class="kz-dp-row"><span class="kz-dp-key">Projekt</span><span class="kz-dp-val">${h.esc(k.projektTitle||"—")}</span></div>
         <div class="kz-dp-row"><span class="kz-dp-key">Kategorie</span><span class="kz-dp-val">${h.esc(k.kategorie)}</span></div>
         <div class="kz-dp-row"><span class="kz-dp-key">Person</span><span class="kz-dp-val">${h.esc(k.personName||"—")}</span></div>
+        ${k.coPersonName?`<div class="kz-dp-row"><span class="kz-dp-key">Co-Person</span><span class="kz-dp-val">${h.esc(k.coPersonName)}</span></div>`:""}
         <div class="kz-dp-row"><span class="kz-dp-key">Aufwand</span><span class="kz-dp-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
         <div class="kz-dp-row"><span class="kz-dp-key">Betrag</span><span class="kz-dp-val" style="font-weight:700">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
         <div class="kz-dp-row"><span class="kz-dp-key">Verrechenbar</span><span class="kz-dp-val">${h.verrBadge(k.verrechenbar)}</span></div>
@@ -4537,6 +4560,7 @@
               <div class="pd-bs-row"><span class="pd-bs-key">Datum</span><span class="pd-bs-val">${h.esc(k.datumFmt)}</span></div>
               <div class="pd-bs-row"><span class="pd-bs-key">Kategorie</span><span class="pd-bs-val">${h.esc(k.kategorie)}</span></div>
               <div class="pd-bs-row"><span class="pd-bs-key">Person</span><span class="pd-bs-val">${h.esc(k.personName||"—")}</span></div>
+              ${k.coPersonName?`<div class="pd-bs-row"><span class="pd-bs-key">Co-Person</span><span class="pd-bs-val">${h.esc(k.coPersonName)}</span></div>`:""}
               <div class="pd-bs-row"><span class="pd-bs-key">Aufwand</span><span class="pd-bs-val">${k.aufwandStunden!==null?k.aufwandStunden.toFixed(1)+" h":"—"}</span></div>
               <div class="pd-bs-row"><span class="pd-bs-key">Betrag</span><span class="pd-bs-val" style="color:var(--tm-blue)">${k.anzeigeBetrag!==null?`CHF ${h.chf(k.anzeigeBetrag)}`:"—"}</span></div>
               <div class="pd-bs-row"><span class="pd-bs-key">Verrechenbar</span><span class="pd-bs-val">${h.verrBadge(k.verrechenbar)}</span></div>
@@ -6239,10 +6263,12 @@
       const prefProjId = projektId || (k?.projektLookupId || null);
       const selProjekt = prefProjId ? state.enriched.projekte.find(p => p.id === prefProjId) : null;
       const defPerson  = h.defaultPerson();
-      const selPerson  = k ? k.personLookupId : (copyOpts?.personId || defPerson?.id || null);
-      const selKatInit = k?.kategorie || copyOpts?.kategorie || "Konzeption";
-      const personName = selPerson ? h.contactName(selPerson) : null;
-      const initials   = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
+      const selPerson    = k ? k.personLookupId   : (copyOpts?.personId   || defPerson?.id || null);
+      const selCoPerson  = k ? k.coPersonLookupId : (copyOpts?.coPersonId || null);
+      const selKatInit   = k?.kategorie || copyOpts?.kategorie || "Konzeption";
+      const personName   = selPerson   ? h.contactName(selPerson)   : null;
+      const coPersonName = selCoPerson ? h.contactName(selCoPerson) : null;
+      const initials     = n => n ? n.split(/[\s,]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join("").toUpperCase() : "?";
 
       const projektOpts = state.enriched.projekte
         .filter(p => !p.archiviert)
@@ -6401,7 +6427,7 @@
               <div class="kf-s">
                 <div class="kf-l">Person</div>
                 <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-                  <div class="kf-pp" onclick="ctrl.kfOpenPicker()" id="kf-person-pill">
+                  <div class="kf-pp" onclick="ctrl.kfOpenPicker('person')" id="kf-person-pill">
                     <div class="kf-av" id="kf-person-av">${personName ? h.esc(initials(personName)) : "?"}</div>
                     <div>
                       <div class="kf-pn" id="kf-person-name">${personName ? h.esc(personName) : "Person wählen"}</div>
@@ -6411,6 +6437,27 @@
                   </div>
                   <div class="kf-ta-wrap" id="kf-person-ta">
                     ${ui.personTypeahead("personLookupId", selPerson ? String(selPerson) : "")}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Co-Person -->
+              <div class="kf-s">
+                <div class="kf-l">Co-Person <span style="font-size:10px;color:#8896a5;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
+                <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+                  <div class="kf-pp" onclick="ctrl.kfOpenPicker('coperson')" id="kf-coperson-pill"
+                    style="${coPersonName ? '' : 'border-style:dashed;color:#8896a5'}">
+                    <div class="kf-av" id="kf-coperson-av"
+                      style="${coPersonName ? '' : 'background:#dde4ec;color:#8896a5'}">${coPersonName ? h.esc(initials(coPersonName)) : "+"}</div>
+                    <div>
+                      <div class="kf-pn" id="kf-coperson-name" style="${coPersonName ? '' : 'color:#8896a5;font-weight:500'}">${coPersonName ? h.esc(coPersonName) : "Co-Person hinzufügen"}</div>
+                      <div class="kf-pr-role">${coPersonName ? "Trainer" : ""}</div>
+                    </div>
+                    <span class="kf-pe">✎</span>
+                  </div>
+                  ${coPersonName ? `<button type="button" onclick="ctrl.kfClearCoPerson()" style="font-size:11px;color:#950e13;background:none;border:none;cursor:pointer;padding:0">✕ entfernen</button>` : ""}
+                  <div class="kf-ta-wrap" id="kf-coperson-ta">
+                    ${ui.personTypeahead("coPersonLookupId", selCoPerson ? String(selCoPerson) : "")}
                   </div>
                 </div>
               </div>
@@ -6512,13 +6559,34 @@
     },
 
     // ── Konzeption-Formular Helfer ────────────────────────────────────────
-    kfOpenPicker() {
-      const ta   = document.getElementById("kf-person-ta");
-      const pill = document.getElementById("kf-person-pill");
+    kfOpenPicker(which = "person") {
+      const prefix = which === "coperson" ? "kf-coperson" : "kf-person";
+      const ta   = document.getElementById(`${prefix}-ta`);
+      const pill = document.getElementById(`${prefix}-pill`);
       if (!ta || !pill) return;
       pill.style.display = "none";
       ta.style.display = "block";
       ta.querySelector(".tm-typeahead-input")?.focus();
+    },
+
+    kfClearCoPerson() {
+      const ta = document.getElementById("kf-coperson-ta");
+      if (ta) {
+        const inp = ta.querySelector("input[name='coPersonLookupId']");
+        if (inp) inp.value = "";
+      }
+      const pill = document.getElementById("kf-coperson-pill");
+      if (pill) {
+        pill.style.borderStyle = "dashed";
+        const av = document.getElementById("kf-coperson-av");
+        if (av) { av.textContent = "+"; av.style.background = "#dde4ec"; av.style.color = "#8896a5"; }
+        const nm = document.getElementById("kf-coperson-name");
+        if (nm) { nm.textContent = "Co-Person hinzufügen"; nm.style.color = "#8896a5"; nm.style.fontWeight = "500"; }
+        const role = pill.querySelector(".kf-pr-role");
+        if (role) role.textContent = "";
+        const rmBtn = pill.nextElementSibling;
+        if (rmBtn && rmBtn.tagName === "BUTTON") rmBtn.style.display = "none";
+      }
     },
 
     kfToggleOverride() {
@@ -6584,8 +6652,10 @@
 
         // Lookup-Felder via SP REST API
         const lookupFields = { [F.konz_projekt_w]: projId };
-        const personId = h.num(fd.get("personLookupId"));
-        if (personId) lookupFields[F.konz_person_w] = personId;
+        const personId   = h.num(fd.get("personLookupId"));
+        const coPersonId = h.num(fd.get("coPersonLookupId"));
+        if (personId)   lookupFields[F.konz_person_w]   = personId;
+        if (coPersonId) lookupFields[F.konz_coperson_w] = coPersonId;
 
         const neuerVerrWert = fd.get("verrechenbar") || "";
         const alteKonz      = mode === "edit" && itemId
@@ -6616,6 +6686,11 @@
           fields.Datum = datum + "T12:00:00Z";
           await api.patch(CONFIG.lists.konzeption, eid, fields);
           await api.patchLookups(CONFIG.lists.konzeption, eid, lookupFields);
+          // Co-Person leeren wenn im Edit entfernt
+          const alteCoPersonId = alteKonz?.coPersonLookupId || null;
+          if (alteCoPersonId && !coPersonId) {
+            await api.patchLookups(CONFIG.lists.konzeption, eid, { [F.konz_coperson_w]: 0 });
+          }
           // Abrechnung-Lookup leeren wenn Verrechenbar-Wechsel
           if (verrWechselZuNichtVerr) {
             await api.patchLookups(CONFIG.lists.konzeption, eid, { [F.konz_abrechnung_w]: 0 });
