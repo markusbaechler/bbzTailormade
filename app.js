@@ -2076,8 +2076,8 @@
           .kz-meta { font-size:12px; color:#8896a5; }
           .kz-tbl-wrap { flex:1; overflow-y:auto; }
           table.kz-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
-          .kz-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
-          .kz-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .kz-tbl th { padding:5px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; }
+          .kz-tbl td { padding:4px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
           .kz-row { cursor:pointer; }
           .kz-row:hover td { background:#f6f8fb; }
           .kz-row-sel td { background:#e6f1fb !important; }
