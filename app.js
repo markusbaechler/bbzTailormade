@@ -2375,7 +2375,7 @@
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
             <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
-            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}" onclick="event.stopPropagation()">
+            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}">
               ${isExp?"▾ weniger":"▸ Details"}
             </button>
           </div>
