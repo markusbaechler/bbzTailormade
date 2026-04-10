@@ -150,7 +150,7 @@
       activeTab:    {}
     },
     selection: { projektId: null, firmaId: null },
-    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true }, eiGroupBy: null, kzGroupBy: null, fiSort: { col: "name", dir: "asc" } },
+    ui: { einsatzFilterOpen: false, einsatzSort: { col: "datum", dir: "desc" }, selectedProjektEinsatzId: null, selectedProjektKonzId: null, pdMobDetail: false, pdKpiOpen: false, selectedEinsatzId: null, selectedKonzId: null, selectedAbrId: null, selectedFirmaId: null, sbOpen: {}, eiMobFilter: false, kzMobFilter: false, abrMobFilter: false, fiMobFilter: false, eiCols: { ort: true, person: true, status: true, abrechnung: true }, kzCols: { person: true, katdauer: true, verrechenbar: true, abrechnung: true }, eiGroupBy: null, kzGroupBy: null, fiSort: { col: "name", dir: "asc" }, abrExpanded: new Set() },
     form: null   // aktives Formular-State (verhindert Router-Überschreiben)
   };
 
@@ -927,6 +927,11 @@
         if (a("[data-action='abr-toggle-sec']"))     { const sec=a("[data-action='abr-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
         if (a("[data-action='abr-mob-filter']"))     { state.ui.abrMobFilter=true;  ctrl.render(); return; }
         if (a("[data-action='abr-mob-filter-close']")){ state.ui.abrMobFilter=false; ctrl.render(); return; }
+        if (a("[data-action='abr-expand']")) {
+          const id = +a("[data-action='abr-expand']").dataset.id;
+          if (state.ui.abrExpanded.has(id)) state.ui.abrExpanded.delete(id); else state.ui.abrExpanded.add(id);
+          ctrl.render(); return;
+        }
         if (a("[data-action='abr-select']")) {
           const id = +a("[data-action='abr-select']").dataset.id;
           if (window.innerWidth <= 899) { ctrl.abrMobOpen(id); return; }
@@ -2313,16 +2318,68 @@
         const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
         const isSel = a.id===selId;
         const status = a.status||"erstellt";
+        const isExp = state.ui.abrExpanded.has(a.id);
+        const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
+        const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
+        const spesen = einsaetze.reduce((s,e)=>s+(e.spesenBerechnet||0),0) + (a.spesenZusatzBetrag||0);
+        const honorarE = einsaetze.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+        const honorarK = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+
+        const detailSection = isExp ? `
+          <div class="abr-cd-body">
+            ${einsaetze.length ? `
+              <div class="abr-cd-sec-lbl">Einsätze</div>
+              ${einsaetze.map(e=>`
+                <div class="abr-cd-row">
+                  <span class="abr-cd-date">${h.esc(e.datumFmt)}</span>
+                  <span class="abr-cd-title">${h.esc(e.title||e.kategorie)}</span>
+                  <span class="abr-cd-amt">CHF ${h.chf((e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0))}</span>
+                </div>
+                ${(e.spesenBerechnet||0)>0?`<div class="abr-cd-row abr-cd-sub"><span></span><span style="color:#1a8a5e">Wegspesen</span><span class="abr-cd-amt" style="color:#1a8a5e">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+              `).join("")}
+            ` : ""}
+            ${konz.length ? `
+              <div class="abr-cd-sec-lbl">Konzeption</div>
+              ${konz.map(k=>`
+                <div class="abr-cd-row">
+                  <span class="abr-cd-date">${h.esc(k.datumFmt||"")}</span>
+                  <span class="abr-cd-title">${h.esc(k.title||k.kategorie||"")} <span style="color:#8896a5;font-size:10px">${k.aufwandStunden!=null?k.aufwandStunden.toFixed(1)+"h":""}</span></span>
+                  <span class="abr-cd-amt">CHF ${h.chf(k.anzeigeBetrag||0)}</span>
+                </div>
+              `).join("")}
+            ` : ""}
+            ${(a.spesenZusatzBetrag||0)>0 ? `
+              <div class="abr-cd-sec-lbl">Zusatzspesen</div>
+              <div class="abr-cd-row">
+                <span class="abr-cd-date"></span>
+                <span class="abr-cd-title">${h.esc(a.spesenZusatzBemerkung||"Spesen")}</span>
+                <span class="abr-cd-amt">CHF ${h.chf(a.spesenZusatzBetrag)}</span>
+              </div>
+            ` : ""}
+            <div class="abr-cd-total">
+              ${honorarE>0?`<div class="abr-cd-total-row"><span>Honorar Einsätze</span><span>CHF ${h.chf(honorarE)}</span></div>`:""}
+              ${honorarK>0?`<div class="abr-cd-total-row"><span>Honorar Konzeption</span><span>CHF ${h.chf(honorarK)}</span></div>`:""}
+              ${spesen>0?`<div class="abr-cd-total-row"><span>Spesen</span><span>CHF ${h.chf(spesen)}</span></div>`:""}
+              <div class="abr-cd-total-row abr-cd-total-sum"><span>Total</span><span>CHF ${h.chf(a.totalBetrag||0)}</span></div>
+            </div>
+          </div>` : "";
+
         return `<div class="abr-card${isSel?" abr-card-sel":""}" data-action="abr-select" data-id="${a.id}">
           <div class="abr-card-top">
             <div><div class="abr-card-title">${h.esc(a.title||a.datumFmt)}</div>
             <div class="abr-card-meta">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""}</div></div>
-            <div style="text-align:right;flex-shrink:0">
+            <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
               <div class="abr-card-betrag">CHF ${h.chf(a.totalBetrag||0)}</div>
-              <div style="margin-top:3px">${abrStatusBadge(status)}</div>
+              <div>${abrStatusBadge(status)}</div>
             </div>
           </div>
-          <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+            <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
+            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}" onclick="event.stopPropagation()">
+              ${isExp?"▾ weniger":"▸ Details"}
+            </button>
+          </div>
+          ${detailSection}
         </div>`;
       };
 
@@ -2362,6 +2419,18 @@
           .abr-card-meta{font-size:11px;color:#8896a5;margin-top:2px}
           .abr-card-betrag{font-size:14px;font-weight:700;color:#004078;white-space:nowrap}
           .abr-card-date{font-size:11px;color:#8896a5}
+          .abr-cd-toggle{font-size:11px;font-weight:600;color:#004078;background:none;border:none;cursor:pointer;padding:0;font-family:inherit}
+          .abr-cd-body{margin-top:10px;border-top:1px solid #f0f2f5;padding-top:10px}
+          .abr-cd-sec-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8896a5;margin:8px 0 4px}
+          .abr-cd-sec-lbl:first-child{margin-top:0}
+          .abr-cd-row{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:2px 0}
+          .abr-cd-sub{padding-left:12px}
+          .abr-cd-date{color:#8896a5;white-space:nowrap;min-width:52px;flex-shrink:0}
+          .abr-cd-title{flex:1;color:var(--tm-text)}
+          .abr-cd-amt{white-space:nowrap;font-weight:600;color:var(--tm-text);text-align:right;min-width:80px}
+          .abr-cd-total{margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb}
+          .abr-cd-total-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#4a5568}
+          .abr-cd-total-sum{font-weight:700;color:#004078;font-size:13px;border-top:1px solid #dde3ea;margin-top:4px;padding-top:6px}
           .abr-detail{width:272px;min-width:272px;border-left:1px solid #dde3ea;background:#fff;display:flex;flex-direction:column;overflow:hidden}
           .abr-dp-head{display:flex;align-items:center;padding:9px 14px;border-bottom:1px solid #dde3ea;flex-shrink:0}
           .abr-dp-label{font-size:10px;font-weight:700;color:#8896a5;text-transform:uppercase;letter-spacing:0.06em}
