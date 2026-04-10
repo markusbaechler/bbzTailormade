@@ -4918,9 +4918,10 @@
         if (n("konzeptionsrahmenTage") != null) fields.KonzeptionsrahmenTage = n("konzeptionsrahmenTage");
         const bem = (fd.get("bemerkungen") || "").trim();
         fields.Bemerkungen = bem || null;
+        // Hyperlink-Felder nicht via Graph API — via SP REST patchLookups mit "URL, Beschreibung"-Format
         const ordnerUrl = (fd.get("linkProjektOrdner") || "").trim();
-        if (ordnerUrl) fields.LinkProjektOrdner = { Url: ordnerUrl, Description: "Projektordner" };
-        else fields.LinkProjektOrdner = null;
+        if (ordnerUrl) lookupFields.LinkProjektOrdner = ordnerUrl + ", Projektordner";
+        else lookupFields.LinkProjektOrdner = "";
 
         if (mode === "edit" && itemId) {
           const eid = Number(itemId);
