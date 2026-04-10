@@ -1739,10 +1739,10 @@
           .ei-meta { font-size:12px; color:#8896a5; }
           .ei-tbl-wrap { flex:1; overflow-y:auto; }
           table.ei-tbl { width:100%; border-collapse:collapse; font-size:13px; font-family:inherit; }
-          .ei-tbl th { padding:6px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
+          .ei-tbl th { padding:5px 10px; text-align:left; font-size:10px; font-weight:700; color:#8896a5; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid #dde3ea; white-space:nowrap; background:#fff; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
           .ei-tbl th:hover { color:var(--tm-text); }
           .ei-tbl th.ei-th-active { color:#004078; }
-          .ei-tbl td { padding:6px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .ei-tbl td { padding:4px 10px; border-bottom:1px solid #f0f2f5; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
           .ei-row { cursor:pointer; }
           .ei-row:hover td { background:#f6f8fb; }
           .ei-row-sel td { background:#e6f1fb !important; }
@@ -1762,7 +1762,7 @@
           .ei-c-kat { font-size:11px; color:#b0bac6; margin-left:5px; }
           .ei-c2 { font-size:11px; color:#8896a5; }
           .ei-firma-badge { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:5px; white-space:nowrap; vertical-align:middle; }
-          .ei-av { width:22px; height:22px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex-shrink:0; }
+          .ei-av { width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:8px; font-weight:700; flex-shrink:0; }
           .ei-av-lead { background:#B5D4F4; color:#0C447C; }
           .ei-av-co { background:#CECBF6; color:#3C3489; margin-left:-5px; border:1.5px solid #fff; }
           .ei-person-name { font-size:12px; color:#8896a5; margin-left:3px; }
