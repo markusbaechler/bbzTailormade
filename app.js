@@ -1402,8 +1402,8 @@
 
           /* Main */
           .pd-main { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#e8ecf0; }
-          .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; }
-          .pd-topbar-actions { margin-left:auto; display:flex; gap:6px; }
+          .pd-topbar { display:flex; align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; flex-wrap:wrap; }
+          .pd-topbar-actions { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
           .pd-proj-header { padding:12px 16px 14px; border-bottom:1px solid rgba(0,0,0,0.09); background:#e8ecf0; flex-shrink:0; }
           .pd-proj-title { font-size:18px; font-weight:700; color:var(--tm-text); }
           .pd-proj-sub { display:flex; align-items:center; gap:6px; margin-top:3px; font-size:13px; color:var(--tm-text-muted); }
@@ -1506,12 +1506,12 @@
           <div class="pd-main">
             <div class="pd-topbar">
               <button class="pd-mob-back tm-btn tm-btn-sm" data-action="pd-mob-back">← Projekte</button>
+              ${p.linkProjektOrdner ? `<a class="tm-btn tm-btn-sm" href="${h.esc(p.linkProjektOrdner)}" target="_blank" rel="noopener" style="text-decoration:none;color:var(--tm-text-muted)">Projektordner ↗</a>` : ""}
               <div class="pd-topbar-actions">
                 <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
-                ${p.linkProjektOrdner ? `<a class="tm-btn tm-btn-sm" href="${h.esc(p.linkProjektOrdner)}" target="_blank" rel="noopener" style="text-decoration:none">📁 Projektordner</a>` : ""}
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
                 <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
-                <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" >Abrechnung</button>
+                <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}">Abrechnung</button>
               </div>
             </div>
 
