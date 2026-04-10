@@ -143,7 +143,7 @@
       route:        "projekte",
       projekte:     { search: "", status: "aktiv" },
       einsaetze:    { search: "", abrechnung: "", einsatzStatus: "", jahr: "", projekt: "", firma: "", person: "" },
-      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "" },
+      konzeption:   { search: "", verrechenbar: "", person: "", projekt: "", firma: "", jahr: "", abrechnung: "", kategorie: "" },
       abrechnungen: { search: "", status: "", projekt: "", firma: "", jahr: "" },
       firmen:       { search: "", klassifizierung: "", vip: "", anzeigen: "" },
       projektDetail: { jahr: "", person: "", einsatzStatus: "", abrechnung: "", konzJahr: "", konzKat: "", konzVerr: "", konzAbr: "" },
@@ -938,7 +938,7 @@
           document.querySelectorAll("[data-action='abr-select']").forEach(c => c.classList.toggle("abr-card-sel", +c.dataset.id===state.ui.selectedAbrId));
           ctrl.updateAbrDetailPanel(); return;
         }
-        if (a("[data-action='kz-reset-filters']"))   { state.filters.konzeption={search:"",verrechenbar:"",person:"",projekt:"",firma:"",jahr:"",abrechnung:""}; state.ui.selectedKonzId=null; ctrl.render(); return; }
+        if (a("[data-action='kz-reset-filters']"))   { state.filters.konzeption={search:"",verrechenbar:"",person:"",projekt:"",firma:"",jahr:"",abrechnung:"",kategorie:""}; state.ui.selectedKonzId=null; ctrl.render(); return; }
         if (a("[data-action='kz-toggle-sec']"))      { const sec=a("[data-action='kz-toggle-sec']").dataset.sec; state.ui.sbOpen[sec]=state.ui.sbOpen[sec]===false?true:false; ctrl.render(); return; }
         if (a("[data-action='kz-mob-filter']"))      { state.ui.kzMobFilter=true;  ctrl.render(); return; }
         if (a("[data-action='kz-mob-filter-close']")){ state.ui.kzMobFilter=false; ctrl.render(); return; }
@@ -1951,6 +1951,7 @@
       if (f.verrechenbar)list = list.filter(k => k.verrechenbar === f.verrechenbar);
       if (f.person)      list = list.filter(k => k.personName === f.person);
       if (f.abrechnung)  list = list.filter(k => k.abrechnung === f.abrechnung);
+      if (f.kategorie)   list = list.filter(k => k.kategorie === f.kategorie);
       list.sort((a,b) => h.toDate(b.datum) - h.toDate(a.datum));
 
       // ── Firma-Farben ───────────────────────────────────────────────────────
@@ -1964,7 +1965,7 @@
       const firmaOf = k => state.enriched.projekte.find(p=>p.id===k.projektLookupId)?.firmaName||"";
       list.forEach(k => { const fn = firmaOf(k); if (fn && !(fn in firmaColorMap)) firmaColorMap[fn] = COLORS[ci++ % COLORS.length]; });
 
-      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.verrechenbar||f.person||f.abrechnung;
+      const hasFilter = f.search||f.jahr||f.firma||f.projekt||f.verrechenbar||f.person||f.abrechnung||f.kategorie;
       const sumTotal  = list.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sumVerr   = list.filter(k=>k.verrechenbar==="verrechenbar").reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
       const sumStunden= list.reduce((s,k)=>s+(k.aufwandStunden||0),0);
@@ -2157,6 +2158,8 @@
 
                 ${sbSimple("jahr", "Jahr", jahre.map(j=>String(j)))}
 
+                ${sbSimple("kategorie", "Kategorie", [...new Set(all.map(k=>k.kategorie).filter(Boolean))].sort())}
+
                 <div class="kz-sb-sec">
                   <div class="kz-sb-lbl">Firma</div>
                   ${firmen.map((n,i) => firmaItem(n,i)).join("")}
@@ -2188,7 +2191,7 @@
             <div class="kz-main">
               <div class="kz-toolbar">
                 <div>
-                  <div class="kz-title">${[f.firma,f.person].filter(Boolean).concat(["Konzeption & Admin"]).join(" · ")}</div>
+                  <div class="kz-title">${[f.kategorie,f.firma,f.person].filter(Boolean).concat(["Konzeption & Admin"]).join(" · ")}</div>
                   <div class="kz-meta">${list.length} Einträge · ${sumStunden.toFixed(1)} h · CHF ${h.chf(sumVerr)} verrechenbar</div>
                 </div>
                 <div style="display:flex;gap:6px;align-items:center">
