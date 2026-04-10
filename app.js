@@ -5109,12 +5109,15 @@
         .ef-btn-c:hover{border-color:#4a5568}
         .ef-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
         .ef-btn-s:hover{background:#0a5a9e}
+        .ef-ft-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+        .ef-ft-secondary{display:flex;gap:6px;}
+        .ef-ft-primary{display:flex;gap:8px;margin-left:auto;}
         @media(max-width:699px){
-          .ef-ft{flex-wrap:wrap;padding:10px 14px 14px;}
-          .ef-ft>div:first-child{width:100%;order:2;display:flex;gap:6px;flex-wrap:wrap;}
-          .ef-ft>div:last-child{width:100%;order:1;display:flex;gap:8px;justify-content:flex-end;}
-          .ef-btn-s{flex:1;justify-content:center;}
-          .ef-btn-c{flex:1;text-align:center;}
+          .ef-ft{flex-direction:column;gap:8px;padding:10px 14px 14px;}
+          .ef-ft-actions{width:100%;flex-direction:column;gap:8px;}
+          .ef-ft-primary{width:100%;margin-left:0;}
+          .ef-btn-s{flex:1;justify-content:center;padding:10px;}
+          .ef-btn-c{flex:1;text-align:center;padding:10px;}
         }
       </style>
       <div class="ef-m">
@@ -5355,16 +5358,19 @@
                 ⚠ Abrechnung zurücksetzen
               </button>` : ""}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            ${id ? `
-              <button type="button" class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${id}" title="Duplizieren" style="margin-right:4px">⧉ Duplizieren</button>
-              <button type="button" class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${id}" title="Löschen" style="color:var(--tm-red)">🗑 Löschen</button>
-            ` : ""}
-            <span style="flex:1"></span>
-            <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
-            <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
-              <span>✓</span> Speichern
-            </button>
+          <div class="ef-ft-actions">
+            <div class="ef-ft-secondary">
+              ${id ? `
+                <button type="button" class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${id}" title="Duplizieren" style="margin-right:4px">⧉ Duplizieren</button>
+                <button type="button" class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${id}" title="Löschen" style="color:var(--tm-red)">🗑 Löschen</button>
+              ` : ""}
+            </div>
+            <div class="ef-ft-primary">
+              <button type="button" class="ef-btn-c" data-close-modal>Abbrechen</button>
+              <button type="button" class="ef-btn-s" onclick="document.getElementById('einsatz-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+                <span>✓</span> Speichern
+              </button>
+            </div>
           </div>
         </div>
       </div>`);
@@ -6355,12 +6361,15 @@
         .kf-btn-c:hover{border-color:#4a5568}
         .kf-btn-s{padding:8px 22px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;background:#004078;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(0,64,120,.25)}
         .kf-btn-s:hover{background:#0a5a9e}
+        .kf-ft-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+        .kf-ft-secondary{display:flex;gap:6px;}
+        .kf-ft-primary{display:flex;gap:8px;margin-left:auto;}
         @media(max-width:699px){
-          .kf-ft{flex-wrap:wrap;padding:10px 14px 14px;}
-          .kf-ft>div:first-child{width:100%;order:2;display:flex;gap:6px;flex-wrap:wrap;}
-          .kf-ft>div:last-child{width:100%;order:1;display:flex;gap:8px;justify-content:flex-end;}
-          .kf-btn-s{flex:1;justify-content:center;}
-          .kf-btn-c{flex:1;text-align:center;}
+          .kf-ft{flex-direction:column;gap:8px;padding:10px 14px 14px;}
+          .kf-ft-actions{width:100%;flex-direction:column;gap:8px;}
+          .kf-ft-primary{width:100%;margin-left:0;}
+          .kf-btn-s{flex:1;justify-content:center;padding:10px;}
+          .kf-btn-c{flex:1;text-align:center;padding:10px;}
         }
       </style>
       <div class="kf-m">
@@ -6557,16 +6566,19 @@
                 ⚠ Abrechnung zurücksetzen
               </button>` : ""}
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            ${id ? `
-              <button type="button" class="tm-btn tm-btn-sm" onclick="ctrl.copyKonzeption(${id})" title="Duplizieren">⧉ Duplizieren</button>
-              <button type="button" class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${id}" style="color:var(--tm-red)" title="Löschen">🗑 Löschen</button>
-            ` : ""}
-            <span style="flex:1"></span>
-            <button type="button" class="kf-btn-c" data-close-modal>Abbrechen</button>
-            <button type="button" class="kf-btn-s" onclick="document.getElementById('konzeption-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
-              <span>✓</span> Speichern
-            </button>
+          <div class="kf-ft-actions">
+            <div class="kf-ft-secondary">
+              ${id ? `
+                <button type="button" class="tm-btn tm-btn-sm" onclick="ctrl.copyKonzeption(${id})" title="Duplizieren">⧉ Duplizieren</button>
+                <button type="button" class="tm-btn tm-btn-sm" data-action="delete-konzeption" data-id="${id}" style="color:var(--tm-red)" title="Löschen">🗑 Löschen</button>
+              ` : ""}
+            </div>
+            <div class="kf-ft-primary">
+              <button type="button" class="kf-btn-c" data-close-modal>Abbrechen</button>
+              <button type="button" class="kf-btn-s" onclick="document.getElementById('konzeption-form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))">
+                <span>✓</span> Speichern
+              </button>
+            </div>
           </div>
         </div>
       </div>`);
