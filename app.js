@@ -2307,6 +2307,7 @@
           ${einsaetze.length?`<div class="abr-dp-row"><span class="abr-dp-key">Einsätze</span><span class="abr-dp-val">${einsaetze.length}</span></div>`:""}
           ${konz.length?`<div class="abr-dp-row"><span class="abr-dp-key">Konzeption</span><span class="abr-dp-val">${konz.length} Einträge</span></div>`:""}
           <div class="abr-dp-footer">
+            <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDetailSheet(${a.id})">☰ Positionen</button>
             <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id})">⬇ PDF</button>
             ${proj?`<button class="tm-btn tm-btn-sm" onclick="ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
             <button class="tm-btn tm-btn-sm" data-action="delete-abrechnung" data-id="${a.id}" style="color:var(--tm-red);margin-left:auto">🗑</button>
@@ -2328,7 +2329,7 @@
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
             <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
-            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}">▸ Details</button>
+            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}">☰ Positionen</button>
           </div>
         </div>`;
       };
