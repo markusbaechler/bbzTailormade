@@ -929,10 +929,7 @@
         if (a("[data-action='abr-mob-filter-close']")){ state.ui.abrMobFilter=false; ctrl.render(); return; }
         if (a("[data-action='abr-expand']")) {
           const id = +a("[data-action='abr-expand']").dataset.id;
-          console.log("[abr-expand] id:", id, "vor:", [...state.ui.abrExpanded]);
-          if (state.ui.abrExpanded.has(id)) state.ui.abrExpanded.delete(id); else state.ui.abrExpanded.add(id);
-          console.log("[abr-expand] nach:", [...state.ui.abrExpanded]);
-          ctrl.render(); return;
+          ctrl.abrDetailSheet(id); return;
         }
         if (a("[data-action='abr-select']")) {
           const id = +a("[data-action='abr-select']").dataset.id;
@@ -2320,52 +2317,6 @@
         const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
         const isSel = a.id===selId;
         const status = a.status||"erstellt";
-        const isExp = state.ui.abrExpanded.has(a.id);
-        const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===a.id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
-        const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===a.id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
-        const spesen = einsaetze.reduce((s,e)=>s+(e.spesenBerechnet||0),0) + (a.spesenZusatzBetrag||0);
-        const honorarE = einsaetze.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
-        const honorarK = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
-
-        const detailSection = isExp ? `
-          <div class="abr-cd-body">
-            ${einsaetze.length ? `
-              <div class="abr-cd-sec-lbl">Einsätze</div>
-              ${einsaetze.map(e=>`
-                <div class="abr-cd-row">
-                  <span class="abr-cd-date">${h.esc(e.datumFmt)}</span>
-                  <span class="abr-cd-title">${h.esc(e.title||e.kategorie)}</span>
-                  <span class="abr-cd-amt">CHF ${h.chf((e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0))}</span>
-                </div>
-                ${(e.spesenBerechnet||0)>0?`<div class="abr-cd-row abr-cd-sub"><span></span><span style="color:#1a8a5e">Wegspesen</span><span class="abr-cd-amt" style="color:#1a8a5e">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
-              `).join("")}
-            ` : ""}
-            ${konz.length ? `
-              <div class="abr-cd-sec-lbl">Konzeption</div>
-              ${konz.map(k=>`
-                <div class="abr-cd-row">
-                  <span class="abr-cd-date">${h.esc(k.datumFmt||"")}</span>
-                  <span class="abr-cd-title">${h.esc(k.title||k.kategorie||"")} <span style="color:#8896a5;font-size:10px">${k.aufwandStunden!=null?k.aufwandStunden.toFixed(1)+"h":""}</span></span>
-                  <span class="abr-cd-amt">CHF ${h.chf(k.anzeigeBetrag||0)}</span>
-                </div>
-              `).join("")}
-            ` : ""}
-            ${(a.spesenZusatzBetrag||0)>0 ? `
-              <div class="abr-cd-sec-lbl">Zusatzspesen</div>
-              <div class="abr-cd-row">
-                <span class="abr-cd-date"></span>
-                <span class="abr-cd-title">${h.esc(a.spesenZusatzBemerkung||"Spesen")}</span>
-                <span class="abr-cd-amt">CHF ${h.chf(a.spesenZusatzBetrag)}</span>
-              </div>
-            ` : ""}
-            <div class="abr-cd-total">
-              ${honorarE>0?`<div class="abr-cd-total-row"><span>Honorar Einsätze</span><span>CHF ${h.chf(honorarE)}</span></div>`:""}
-              ${honorarK>0?`<div class="abr-cd-total-row"><span>Honorar Konzeption</span><span>CHF ${h.chf(honorarK)}</span></div>`:""}
-              ${spesen>0?`<div class="abr-cd-total-row"><span>Spesen</span><span>CHF ${h.chf(spesen)}</span></div>`:""}
-              <div class="abr-cd-total-row abr-cd-total-sum"><span>Total</span><span>CHF ${h.chf(a.totalBetrag||0)}</span></div>
-            </div>
-          </div>` : "";
-
         return `<div class="abr-card${isSel?" abr-card-sel":""}" data-action="abr-select" data-id="${a.id}">
           <div class="abr-card-top">
             <div><div class="abr-card-title">${h.esc(a.title||a.datumFmt)}</div>
@@ -2377,11 +2328,8 @@
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
             <div class="abr-card-date">${h.esc(a.datumFmt)}</div>
-            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}">
-              ${isExp?"▾ weniger":"▸ Details"}
-            </button>
+            <button class="abr-cd-toggle" data-action="abr-expand" data-id="${a.id}">▸ Details</button>
           </div>
-          ${detailSection}
         </div>`;
       };
 
@@ -4120,6 +4068,87 @@
             <div class="ei-bs-actions">
               <button class="tm-btn tm-btn-sm" onclick="ctrl.abrDownloadPdf(${a.id});ui.closeModal()">⬇ PDF</button>
               ${proj?`<button class="tm-btn tm-btn-sm" onclick="ui.closeModal();ctrl.openProjekt(${a.projektLookupId})">📋 Projekt</button>`:""}
+            </div>
+          </div>
+        </div>`);
+    },
+
+    abrDetailSheet(id) {
+      const a = state.enriched.abrechnungen.find(a=>a.id===id);
+      if (!a) return;
+      const proj = state.enriched.projekte.find(p=>p.id===a.projektLookupId);
+      const einsaetze = state.enriched.einsaetze.filter(e=>e.abrechnungLookupId===id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
+      const konz = state.enriched.konzeption.filter(k=>k.abrechnungLookupId===id).sort((x,y)=>h.toDate(x.datum)-h.toDate(y.datum));
+      const honorarE = einsaetze.reduce((s,e)=>s+(e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0),0);
+      const honorarK = konz.reduce((s,k)=>s+(k.anzeigeBetrag||0),0);
+      const wegspesen = einsaetze.reduce((s,e)=>s+(e.spesenBerechnet||0),0);
+      const zusatz = a.spesenZusatzBetrag||0;
+      ui.renderModal(`
+        <style>
+          .abr-ds-bd{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end}
+          .abr-ds{background:#fff;border-radius:16px 16px 0 0;width:100%;max-height:80vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom)}
+          .abr-ds-handle{width:40px;height:4px;background:#dde3ea;border-radius:2px;margin:12px auto 6px;flex-shrink:0}
+          .abr-ds-head{padding:8px 16px 12px;border-bottom:1px solid #f0f2f5;flex-shrink:0}
+          .abr-ds-title{font-size:16px;font-weight:700;color:#111827}
+          .abr-ds-sub{font-size:12px;color:#8896a5;margin-top:2px}
+          .abr-ds-body{overflow-y:auto;padding:12px 16px 16px;flex:1}
+          .abr-ds-sec{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#8896a5;margin:14px 0 6px}
+          .abr-ds-sec:first-child{margin-top:0}
+          .abr-ds-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid #f9fafb;font-size:13px}
+          .abr-ds-row:last-child{border-bottom:none}
+          .abr-ds-date{color:#8896a5;white-space:nowrap;min-width:54px;flex-shrink:0;font-size:12px}
+          .abr-ds-name{flex:1;color:#1a2332}
+          .abr-ds-amt{white-space:nowrap;font-weight:600;color:#1a2332;min-width:90px;text-align:right}
+          .abr-ds-sub-row{display:flex;gap:8px;padding:2px 0 4px 62px;font-size:11px;color:#1a8a5e}
+          .abr-ds-total{margin-top:14px;border-top:2px solid #e5e7eb;padding-top:10px}
+          .abr-ds-total-row{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:#4a5568}
+          .abr-ds-total-sum{font-weight:800;font-size:15px;color:#004078;border-top:1px solid #dde3ea;margin-top:6px;padding-top:8px}
+          .abr-ds-empty{color:#8896a5;font-size:13px;padding:8px 0}
+        </style>
+        <div class="abr-ds-bd" onclick="if(event.target===this)ui.closeModal()">
+          <div class="abr-ds">
+            <div class="abr-ds-handle"></div>
+            <div class="abr-ds-head">
+              <div class="abr-ds-title">${h.esc(a.title||a.datumFmt)}</div>
+              <div class="abr-ds-sub">${h.esc(proj?.firmaName||"")}${proj?.projektNr?` · #${proj.projektNr}`:""} · ${h.esc(a.datumFmt)}</div>
+            </div>
+            <div class="abr-ds-body">
+              ${einsaetze.length ? `
+                <div class="abr-ds-sec">Einsätze (${einsaetze.length})</div>
+                ${einsaetze.map(e=>`
+                  <div class="abr-ds-row">
+                    <span class="abr-ds-date">${h.esc(e.datumFmt)}</span>
+                    <span class="abr-ds-name">${h.esc(e.title||e.kategorie)}${e.coPersonName&&e.coPersonName!=="—"?`<span style="color:#8896a5;font-size:11px"> · Co: ${h.esc(e.coPersonName)}</span>`:""}</span>
+                    <span class="abr-ds-amt">CHF ${h.chf((e.anzeigeBetrag||0)+(e.coAnzeigeBetrag||0))}</span>
+                  </div>
+                  ${(e.spesenBerechnet||0)>0?`<div class="abr-ds-sub-row"><span>Wegspesen</span><span style="margin-left:auto">CHF ${h.chf(e.spesenBerechnet)}</span></div>`:""}
+                `).join("")}
+              ` : ""}
+              ${konz.length ? `
+                <div class="abr-ds-sec">Konzeption (${konz.length})</div>
+                ${konz.map(k=>`
+                  <div class="abr-ds-row">
+                    <span class="abr-ds-date">${h.esc(k.datumFmt||"")}</span>
+                    <span class="abr-ds-name">${h.esc(k.title||k.kategorie||"")}${k.aufwandStunden!=null?`<span style="color:#8896a5;font-size:11px"> · ${k.aufwandStunden.toFixed(1)}h</span>`:""}</span>
+                    <span class="abr-ds-amt">CHF ${h.chf(k.anzeigeBetrag||0)}</span>
+                  </div>
+                `).join("")}
+              ` : ""}
+              ${zusatz>0 ? `
+                <div class="abr-ds-sec">Zusatzspesen</div>
+                <div class="abr-ds-row">
+                  <span class="abr-ds-date"></span>
+                  <span class="abr-ds-name">${h.esc(a.spesenZusatzBemerkung||"Spesen")}</span>
+                  <span class="abr-ds-amt">CHF ${h.chf(zusatz)}</span>
+                </div>
+              ` : ""}
+              <div class="abr-ds-total">
+                ${honorarE>0?`<div class="abr-ds-total-row"><span>Honorar Einsätze</span><span>CHF ${h.chf(honorarE)}</span></div>`:""}
+                ${honorarK>0?`<div class="abr-ds-total-row"><span>Honorar Konzeption</span><span>CHF ${h.chf(honorarK)}</span></div>`:""}
+                ${wegspesen>0?`<div class="abr-ds-total-row"><span>Wegspesen</span><span>CHF ${h.chf(wegspesen)}</span></div>`:""}
+                ${zusatz>0?`<div class="abr-ds-total-row"><span>Zusatzspesen</span><span>CHF ${h.chf(zusatz)}</span></div>`:""}
+                <div class="abr-ds-total-row abr-ds-total-sum"><span>Total</span><span>CHF ${h.chf(a.totalBetrag||0)}</span></div>
+              </div>
             </div>
           </div>
         </div>`);
