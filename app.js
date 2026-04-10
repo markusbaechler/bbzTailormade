@@ -343,7 +343,6 @@
         if (nm)   { nm.textContent = pName; nm.style.color = ""; nm.style.fontWeight = ""; }
         if (pill) { pill.style.display = "inline-flex"; pill.style.borderStyle = ""; }
         if (ta)   ta.style.display = "none";
-        // Entfernen-Button einblenden
         const rmBtn = pill?.nextElementSibling;
         if (rmBtn && rmBtn.tagName === "BUTTON") rmBtn.style.display = "";
       }
@@ -6571,7 +6570,6 @@
     },
 
     kfClearCoPerson() {
-      // Co-Person-Lookup-Feld leeren und Pill zurücksetzen
       const ta = document.getElementById("kf-coperson-ta");
       if (ta) {
         const inp = ta.querySelector("input[name='coPersonLookupId']");
@@ -6586,7 +6584,6 @@
         if (nm) { nm.textContent = "Co-Person hinzufügen"; nm.style.color = "#8896a5"; nm.style.fontWeight = "500"; }
         const role = pill.querySelector(".kf-pr-role");
         if (role) role.textContent = "";
-        // Entfernen-Button ausblenden
         const rmBtn = pill.nextElementSibling;
         if (rmBtn && rmBtn.tagName === "BUTTON") rmBtn.style.display = "none";
       }
