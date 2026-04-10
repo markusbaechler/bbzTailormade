@@ -6446,11 +6446,11 @@
                 <div class="kf-l">Co-Person <span style="font-size:10px;color:#8896a5;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
                 <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
                   <div class="kf-pp" onclick="ctrl.kfOpenPicker('coperson')" id="kf-coperson-pill"
-                    style="${coPersonName ? "" : "border-style:dashed;color:#8896a5"}">
+                    style="${coPersonName ? '' : 'border-style:dashed;color:#8896a5'}">
                     <div class="kf-av" id="kf-coperson-av"
-                      style="${coPersonName ? "" : "background:#dde4ec;color:#8896a5"}">${coPersonName ? h.esc(initials(coPersonName)) : "+"}</div>
+                      style="${coPersonName ? '' : 'background:#dde4ec;color:#8896a5'}">${coPersonName ? h.esc(initials(coPersonName)) : "+"}</div>
                     <div>
-                      <div class="kf-pn" id="kf-coperson-name" style="${coPersonName ? "" : "color:#8896a5;font-weight:500"}">${coPersonName ? h.esc(coPersonName) : "Co-Person hinzufügen"}</div>
+                      <div class="kf-pn" id="kf-coperson-name" style="${coPersonName ? '' : 'color:#8896a5;font-weight:500'}">${coPersonName ? h.esc(coPersonName) : "Co-Person hinzufügen"}</div>
                       <div class="kf-pr-role">${coPersonName ? "Trainer" : ""}</div>
                     </div>
                     <span class="kf-pe">✎</span>
