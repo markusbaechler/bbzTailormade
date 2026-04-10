@@ -472,7 +472,8 @@
       ansatzKmSpesen:          h.num(raw.AnsatzKmSpesen),
       spesenKontoNr:           raw.SpesenKontoNr || "",
       konzeptionsrahmenTage:   h.num(raw.KonzeptionsrahmenTage),
-      bemerkungen:             raw.Bemerkungen || ""
+      bemerkungen:             raw.Bemerkungen || "",
+      linkProjektOrdner:       raw.LinkProjektOrdner?.Url || raw.LinkProjektOrdner || ""
     };
     p.firmaName       = h.firmName(p.firmaLookupId);
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
@@ -1507,6 +1508,7 @@
               <button class="pd-mob-back tm-btn tm-btn-sm" data-action="pd-mob-back">← Projekte</button>
               <div class="pd-topbar-actions">
                 <button class="tm-btn tm-btn-sm" data-action="edit-projekt" data-id="${p.id}">Bearbeiten</button>
+                ${p.linkProjektOrdner ? `<a class="tm-btn tm-btn-sm" href="${h.esc(p.linkProjektOrdner)}" target="_blank" rel="noopener" style="text-decoration:none">📁 Projektordner</a>` : ""}
                 <button class="tm-btn tm-btn-sm tm-btn-primary" data-action="new-einsatz" data-projekt-id="${p.id}">+ Einsatz</button>
                 <button class="tm-btn tm-btn-sm" data-action="new-konzeption" data-projekt-id="${p.id}">+ Aufwand</button>
                 <button class="tm-btn tm-btn-sm" data-action="open-abrechnung" data-projekt-id="${p.id}" >Abrechnung</button>
@@ -4765,6 +4767,8 @@
                 `<textarea class="pf-inp" name="bemerkungen" rows="3"
                   placeholder="Interne Notizen, Vereinbarungen…"
                   style="resize:vertical;min-height:70px;line-height:1.5">${h.esc(cv("bemerkungen"))}</textarea>`)}
+              ${field("Projektordner (SharePoint-Link)",
+                `<input class="pf-inp" type="url" name="linkProjektOrdner" value="${h.esc(cv("linkProjektOrdner"))}" placeholder="https://bbzsg.sharepoint.com/…">`)}
             `)}
           </div>
 
@@ -4914,6 +4918,9 @@
         if (n("konzeptionsrahmenTage") != null) fields.KonzeptionsrahmenTage = n("konzeptionsrahmenTage");
         const bem = (fd.get("bemerkungen") || "").trim();
         fields.Bemerkungen = bem || null;
+        const ordnerUrl = (fd.get("linkProjektOrdner") || "").trim();
+        if (ordnerUrl) fields.LinkProjektOrdner = { Url: ordnerUrl, Description: "Projektordner" };
+        else fields.LinkProjektOrdner = null;
 
         if (mode === "edit" && itemId) {
           const eid = Number(itemId);
