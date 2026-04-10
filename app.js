@@ -929,7 +929,9 @@
         if (a("[data-action='abr-mob-filter-close']")){ state.ui.abrMobFilter=false; ctrl.render(); return; }
         if (a("[data-action='abr-expand']")) {
           const id = +a("[data-action='abr-expand']").dataset.id;
+          console.log("[abr-expand] id:", id, "vor:", [...state.ui.abrExpanded]);
           if (state.ui.abrExpanded.has(id)) state.ui.abrExpanded.delete(id); else state.ui.abrExpanded.add(id);
+          console.log("[abr-expand] nach:", [...state.ui.abrExpanded]);
           ctrl.render(); return;
         }
         if (a("[data-action='abr-select']")) {
