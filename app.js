@@ -473,7 +473,7 @@
       spesenKontoNr:           raw.SpesenKontoNr || "",
       konzeptionsrahmenTage:   h.num(raw.KonzeptionsrahmenTage),
       bemerkungen:             raw.Bemerkungen || "",
-      linkProjektOrdner:       raw.LinkProjektOrdner?.Url || raw.LinkProjektOrdner || ""
+      linkProjektOrdner:       raw.LinkProjektordner?.Url || raw.LinkProjektordner || ""
     };
     p.firmaName       = h.firmName(p.firmaLookupId);
     p.ansprechpartner = h.contactName(p.ansprechpartnerLookupId);
@@ -4920,8 +4920,8 @@
         fields.Bemerkungen = bem || null;
         // Hyperlink-Felder nicht via Graph API — via SP REST patchLookups mit "URL, Beschreibung"-Format
         const ordnerUrl = (fd.get("linkProjektOrdner") || "").trim();
-        if (ordnerUrl) lookupFields.LinkProjektOrdner = ordnerUrl + ", Projektordner";
-        else lookupFields.LinkProjektOrdner = "";
+        if (ordnerUrl) lookupFields.LinkProjektordner = ordnerUrl + ", Projektordner";
+        else lookupFields.LinkProjektordner = "";
 
         if (mode === "edit" && itemId) {
           const eid = Number(itemId);
