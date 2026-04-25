@@ -908,6 +908,7 @@
         }
         if (a("[data-action='delete-einsatz']"))  { ctrl.deleteEinsatz(+a("[data-action='delete-einsatz']").dataset.id); return; }
         if (a("[data-action='copy-einsatz']"))    { ctrl.copyEinsatz(+a("[data-action='copy-einsatz']").dataset.id); return; }
+        if (a("[data-action='export-einsatz-ics']")) { ctrl.exportEinsatzIcs(+a("[data-action='export-einsatz-ics']").dataset.id); return; }
         if (a("[data-action='delete-konzeption']")) { ctrl.deleteKonzeption(+a("[data-action='delete-konzeption']").dataset.id); return; }
         if (a("[data-action='delete-abrechnung']")) { ctrl.deleteAbrechnung(+a("[data-action='delete-abrechnung']").dataset.id); return; }
         if (a("[data-action='delete-projekt']"))   { ctrl.deleteProjekt(+a("[data-action='delete-projekt']").dataset.id); return; }
@@ -1695,6 +1696,7 @@
           ${e.bemerkungen?`<div class="ei-dp-note">${h.esc(e.bemerkungen)}</div>`:""}
           <div class="ei-dp-footer">
             <button class="tm-btn tm-btn-sm" data-action="edit-einsatz" data-id="${e.id}">✎ Bearbeiten</button>
+            <button class="tm-btn tm-btn-sm" data-action="export-einsatz-ics" data-id="${e.id}" title="Einsatz als .ics-Datei für Outlook">📅 .ics</button>
           </div>`;
       };
 
@@ -3500,6 +3502,135 @@
 
   };
 
+  // ── ICS-Export Helper (RFC 5545) ─────────────────────────────────────────
+  const ics = {
+    escape(text) {
+      if (!text) return "";
+      return String(text)
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\r\n|\r|\n/g, "\\n");
+    },
+    date(d) {
+      const dt = (d instanceof Date) ? d : h.toDate(d);
+      if (!dt) return "";
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const day = String(dt.getDate()).padStart(2, "0");
+      return `${y}${m}${day}`;
+    },
+    nextDay(d) {
+      const dt = (d instanceof Date) ? new Date(d.getTime()) : h.toDate(d);
+      if (!dt) return null;
+      dt.setDate(dt.getDate() + 1);
+      return dt;
+    },
+    timestamp(d = new Date()) {
+      return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    },
+    // RFC 5545 §3.1: Zeilen >75 Oktette falten (CRLF + Space-Prefix für Folge)
+    fold(line) {
+      if (line.length <= 75) return line;
+      const chunks = [];
+      let i = 0, first = true;
+      while (i < line.length) {
+        const len = first ? 75 : 74;
+        chunks.push((first ? "" : " ") + line.slice(i, i + len));
+        i += len;
+        first = false;
+      }
+      return chunks.join("\r\n");
+    },
+    slugify(s) {
+      return String(s || "")
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40);
+    },
+    // Baut ein VEVENT aus einem enriched Einsatz
+    buildEvent(e) {
+      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+      const firmaName = proj?.firmaName || "";
+      const projektNr = proj?.projektNr || "";
+      const projektName = e.projektTitle || "";
+
+      const katLower = (e.kategorie || "").toLowerCase();
+      let katSuffix = "";
+      if (katLower.includes("halbtag"))      katSuffix = " | Halbtag";
+      else if (katLower.includes("stück"))   katSuffix = " | Stück";
+      else if (katLower.includes("stunde"))  katSuffix = " | Stunde";
+      // "Einsatz (Tag)" → kein Suffix (Default-Fall)
+      // "Pauschale" wird in build() rausgefiltert, kommt also nie hier an
+
+      const isAbgesagt = ["abgesagt", "abgesagt-chf"].includes(e.einsatzStatus);
+
+      // SUMMARY: [Firma] | [#Projektnummer] (| Halbtag/Stück/Stunde)
+      const summary = `${firmaName || "—"} | #${projektNr || "—"}${katSuffix}`;
+
+      // DESCRIPTION (Variante B): "Projekt, Beschreibung" + optional "Bemerkung: ..."
+      const projAndDesc = [projektName, e.title].filter(Boolean).join(", ");
+      const descLines = [];
+      if (projAndDesc) descLines.push(projAndDesc);
+      if (e.bemerkungen && e.bemerkungen.trim()) {
+        descLines.push(`Bemerkung: ${e.bemerkungen.trim()}`);
+      }
+      const description = descLines.join("\n");
+
+      const lines = [
+        "BEGIN:VEVENT",
+        `UID:einsatz-${e.id}@tm.bbz.ch`,
+        `DTSTAMP:${ics.timestamp()}`,
+        `DTSTART;VALUE=DATE:${ics.date(e.datum)}`,
+        `DTEND;VALUE=DATE:${ics.date(ics.nextDay(e.datum))}`,
+        `SUMMARY:${ics.escape(summary)}`,
+        e.ort ? `LOCATION:${ics.escape(e.ort)}` : null,
+        description ? `DESCRIPTION:${ics.escape(description)}` : null,
+        "TRANSP:OPAQUE",
+        `STATUS:${isAbgesagt ? "CANCELLED" : "CONFIRMED"}`,
+        "END:VEVENT"
+      ].filter(Boolean);
+
+      return lines.map(ics.fold).join("\r\n");
+    },
+    // Baut komplette VCALENDAR aus Liste enriched Einsätze
+    build(einsaetze, opts = {}) {
+      const { skipCancelled = true } = opts;
+      const items = (einsaetze || []).filter(e => {
+        if (!e || !e.datum) return false;
+        if (skipCancelled && ["abgesagt","abgesagt-chf"].includes(e.einsatzStatus)) return false;
+        // Pauschale → kein Termin, raus
+        if ((e.kategorie || "").toLowerCase().includes("pauschal")) return false;
+        return true;
+      });
+      const events = items.map(ics.buildEvent);
+      return [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//BBZ//TM-App//DE",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        ...events,
+        "END:VCALENDAR"
+      ].join("\r\n");
+    },
+    // Triggert Browser-Download
+    download(icsText, filename) {
+      const blob = new Blob([icsText], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  };
+
   const ctrl = {
 
     async login() {
@@ -3702,6 +3833,69 @@
       }
     },
 
+    // ── ICS-Export ──────────────────────────────────────────────────────────
+    // Single: ein Einsatz → Outlook/Kalender
+    exportEinsatzIcs(id) {
+      const e = state.enriched.einsaetze.find(x => x.id === id);
+      if (!e) { ui.setMsg("Einsatz nicht gefunden.", "error"); return; }
+      // Pauschale ist kein Termin → klar abweisen
+      if ((e.kategorie || "").toLowerCase().includes("pauschal")) {
+        ui.setMsg("Pauschal-Einsätze werden nicht in den Kalender exportiert (kein Termin).", "error");
+        return;
+      }
+      // Single: abgesagte trotzdem exportieren (User-Entscheid pro Item)
+      const text = ics.build([e], { skipCancelled: false });
+
+      const proj = state.enriched.projekte.find(p => p.id === e.projektLookupId);
+      const datumSlug = (ics.date(e.datum) || "0000").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+      const firmaSlug = ics.slugify(proj?.firmaName) || "einsatz";
+      const filename = `einsatz-${datumSlug}-${firmaSlug}.ics`;
+      ics.download(text, filename);
+      ui.setMsg("ICS-Datei heruntergeladen.", "success");
+    },
+
+    // Bulk: mehrere Einsätze, Filter analog exportXlsx (Wiederverwendung)
+    exportEinsaetzeIcs(opts = {}) {
+      const { jahre = [], firma = "", person = "", projekt = "",
+              status = "", abrechnung = "" } = opts;
+
+      const inYear = (datum, jahrArr) => {
+        if (!jahrArr || !jahrArr.length) return true;
+        const d = h.toDate(datum);
+        return d ? jahrArr.includes(String(d.getFullYear())) : false;
+      };
+
+      let rows = state.enriched.einsaetze;
+      if (jahre.length)  rows = rows.filter(e => inYear(e.datum, jahre));
+      if (firma)         rows = rows.filter(e => {
+        const p = state.enriched.projekte.find(x => x.id === e.projektLookupId);
+        return p?.firmaName === firma;
+      });
+      if (projekt)       rows = rows.filter(e => String(e.projektLookupId) === String(projekt) || e.projektTitle === projekt);
+      if (person)        rows = rows.filter(e => e.personName === person || e.coPersonName === person);
+      if (status)        rows = rows.filter(e => e.einsatzStatus === status);
+      if (abrechnung)    rows = rows.filter(e => e.abrechnung === abrechnung);
+
+      // Bulk: abgesagte ausfiltern
+      const text = ics.build(rows, { skipCancelled: true });
+
+      const today = ics.date(new Date());
+      const ctx = [
+        jahre.length === 1 ? jahre[0] : (jahre.length ? `${jahre.length}j` : ""),
+        ics.slugify(firma)
+      ].filter(Boolean).join("-");
+      const filename = ctx
+        ? `einsaetze-tm-${ctx}-${today}.ics`
+        : `einsaetze-tm-${today}.ics`;
+
+      // VEVENT-Anzahl ermitteln (durch CRLF-getrenntes Vorkommen von BEGIN:VEVENT)
+      const eventCount = (text.match(/BEGIN:VEVENT/g) || []).length;
+      if (eventCount === 0) { ui.setMsg("Keine Einsätze für ICS-Export gefunden.", "error"); return; }
+
+      ics.download(text, filename);
+      ui.setMsg(`ICS-Datei mit ${eventCount} Einsätzen heruntergeladen.`, "success");
+    },
+
     // Export-Dropdown rendern und toggeln
     toggleExportDropdown() {
       let dd = document.getElementById("tm-export-dd");
@@ -3726,9 +3920,9 @@
       dd.id = "tm-export-dd";
       dd.innerHTML = `
         <div class="tm-xdd-inner">
-          <div class="tm-xdd-title">Excel-Export</div>
+          <div class="tm-xdd-title">Export</div>
 
-          <div class="tm-xdd-sec">Inhalt</div>
+          <div class="tm-xdd-sec">Excel-Inhalt</div>
           <label class="tm-xdd-cb"><input type="checkbox" id="xsh-projekte" checked> Projekte</label>
           <label class="tm-xdd-cb"><input type="checkbox" id="xsh-einsaetze" checked> Einsätze</label>
           <label class="tm-xdd-cb"><input type="checkbox" id="xsh-konzeption" checked> Konzeption</label>
@@ -3795,7 +3989,23 @@
               ].filter(Boolean)
             });
             document.getElementById('tm-export-dd')?.remove();
-          ">↓ Herunterladen</button>
+          ">↓ Excel (.xlsx)</button>
+
+          <div class="tm-xdd-sec" style="margin-top:12px">Outlook-Kalender</div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:6px;line-height:1.4">
+            Exportiert Einsätze als .ics-Datei (Filter Jahr/Firma/Person/Status/Abrechnung respektiert; abgesagte Einsätze werden ausgeschlossen).
+          </div>
+          <button class="tm-btn tm-xdd-go" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b" onclick="
+            const jahre=[...document.getElementById('x-jahr').selectedOptions].map(o=>o.value);
+            ctrl.exportEinsaetzeIcs({
+              jahre,
+              firma: document.getElementById('x-firma').value,
+              person: document.getElementById('x-person').value,
+              status: document.getElementById('x-status').value,
+              abrechnung: document.getElementById('x-abrechnung').value
+            });
+            document.getElementById('tm-export-dd')?.remove();
+          ">📅 Outlook (.ics)</button>
         </div>
       `;
 
@@ -4413,8 +4623,9 @@
         }</div></div>
         <div class="ef-bs-sec"><div class="ef-bs-lbl">Wegspesen</div><div class="ef-bs-val" style="color:var(--tm-text-muted)">${e.spesenAnzeige?"CHF "+h.chf(e.spesenAnzeige):"CHF 0.00 (keine Verrechnung)"}</div></div>
         <div class="ef-bs-sec"><div class="ef-bs-lbl">Abrechnung</div><div class="ef-bs-val">${h.abrBadge(e.abrechnung)}</div></div>
-        <div style="padding:14px 16px 20px">
-          <button class="ef-bs-edit" onclick="ctrl.closeBs();ctrl.openEinsatzForm(${e.id})">Bearbeiten</button>
+        <div style="padding:14px 16px 20px;display:flex;gap:8px">
+          <button class="ef-bs-edit" style="flex:1" onclick="ctrl.closeBs();ctrl.openEinsatzForm(${e.id})">Bearbeiten</button>
+          <button class="ef-bs-edit" style="flex:0 0 auto;background:#fff;color:var(--tm-blue);border:1px solid var(--tm-blue)" onclick="ctrl.exportEinsatzIcs(${e.id})" title=".ics für Outlook">📅</button>
         </div>`;
       overlay.classList.add("open");
       document.body.style.overflow = "hidden";
@@ -5370,6 +5581,7 @@
             <div class="ef-ft-secondary">
               ${id ? `
                 <button type="button" class="tm-btn tm-btn-sm" data-action="copy-einsatz" data-id="${id}" title="Duplizieren" style="margin-right:4px">⧉ Duplizieren</button>
+                <button type="button" class="tm-btn tm-btn-sm" data-action="export-einsatz-ics" data-id="${id}" title="Als .ics-Datei für Outlook" style="margin-right:4px">📅 .ics</button>
                 <button type="button" class="tm-btn tm-btn-sm" data-action="delete-einsatz" data-id="${id}" title="Löschen" style="color:var(--tm-red)">🗑 Löschen</button>
               ` : ""}
             </div>
